@@ -47,8 +47,8 @@ const Site = {
       r: 'Por Pix. Dentro do sistema você encontra a chave, o QR Code e o código copia e cola já com o '
        + 'valor do plano escolhido. Depois de pagar, clique em “Já fiz o Pix” para nos avisar.' },
     { p: 'Quantas pessoas podem usar?',
-      r: 'A assinatura já inclui 5 usuários. Se precisar de mais, dá para contratar pacotes de mais 5 '
-       + 'usuários com 65% de desconto sobre o valor do plano, pagos por Pix como a assinatura.' },
+      r: 'A assinatura já inclui {U} usuários por empresa. Se precisar de mais, fale com a gente: '
+       + 'o limite é ampliado depois da confirmação do pagamento, por Pix como a assinatura.' },
     { p: 'Existe cobrança automática ou fidelidade?',
       r: 'Não. O pagamento é único, por Pix, e vale pelo prazo do plano. Ao final do período você decide '
        + 'se renova, sem qualquer cobrança automática no cartão.' },
@@ -103,10 +103,13 @@ const Site = {
       .map((f) => `
         <details class="faq-item">
           <summary>${UI.escapar(f.p)}</summary>
-          <p>${UI.escapar(f.r)}</p>
+          <p>${UI.escapar(f.r.replace('{U}', Site.info.usuarios_incluidos || 3))}</p>
         </details>`)
       .join('');
 
+    document.querySelectorAll('.js-usuarios-incluidos').forEach((el) => {
+      el.textContent = Site.info.usuarios_incluidos || 3;
+    });
     Site.desenharPlanos();
   },
 
@@ -127,7 +130,7 @@ const Site = {
             <li>Contas a pagar e a receber sem limite</li>
             <li>Caixa, bancos e transferências</li>
             <li>DRE, balancete e razão contábil</li>
-            <li>5 usuários inclusos e multiempresa</li>
+            <li>${Site.info.usuarios_incluidos || 3} usuários inclusos por empresa</li>
           </ul>
           <button class="btn ${p.destaque ? 'btn-primario' : ''} btn-bloco" data-plano="${p.codigo}">
             Assinar ${UI.escapar(p.nome.replace('Plano ', '').toLowerCase())}

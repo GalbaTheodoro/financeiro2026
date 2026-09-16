@@ -48,6 +48,11 @@ class Usuario(Base):
     documento = Column(String(20))
     empresa_id = Column(Integer, index=True)  # empresa principal (sem FK: evita ciclo com empresas.dono_id)
     ativo = Column(Boolean, nullable=False, default=True)
+    # último dia em que o usuário pode entrar (definido pelo administrador do site);
+    # vazio = sem data limite
+    acesso_ate = Column(Date)
+    # bloqueado pelo administrador do site: o admin da empresa não consegue reativar
+    bloqueado_admin = Column(Boolean, nullable=False, default=False)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
@@ -258,7 +263,7 @@ class Assinatura(Base):
     empresa_id = Column(Integer, index=True)
     plano = Column(String(15), nullable=False, default="SEMESTRAL")  # SEMESTRAL | ANUAL
     valor = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
-    # TESTE | AGUARDANDO | ATIVA | EXPIRADA | CANCELADA
+    # TESTE | AGUARDANDO | ATIVA | EXPIRADA | CANCELADA | BLOQUEADA
     status = Column(String(15), nullable=False, default="TESTE", index=True)
     teste_inicio = Column(DateTime, default=datetime.utcnow)
     teste_fim = Column(DateTime)
@@ -267,6 +272,9 @@ class Assinatura(Base):
     # pacotes de usuários extras (cada pacote libera N usuários além dos inclusos)
     pacotes_usuarios = Column(Integer, nullable=False, default=0)
     pacotes_solicitados = Column(Integer, nullable=False, default=0)
+    # limite de usuários definido à mão pelo administrador do site (vazio = padrão
+    # do plano: usuários inclusos + pacotes)
+    limite_usuarios = Column(Integer)
     pagamento_informado_em = Column(DateTime)
     pagamento_observacao = Column(String(300))
     pix_identificador = Column(String(40))

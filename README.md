@@ -67,6 +67,12 @@ vai com um carimbo de versão), então o normal é a atualização aparecer sozi
 
 ## 1.1. Primeiros passos como dono do sistema
 
+**Quem é o administrador do site:** a conta com o e-mail **galbatheo@gmail.com** (ou o
+e-mail colocado na variável `FIN_MASTER_EMAIL`). Basta ter cadastro com esse e-mail — no
+próximo login ela vira administradora e ganha o menu **Administração**. Nesse momento o
+login de fábrica `admin@financeiro.local` é desligado se ainda estiver com a senha
+`admin123` (que está escrita neste manual e não pode ficar valendo num site na internet).
+
 1. Entre como administrador e vá em **Administração → Config. do site**.
 2. Preencha a **chave Pix**, o **titular** e a **cidade** — é com esses dados que o
    sistema monta o QR Code e o código copia e cola de cada assinante.
@@ -75,6 +81,16 @@ vai com um carimbo de versão), então o normal é a atualização aparecer sozi
 4. Acompanhe os cadastros em **Administração → Assinaturas**: quem está em teste, quem
    já avisou que pagou e quem está ativo. Ao receber o Pix, clique em **Confirmar Pix**
    para liberar a conta pelo prazo do plano.
+5. Em **Administração → Empresas e acessos** fica a lista de todas as empresas
+   cadastradas, com CNPJ, responsável, situação, até quando está liberada e usuários em
+   uso / limite. Ali você:
+   - **Liberar até…** — escolhe a data (atalhos +30 dias, +6 meses, +1 ano). No dia
+     seguinte a empresa bloqueia sozinha;
+   - **Bloquear** — corta o acesso na hora (os dados ficam guardados);
+   - **Limite** — muda quantos usuários a empresa pode ter (padrão: 3). Em branco volta
+     ao padrão;
+   - **Usuários** — para cada pessoa da empresa: liberado/bloqueado e **acesso até**
+     uma data. Quem o administrador do site bloqueia, o admin da empresa não reativa.
 
 Enquanto a chave Pix não estiver preenchida, o assinante vê um aviso pedindo para falar
 com o suporte, em vez de dados de pagamento inventados.
@@ -133,11 +149,14 @@ para usar.
 
 ### Usuários incluídos e pacotes extras
 
-A assinatura já inclui **5 usuários**. Precisando de mais, em **Minha Assinatura** você
-contrata pacotes de **+5 usuários** por **65% de desconto** sobre o valor do plano — no
-plano semestral de R$ 350,00, cada pacote sai por **R$ 122,50** (R$ 24,50 por usuário).
-O pedido gera um Pix próprio; o limite sobe quando o recebimento é confirmado. Ao tentar
-cadastrar o sexto usuário sem pacote, o sistema avisa o preço e não deixa passar.
+Cada empresa assinante tem **3 usuários** inclusos (configurável em Config. do site →
+`usuarios_incluidos`; bancos antigos que estavam no padrão 5 passam para 3 uma vez só).
+Ao tentar cadastrar o quarto usuário, o sistema avisa e não deixa passar.
+
+Para aumentar: o administrador do site muda o **Limite** da empresa em **Empresas e
+acessos** depois de receber o pagamento. Continua existindo o caminho automático dos
+pacotes: em **Minha Assinatura** o assinante pede pacotes de **+5 usuários** com **65% de
+desconto** sobre o plano, paga pelo Pix próprio do pedido e o limite sobe na confirmação.
 
 ### Contratos de intermediação (corretagem)
 
@@ -353,6 +372,7 @@ sistema-financeiro/
 ├── iniciar.sh / iniciar.bat     Scripts de inicialização (banco no próprio PC)
 ├── iniciar-nuvem.bat            Inicia o sistema no PC usando o banco da nuvem
 ├── app.py / vercel.json         Publicação no Vercel (porta de entrada e configuração)
+├── publicar.bat                 Publica a versão nova (GitHub → Vercel) com dois cliques
 ├── .python-version / .vercelignore  Versão do Python e o que não sobe para o Vercel
 ├── render.yaml                  Receita da publicação no Render (caminho alternativo)
 ├── requirements.txt
@@ -372,6 +392,7 @@ sistema-financeiro/
 │   ├── consulta_cep.py          Consulta de CEP nos Correios
 │   ├── externo.py               Chamadas HTTP às APIs externas
 │   ├── migracao.py              Atualização automática do banco
+│   ├── diagnostico.py           Página que explica por que o sistema não ligou
 │   ├── seed.py                  Dados iniciais
 │   └── routers/
 │       ├── publico.py           Site: informações, planos e auto-cadastro
@@ -432,6 +453,8 @@ python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/cap
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos
 python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões e contrato por etapas
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
+# por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:
+python testes/teste_empresas_acesso.py  # administrador, liberar/bloquear por data e limites
 ```
 
 Com o banco na nuvem (o servidor precisa estar apontando para o mesmo endereço):
@@ -524,6 +547,16 @@ O que o código faz para funcionar bem nessa dupla:
 - A integração oficial do Neon no Marketplace do Vercel cria a variável
   `POSTGRES_URL` sozinha — o sistema também aceita esse nome.
 - Continua funcionando com Supabase (pooler porta 6543), se um dia preferir.
+
+**Publicar uma versão nova:** dois cliques em **`publicar.bat`** (na pasta do projeto).
+Ele confere se banco, senha e `.venv` estão fora do envio, confere se o código Python
+abre, registra as alterações ("Publicação dd/mm/aaaa hh:mm") e manda para o GitHub — o
+Vercel coloca no ar sozinho em 1 a 3 minutos. Precisa do **Git for Windows** instalado
+uma vez (https://git-scm.com/download/win); no primeiro envio abre o login do GitHub.
+
+**Se o site não abrir:** em vez do "500 FUNCTION_INVOCATION_FAILED", o AgroDock mostra
+uma página dizendo o que falhou (variável faltando, senha do banco errada, endereço
+errado…) e o que fazer — sem mostrar a senha. Depois de corrigir no Vercel, **Redeploy**.
 
 Depois de no ar:
 

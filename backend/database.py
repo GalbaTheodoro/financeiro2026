@@ -31,7 +31,7 @@ if USANDO_POSTGRES:
         max_overflow=3 if EM_VERCEL else 5,
         pool_timeout=20,
         connect_args={
-            "connect_timeout": 15,
+            "connect_timeout": 10,
             "prepare_threshold": None,       # obrigatório no pooler (porta 6543)
             "application_name": "agrodock",
         },

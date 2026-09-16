@@ -21,6 +21,9 @@ def criar_dados_iniciais(db: Session) -> str | None:
 
     garantir_configuracoes(db)
 
+    from .assinaturas import garantir_master
+    garantir_master(db)
+
     if db.query(Usuario).count():
         # garante que exista ao menos um administrador do sistema (perfil MASTER)
         if not db.query(Usuario).filter(Usuario.perfil == "MASTER").count():

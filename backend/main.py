@@ -1,6 +1,7 @@
 """AgroDock — Contratos e Gestão (aplicação FastAPI)."""
 import logging
 import re
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,6 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import EM_VERCEL, FRONTEND_DIR
+from .diagnostico import pagina_html, resumo_erro
 from .migracao import preparar_banco
 from .routers import (
     assinatura,
@@ -26,14 +28,31 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(me
 log = logging.getLogger("financeiro")
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    # cria/atualiza tabelas e dados iniciais (no Supabase, só quando o código muda)
-    modo = preparar_banco()
+# Se o banco não abrir na subida (endereço errado, banco suspenso...), o sistema
+# continua de pé mostrando a causa, e tenta de novo a cada 15 segundos.
+_BANCO = {"erro": None, "ultima_tentativa": 0.0}
+
+
+def _tentar_preparar_banco() -> bool:
+    _BANCO["ultima_tentativa"] = time.monotonic()
+    try:
+        modo = preparar_banco()
+    except Exception as erro:  # noqa: BLE001 — qualquer falha vira tela de diagnóstico
+        _BANCO["erro"] = resumo_erro(erro)
+        log.exception("Não foi possível preparar o banco")
+        return False
+    _BANCO["erro"] = None
     if EM_VERCEL:
         log.info("AgroDock pronto no Vercel (conferência do banco: %s)", modo)
     else:
         log.info("AgroDock pronto — abra http://localhost:8000")
+    return True
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # cria/atualiza tabelas e dados iniciais (no banco da nuvem, só quando o código muda)
+    _tentar_preparar_banco()
     yield
 
 
@@ -51,6 +70,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def banco_indisponivel(request: Request, chamar):
+    if _BANCO["erro"] and request.url.path != "/api/health":
+        if time.monotonic() - _BANCO["ultima_tentativa"] > 15:
+            _tentar_preparar_banco()
+        if _BANCO["erro"]:
+            if request.url.path.startswith("/api/"):
+                return JSONResponse(status_code=503, content={
+                    "detail": f"O sistema não conseguiu abrir o banco de dados. {_BANCO['erro']}"})
+            return HTMLResponse(pagina_html(_BANCO["erro"]), status_code=503)
+    return await chamar(request)
+
 
 app.include_router(publico.router)
 app.include_router(auth.router)
@@ -73,7 +105,11 @@ async def erro_generico(request: Request, exc: Exception):  # pragma: no cover
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "versao": versao_frontend()}
+    return {
+        "status": "ok" if not _BANCO["erro"] else "erro_banco",
+        "versao": versao_frontend(),
+        "banco": "ok" if not _BANCO["erro"] else _BANCO["erro"],
+    }
 
 
 # --------------------------------------------------------------------------- #

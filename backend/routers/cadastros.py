@@ -143,6 +143,9 @@ def atualizar_usuario(
         raise HTTPException(403, "Este usuário não pertence à sua conta")
     if dados.perfil == "MASTER" and atual.perfil != "MASTER":
         raise HTTPException(403, "Somente o administrador do sistema define o perfil MASTER")
+    if usuario.bloqueado_admin and dados.ativo and atual.perfil != "MASTER":
+        raise HTTPException(403, "Este usuário foi bloqueado pelo administrador do site. "
+                                 "Fale com o suporte para liberar.")
     if dados.ativo and not usuario.ativo:
         checar_limite_usuarios(db, atual)
     usuario.nome = dados.nome

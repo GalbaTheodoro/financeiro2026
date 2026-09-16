@@ -10,6 +10,8 @@ from .utils import moeda_br
 
 # 402 = conta sem assinatura válida (o front redireciona para a tela de pagamento)
 HTTP_ASSINATURA = status.HTTP_402_PAYMENT_REQUIRED
+# 423 = usuário bloqueado pelo administrador ou com a data de acesso vencida
+HTTP_USUARIO_BLOQUEADO = 423
 
 
 def usuario_atual(
@@ -22,8 +24,14 @@ def usuario_atual(
     if not payload:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sessão expirada, faça login novamente")
     usuario = db.get(Usuario, payload["sub"])
-    if not usuario or not usuario.ativo:
+    if not usuario:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Usuário inválido ou inativo")
+    if not usuario.ativo or usuario.bloqueado_admin:
+        raise HTTPException(HTTP_USUARIO_BLOQUEADO,
+                            "Seu usuário está bloqueado. Fale com o administrador.")
+    vencido = regras.acesso_do_usuario_vencido(usuario)
+    if vencido:
+        raise HTTPException(HTTP_USUARIO_BLOQUEADO, vencido)
     return usuario
 
 

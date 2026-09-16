@@ -341,3 +341,26 @@ class TransferenciaIn(BaseModel):
     data: date | None = None
     valor: float
     historico: str | None = None
+
+
+# --------------------------------------------------------------------------- #
+# Administração do site: acesso das empresas e dos usuários
+# --------------------------------------------------------------------------- #
+class AcessoEmpresaIn(BaseModel):
+    """LIBERAR = acesso até a data `ate` (depois disso bloqueia sozinho);
+    BLOQUEAR = bloqueia agora."""
+
+    acao: str = "LIBERAR"
+    ate: date | None = None
+    observacao: str | None = None
+
+
+class LimiteUsuariosIn(BaseModel):
+    """Número de usuários da empresa. Vazio/0 volta ao padrão do plano."""
+
+    limite: int | None = None
+
+
+class AcessoUsuarioIn(BaseModel):
+    ativo: bool = True
+    acesso_ate: date | None = None

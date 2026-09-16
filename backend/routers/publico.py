@@ -31,6 +31,7 @@ def info(db: Session = Depends(get_db)):
         "contato_whatsapp": conf.get("contato_whatsapp"),
         "contato_email": conf.get("contato_email"),
         "horas_teste": regras.horas_teste(db),
+        "usuarios_incluidos": regras.usuarios_incluidos(db),
         "planos": regras.planos(db),
         "pix_configurado": bool(conf.get("pix_chave")),
     }

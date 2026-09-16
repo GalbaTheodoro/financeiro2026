@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from .. import assinaturas as regras
 from ..database import get_db
 from ..deps import situacao_da_conta, usuario_atual
 from ..models import Usuario
@@ -17,8 +18,13 @@ def login(dados: LoginIn, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.email == dados.email.strip().lower()).first()
     if not usuario or not verificar_senha(dados.senha, usuario.senha_hash):
         raise HTTPException(401, "E-mail ou senha inválidos")
-    if not usuario.ativo:
-        raise HTTPException(403, "Usuário inativo")
+    if regras.garantir_master(db, usuario):  # o dono do site vira administrador
+        db.commit()
+    if not usuario.ativo or usuario.bloqueado_admin:
+        raise HTTPException(423, "Seu usuário está bloqueado. Fale com o administrador.")
+    vencido = regras.acesso_do_usuario_vencido(usuario)
+    if vencido:
+        raise HTTPException(423, vencido)
     return {
         "token": gerar_token(usuario.id, usuario.email),
         "usuario": serializar(usuario, exclude={"senha_hash"}),

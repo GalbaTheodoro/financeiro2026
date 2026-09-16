@@ -6,7 +6,7 @@ Cobre:
   * numeração automática do contrato;
   * contrato preenchido pelos cadastros (produto, modalidade, unidade, representante)
     com o cálculo do peso total;
-  * limite de 5 usuários no plano e a venda de pacotes de +5 com 65% de desconto.
+  * limite de 3 usuários por empresa e a venda de pacotes de +5 com 65% de desconto.
 
 Uso:  python testes/teste_cadastros.py   (com o servidor no ar)
 """
@@ -166,7 +166,7 @@ checar("unidade de outra conta é recusada", alheio.get("_status") == 400,
 print("\n=== 5. Limite de usuários do plano ===")
 minha = api("GET", "/api/assinatura/minha", token=t)
 u = minha["usuarios"]
-checar("5 usuários inclusos no plano", u["incluidos"] == 5, str(u["incluidos"]))
+checar("3 usuários inclusos por empresa", u["incluidos"] == 3, str(u["incluidos"]))
 checar("pacotes vendidos de 5 em 5", u["por_pacote"] == 5, str(u["por_pacote"]))
 checar("desconto de 65% no pacote", abs(u["desconto_percentual"] - 65) < 0.01,
        f"{u['desconto_percentual']}%")
@@ -175,21 +175,21 @@ checar("valor do pacote = plano - 65%", abs(u["valor_pacote"] - esperado) < 0.01
        f"{brl(u['valor_pacote'])} sobre {brl(u['plano_valor'])}")
 checar("já conta o dono da conta", u["usados"] == 1, str(u["usados"]))
 
-for i in range(2, 6):
+for i in range(2, 4):
     api("POST", "/api/usuarios", {
         "nome": f"Operador {i}", "email": f"op{i}.{sufixo}@teste.com", "senha": "123456",
         "perfil": "OPERADOR", "empresa_id": eid,
     }, t)
 minha = api("GET", "/api/assinatura/minha", token=t)
-checar("5 usuários cadastrados sem custo extra", minha["usuarios"]["usados"] == 5,
+checar("3 usuários cadastrados sem custo extra", minha["usuarios"]["usados"] == 3,
        str(minha["usuarios"]["usados"]))
 checar("nenhuma vaga disponível", minha["usuarios"]["disponiveis"] == 0)
 
 sexto = api("POST", "/api/usuarios", {
-    "nome": "Operador 6", "email": f"op6.{sufixo}@teste.com", "senha": "123456",
+    "nome": "Operador 4", "email": f"op4.{sufixo}@teste.com", "senha": "123456",
     "perfil": "OPERADOR", "empresa_id": eid,
 }, t, esperar_erro=True)
-checar("sexto usuário é barrado", sexto.get("_status") == 400)
+checar("quarto usuário é barrado", sexto.get("_status") == 400)
 checar("mensagem indica o preço do pacote",
        brl(u["valor_pacote"]) in str(sexto.get("_detalhe", "")),
        str(sexto.get("_detalhe", ""))[:90])
@@ -202,7 +202,7 @@ checar("Pix do pacote gerado com o valor do pacote",
        abs(minha["pagamento_pacotes"]["valor_cobranca"] - u["valor_pacote"]) < 0.01,
        brl(minha["pagamento_pacotes"]["valor_cobranca"]))
 checar("limite ainda não subiu antes da confirmação",
-       minha["usuarios"]["limite"] == 5, str(minha["usuarios"]["limite"]))
+       minha["usuarios"]["limite"] == 3, str(minha["usuarios"]["limite"]))
 
 master = api("POST", "/api/auth/login",
              {"email": "admin@financeiro.local", "senha": "admin123"})["token"]
@@ -212,15 +212,15 @@ checar("administrador vê o pedido pendente", linha["pacotes_solicitados"] == 1)
 api("POST", f"/api/admin/assinaturas/{linha['id']}/pacotes", {"quantidade": 1}, master)
 
 minha = api("GET", "/api/assinatura/minha", token=t)
-checar("limite subiu para 10 após a confirmação", minha["usuarios"]["limite"] == 10,
+checar("limite subiu para 8 após a confirmação", minha["usuarios"]["limite"] == 8,
        str(minha["usuarios"]["limite"]))
 checar("pedido pendente zerado", minha["usuarios"]["pacotes_solicitados"] == 0)
 
 sexto = api("POST", "/api/usuarios", {
-    "nome": "Operador 6", "email": f"op6.{sufixo}@teste.com", "senha": "123456",
+    "nome": "Operador 4", "email": f"op4.{sufixo}@teste.com", "senha": "123456",
     "perfil": "OPERADOR", "empresa_id": eid,
 }, t)
-checar("sexto usuário criado depois do pacote", sexto["id"] > 0)
+checar("quarto usuário criado depois do pacote", sexto["id"] > 0)
 
 print("\n" + "=" * 60)
 if falhas:

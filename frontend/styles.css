@@ -179,10 +179,12 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 
 /* -------------------------------------------------------------------- modal */
 .modal-fundo{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;
-  justify-content:center;padding:40px 16px;z-index:100;overflow-y:auto}
+  justify-content:center;padding:40px 16px;z-index:130;overflow-y:auto}
 .modal{background:#fff;border-radius:14px;width:100%;max-width:760px;box-shadow:0 24px 60px rgba(2,6,23,.35);
   display:flex;flex-direction:column;max-height:calc(100vh - 80px)}
 .modal.largo{max-width:1040px}
+.modal,.modal-corpo{min-width:0}
+.modal-corpo .tabela-wrap{max-width:100%}
 .modal header{padding:15px 20px;border-bottom:1px solid var(--borda);display:flex;
   align-items:center;justify-content:space-between}
 .modal header h3{font-size:16px}

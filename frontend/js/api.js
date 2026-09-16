@@ -18,7 +18,17 @@ async function requisicao(metodo, caminho, dados) {
     throw new Error('Sessão expirada. Faça login novamente.');
   }
   const texto = await resposta.text();
-  const corpo = texto ? JSON.parse(texto) : {};
+  let corpo = {};
+  try { corpo = texto ? JSON.parse(texto) : {}; } catch { corpo = { detail: texto.slice(0, 300) }; }
+  if (resposta.status === 423) {
+    // usuário bloqueado pelo administrador ou com a data de acesso vencida
+    const mensagem = corpo.detail || 'Seu acesso está bloqueado.';
+    if (Estado.token) {
+      Api.sair();
+      setTimeout(() => UI.erro(mensagem), 400);
+    }
+    throw new Error(mensagem);
+  }
   if (resposta.status === 402) {
     // conta sem assinatura válida: leva para a tela de pagamento
     const mensagem = corpo.detail || 'Assinatura inativa.';

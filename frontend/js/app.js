@@ -9,6 +9,7 @@ const App = {
     '/relatorios': { titulo: 'Relatórios', subtitulo: 'DRE, balancete e relatórios gerenciais', acao: () => Relatorios.tela() },
     '/cadastros': { titulo: 'Cadastros', subtitulo: 'Todos os cadastros do sistema em um só lugar', acao: (aba) => Cadastros.hub(aba) },
     '/assinatura': { titulo: 'Minha Assinatura', subtitulo: 'Plano, pagamento por Pix e situação da conta', acao: () => Assinaturas.minha() },
+    '/admin-empresas': { titulo: 'Empresas e acessos', subtitulo: 'Liberar e bloquear por data, limite de usuários por empresa', acao: () => Assinaturas.empresas(), master: true },
     '/admin-assinaturas': { titulo: 'Assinaturas', subtitulo: 'Contas cadastradas e confirmação de pagamentos', acao: () => Assinaturas.admin(), master: true },
     '/configuracoes': { titulo: 'Configurações do site', subtitulo: 'Identidade, contatos, Pix e planos', acao: () => Assinaturas.configuracoes(), master: true },
   },
@@ -29,6 +30,7 @@ const App = {
     if (Api.ehMaster()) {
       itens.push(
         { grupo: 'Administração' },
+        { rota: '/admin-empresas', icone: '⚿', rotulo: 'Empresas e acessos' },
         { rota: '/admin-assinaturas', icone: '★', rotulo: 'Assinaturas' },
         { rota: '/configuracoes', icone: '⚑', rotulo: 'Config. do site' },
       );
@@ -75,7 +77,7 @@ const App = {
     App._rotaAtual = rota;
     App.fecharMenu();
     try {
-      if (!Api.ehMaster() || caminho !== '/admin-assinaturas') await Api.carregarCache();
+      if (!Api.ehMaster() || !caminho.startsWith('/admin-')) await Api.carregarCache();
       await rota.acao(aba);
     } catch (e) {
       document.getElementById('pagina').innerHTML =

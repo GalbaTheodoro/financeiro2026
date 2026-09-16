@@ -351,7 +351,7 @@ const Assinaturas = {
 
     const rotulos = {
       TESTE: 'Em teste', AGUARDANDO: 'Aguardando Pix', ATIVA: 'Ativa',
-      EXPIRADA: 'Expirada', CANCELADA: 'Cancelada',
+      EXPIRADA: 'Expirada', CANCELADA: 'Cancelada', BLOQUEADA: 'Bloqueada',
     };
 
     alvo.innerHTML = `
@@ -485,6 +485,7 @@ const Assinaturas = {
           { valor: 'ATIVA', rotulo: 'Ativa' },
           { valor: 'EXPIRADA', rotulo: 'Expirada' },
           { valor: 'CANCELADA', rotulo: 'Cancelada' },
+          { valor: 'BLOQUEADA', rotulo: 'Bloqueada' },
         ], assinatura.status, { vazio: false }))}
         ${UI.campo('Plano', UI.select('plano', [
           { valor: 'SEMESTRAL', rotulo: 'Semestral' }, { valor: 'ANUAL', rotulo: 'Anual' },
@@ -520,6 +521,211 @@ const Assinaturas = {
           },
         },
       ],
+    });
+  },
+
+  /* ------------------------------------------- empresas e acessos (MASTER) */
+  async empresas() {
+    const alvo = document.getElementById('pagina');
+    alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando empresas...</div></div>';
+    const dados = await Api.get('/api/admin/empresas');
+    const r = dados.resumo;
+    Assinaturas._empresas = dados.linhas;
+
+    const somarDias = (dias) => {
+      const d = new Date(); d.setDate(d.getDate() + dias);
+      return d.toISOString().slice(0, 10);
+    };
+    const diasAte = (iso) => {
+      if (!iso) return null;
+      const hoje = new Date(UI.hoje() + 'T00:00:00');
+      return Math.round((new Date(iso + 'T00:00:00') - hoje) / 86400000);
+    };
+    const situacao = (l) => {
+      if (l.status === 'BLOQUEADA') return '<span class="tag tag-vencido">Bloqueada</span>';
+      if (!l.liberado) return `<span class="tag tag-vencido">${UI.escapar(l.situacao_titulo || 'Sem acesso')}</span>`;
+      if (l.status === 'ATIVA') {
+        const d = diasAte(l.data_fim);
+        if (d !== null && d <= 15) return `<span class="tag tag-parcial">Liberada · vence em ${d} dia(s)</span>`;
+        return '<span class="tag tag-pago">Liberada</span>';
+      }
+      return `<span class="tag tag-aberto">${UI.escapar(l.situacao_titulo || l.status)}</span>`;
+    };
+
+    alvo.innerHTML = `
+      <div class="grade g4" style="margin-bottom:18px">
+        <div class="kpi destaque-azul"><div class="kpi-rotulo">Empresas cadastradas</div>
+          <div class="kpi-valor">${r.total}</div><div class="kpi-nota">${r.usuarios} usuário(s) ativos</div></div>
+        <div class="kpi destaque-verde"><div class="kpi-rotulo">Com acesso liberado</div>
+          <div class="kpi-valor">${r.liberadas}</div></div>
+        <div class="kpi destaque-ambar"><div class="kpi-rotulo">Vencem em até 15 dias</div>
+          <div class="kpi-valor">${r.vencem_15_dias}</div></div>
+        <div class="kpi destaque-vermelho"><div class="kpi-rotulo">Bloqueadas / sem acesso</div>
+          <div class="kpi-valor">${r.bloqueadas}</div></div>
+      </div>
+      <div class="cartao">
+        <div class="cartao-cabecalho">
+          <div><h3>Empresas</h3><div class="mini">Libere o acesso até uma data (depois dela a empresa bloqueia sozinha),
+            bloqueie na hora e ajuste quantos usuários cada empresa pode ter
+            (padrão: ${dados.usuarios_incluidos}).</div></div>
+          <input id="busca-empresa" placeholder="Buscar empresa, CNPJ ou e-mail" style="max-width:260px">
+        </div>
+        <div class="cartao-corpo sem-padding" id="lista-empresas"></div>
+      </div>`;
+
+    const desenhar = (filtro = '') => {
+      const f = filtro.trim().toLowerCase();
+      const linhas = dados.linhas.filter((l) => !f || [l.empresa_nome, l.cnpj, l.usuario_nome, l.usuario_email]
+        .concat(l.empresas.map((e) => e.nome)).join(' ').toLowerCase().includes(f));
+      alvo.querySelector('#lista-empresas').innerHTML = UI.tabela({
+        colunas: [
+          { titulo: 'Empresa', valor: (l) => `<div class="forte">${UI.escapar(l.empresa_nome)}</div>
+              <div class="mini">${UI.escapar(l.cnpj || 'sem CNPJ')}${l.empresas.length > 1 ? ` · +${l.empresas.length - 1} empresa(s)` : ''}</div>` },
+          { titulo: 'Responsável', valor: (l) => `${UI.escapar(l.usuario_nome)}
+              <div class="mini">${UI.escapar(l.usuario_email)}${l.usuario_telefone ? ` · ${UI.escapar(l.usuario_telefone)}` : ''}</div>` },
+          { titulo: 'Situação', valor: (l) => situacao(l) },
+          { titulo: 'Liberada até', valor: (l) => (l.status === 'ATIVA' && l.data_fim ? UI.data(l.data_fim)
+              : l.status === 'TESTE' && l.teste_fim ? `<span class="mini">teste até ${UI.data(l.teste_fim)}</span>` : '-') },
+          { titulo: 'Usuários', classe: 'centro', valor: (l) => `<span class="forte" ${l.usuarios_em_uso > l.limite_usuarios ? 'style="color:var(--vermelho)" title="Acima do limite: novos usuários ficam barrados"' : ''}>${l.usuarios_em_uso} / ${l.limite_usuarios}</span>
+              <div class="mini">${l.limite_personalizado ? 'limite definido por você' : 'padrão do plano'}</div>` },
+          { titulo: 'Cadastro', valor: (l) => UI.data(l.criado_em) },
+          { titulo: 'Ações', classe: 'centro', valor: (l) => {
+            const i = dados.linhas.indexOf(l);
+            return `<button class="btn btn-mini btn-verde" data-liberar="${i}">Liberar até…</button>
+              ${l.status !== 'BLOQUEADA' ? `<button class="btn btn-mini btn-perigo" data-bloquear="${i}">Bloquear</button>` : ''}
+              <button class="btn btn-mini" data-limite="${i}">Limite</button>
+              <button class="btn btn-mini" data-usuarios="${i}">Usuários (${l.usuarios.length})</button>`;
+          } },
+        ],
+        linhas,
+        vazio: f ? 'Nenhuma empresa encontrada para a busca.' : 'Nenhuma empresa cadastrada ainda.',
+      });
+      const ligar = (attr, fn) => alvo.querySelectorAll(`[data-${attr}]`).forEach((b) => {
+        b.onclick = () => fn(dados.linhas[Number(b.dataset[attr])]);
+      });
+      ligar('liberar', (l) => Assinaturas.liberarEmpresa(l, somarDias));
+      ligar('bloquear', (l) => Assinaturas.bloquearEmpresa(l));
+      ligar('limite', (l) => Assinaturas.limiteEmpresa(l));
+      ligar('usuarios', (l) => Assinaturas.usuariosEmpresa(l));
+    };
+    desenhar();
+    alvo.querySelector('#busca-empresa').oninput = (e) => desenhar(e.target.value);
+  },
+
+  liberarEmpresa(l, somarDias) {
+    const atual = l.status === 'ATIVA' && l.data_fim && l.data_fim >= UI.hoje() ? l.data_fim : '';
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <p style="margin-top:0">Liberar <b>${UI.escapar(l.empresa_nome)}</b> até o dia escolhido.
+        No dia seguinte o acesso bloqueia sozinho.</p>
+      <div class="linha-campos">
+        ${UI.campo('Liberado até *', `<input type="date" name="ate" id="liberar-ate" min="${UI.hoje()}" value="${atual || somarDias(30)}">`)}
+        ${UI.campo('Observação interna', `<input name="observacao" placeholder="ex.: Pix de 16/09 — semestral" value="${UI.escapar(l.observacao_admin || '')}">`)}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        ${[['+30 dias', 30], ['+6 meses', 182], ['+1 ano', 365]].map(([t, d]) =>
+          `<button type="button" class="btn btn-mini" data-dias="${d}">${t}</button>`).join('')}
+      </div>`;
+    corpo.querySelectorAll('[data-dias]').forEach((b) => {
+      b.onclick = () => { corpo.querySelector('#liberar-ate').value = somarDias(Number(b.dataset.dias)); };
+    });
+    UI.abrirModal({
+      titulo: 'Liberar acesso da empresa',
+      corpo,
+      botoes: [
+        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Liberar', classe: 'btn-verde', acao: async () => {
+          const d = UI.lerFormulario(corpo);
+          if (!d.ate) return UI.erro('Escolha até que dia o acesso fica liberado.');
+          try {
+            await Api.post(`/api/admin/empresas/${l.id}/acesso`, { acao: 'LIBERAR', ate: d.ate, observacao: d.observacao });
+            UI.fecharModal();
+            UI.sucesso(`Empresa liberada até ${UI.data(d.ate)}.`);
+            Assinaturas.empresas();
+          } catch (e) { UI.erro(e.message); }
+        } },
+      ],
+    });
+  },
+
+  async bloquearEmpresa(l) {
+    if (!(await UI.confirmar(`Bloquear agora o acesso de ${l.empresa_nome}? Todos os usuários dela `
+      + 'deixam de entrar até você liberar de novo. Os dados ficam guardados.', 'Bloquear'))) return;
+    try {
+      await Api.post(`/api/admin/empresas/${l.id}/acesso`, { acao: 'BLOQUEAR' });
+      UI.sucesso('Empresa bloqueada.');
+      Assinaturas.empresas();
+    } catch (e) { UI.erro(e.message); }
+  },
+
+  limiteEmpresa(l) {
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <p style="margin-top:0"><b>${UI.escapar(l.empresa_nome)}</b> usa hoje
+        <b>${l.usuarios_em_uso}</b> usuário(s). O padrão do plano é <b>${l.limite_padrao}</b>.</p>
+      <div class="linha-campos">
+        ${UI.campo('Limite de usuários', `<input type="number" name="limite" min="1" max="500" value="${l.limite_personalizado ? l.limite_usuarios : ''}" placeholder="${l.limite_padrao} (padrão)">`,
+          'deixe em branco para voltar ao padrão do plano')}
+      </div>`;
+    UI.abrirModal({
+      titulo: 'Limite de usuários',
+      corpo,
+      botoes: [
+        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Salvar', classe: 'btn-primario', acao: async () => {
+          const d = UI.lerFormulario(corpo);
+          try {
+            const r = await Api.post(`/api/admin/empresas/${l.id}/limite`, { limite: d.limite || null });
+            UI.fecharModal();
+            UI.sucesso(`Limite de ${r.limite_usuarios} usuário(s) salvo.`);
+            Assinaturas.empresas();
+          } catch (e) { UI.erro(e.message); }
+        } },
+      ],
+    });
+  },
+
+  usuariosEmpresa(l) {
+    const hoje = UI.hoje();
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <p style="margin-top:0">Usuários de <b>${UI.escapar(l.empresa_nome)}</b> —
+        ${l.usuarios_em_uso} de ${l.limite_usuarios} em uso.
+        Deixe a data em branco para não ter prazo. Depois da data o usuário não entra mais.</p>
+      ${UI.tabela({
+        colunas: [
+          { titulo: 'Usuário', valor: (u) => `<div class="forte">${UI.escapar(u.nome)}${u.dono ? ' <span class="mini">(responsável)</span>' : ''}</div>
+              <div class="mini">${UI.escapar(u.email)} · ${UI.escapar(u.perfil)}</div>` },
+          { titulo: 'Situação', valor: (u) => (u.perfil === 'MASTER' ? '<span class="tag tag-aberto">Administrador do site</span>'
+              : !u.ativo ? '<span class="tag tag-vencido">Bloqueado</span>'
+              : u.vencido ? '<span class="tag tag-vencido">Prazo vencido</span>'
+              : '<span class="tag tag-pago">Liberado</span>') },
+          { titulo: 'Acesso até', valor: (u) => (u.perfil === 'MASTER' ? '-'
+              : `<input type="date" data-ate="${u.id}" value="${u.acesso_ate || ''}" min="${hoje}" style="min-width:140px">`) },
+          { titulo: 'Liberado', classe: 'centro', valor: (u) => (u.perfil === 'MASTER' ? '-'
+              : `<input type="checkbox" data-ativo="${u.id}" ${u.ativo ? 'checked' : ''} style="width:20px;height:20px">`) },
+          { titulo: '', classe: 'centro', valor: (u) => (u.perfil === 'MASTER' ? ''
+              : `<button class="btn btn-mini btn-primario" data-salvar-usuario="${u.id}">Salvar</button>`) },
+        ],
+        linhas: l.usuarios,
+        vazio: 'Nenhum usuário nesta empresa.',
+      })}`;
+    corpo.querySelectorAll('[data-salvar-usuario]').forEach((b) => {
+      b.onclick = async () => {
+        const id = b.dataset.salvarUsuario;
+        const ate = corpo.querySelector(`[data-ate="${id}"]`).value || null;
+        const ativo = corpo.querySelector(`[data-ativo="${id}"]`).checked;
+        try {
+          await Api.post(`/api/admin/usuarios/${id}/acesso`, { ativo, acesso_ate: ate });
+          UI.sucesso(ativo ? (ate ? `Usuário liberado até ${UI.data(ate)}.` : 'Usuário liberado sem prazo.') : 'Usuário bloqueado.');
+        } catch (e) { UI.erro(e.message); }
+      };
+    });
+    UI.abrirModal({
+      titulo: 'Usuários da empresa',
+      corpo,
+      largo: true,
+      botoes: [{ rotulo: 'Fechar', acao: () => { UI.fecharModal(); Assinaturas.empresas(); } }],
     });
   },
 

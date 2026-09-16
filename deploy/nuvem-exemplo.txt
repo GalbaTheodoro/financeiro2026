@@ -1,0 +1,11 @@
+Renomeie este arquivo para nuvem.txt e deixe nele UMA linha so:
+o endereco do banco na nuvem.
+
+No Neon (neon.com): abra o projeto -> botao Connect -> ligue a opcao
+"Connection pooling" -> copie o endereco. Exemplo (nao use este, e so um modelo):
+postgresql://neondb_owner:SENHA@ep-cool-block-123456-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require
+
+Confira que o endereco tem "-pooler" no meio: e o que o Vercel precisa.
+
+Este arquivo e a sua senha do banco: nao mande para ninguem e nao envie
+para o GitHub (o .gitignore ja cuida disso).

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgroDock — Contratos e Gestão</title>
+  <meta name="description" content="AgroDock — contratos de assessoria, comissões, contas a pagar e a receber, caixa, DRE e balancete num sistema só.">
+  <meta name="theme-color" content="#0e2b1c">
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
+  <link rel="apple-touch-icon" href="/static/img/favicon.png">
+</head>
+<body>
+
+<!-- ============================================================ SITE PÚBLICO -->
+<div id="site" class="site oculto">
+  <header class="site-topo">
+    <div class="site-largura site-topo-interno">
+      <a class="site-marca" href="#topo">
+        <img src="/static/img/agrodock-icone.png" alt="" class="logo-icone">
+        <span class="marca-texto">
+          <b id="site-nome">AgroDock</b>
+          <small id="site-subtitulo">Contratos e Gestão</small>
+        </span>
+      </a>
+      <button class="menu-hamburguer" id="btn-menu-site" aria-label="Abrir o menu">☰</button>
+      <nav class="site-nav">
+        <a href="#contratos-site">Contratos</a>
+        <a href="#recursos">Recursos</a>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#planos">Planos</a>
+        <a href="#duvidas">Dúvidas</a>
+      </nav>
+      <div class="espaco">
+        <button class="btn" id="btn-entrar">Entrar</button>
+        <button class="btn btn-primario" id="btn-criar-conta">Criar conta grátis</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ------------------------------------------------------------------ hero -->
+  <section class="hero" id="topo">
+    <div class="site-largura hero-interno">
+      <div>
+        <span class="selo">Teste liberado por <b id="hero-horas">48 horas</b> — sem cartão</span>
+        <h1 id="hero-titulo">O financeiro e os <em>contratos de assessoria</em> no mesmo lugar</h1>
+        <p class="hero-texto" id="hero-slogan">
+          Lance o contrato, cobre a corretagem dos dois lados e acompanhe cada negócio até o
+          dinheiro entrar — com contas a pagar e a receber, caixa, DRE e balancete por trás.
+        </p>
+        <div class="espaco" style="margin-top:24px">
+          <button class="btn btn-primario btn-grande" id="btn-hero-cadastro">Começar agora</button>
+          <button class="btn btn-grande btn-claro" id="btn-hero-contratos">Ver os contratos</button>
+        </div>
+        <div class="hero-notas">
+          <span>Comissão do comprador e do vendedor</span>
+          <span>Contrato impresso em PDF</span>
+          <span>Pagamento por Pix</span>
+        </div>
+      </div>
+
+      <!-- miniatura do sistema, desenhada em HTML -->
+      <div class="mock" aria-hidden="true">
+        <div class="mock-topo"><span></span><span></span><span></span></div>
+        <div class="mock-corpo">
+          <div class="mock-menu">
+            <div class="mock-item"></div><div class="mock-item"></div>
+            <div class="mock-item ativo"></div><div class="mock-item"></div><div class="mock-item"></div>
+          </div>
+          <div class="mock-painel">
+            <div class="mock-kpis">
+              <div class="mock-kpi"><small>Comissão</small><b>R$ 48.300</b></div>
+              <div class="mock-kpi dourado"><small>A receber</small><b>R$ 17.900</b></div>
+              <div class="mock-kpi cafe"><small>Sacas</small><b>12.400</b></div>
+            </div>
+            <div class="mock-grafico">
+              <div style="height:38%"></div><div style="height:64%"></div><div style="height:47%"></div>
+              <div style="height:82%"></div><div style="height:58%"></div><div style="height:93%"></div>
+            </div>
+            <div class="mock-tabela">
+              <div class="mock-linha"><i></i><span class="mock-tag pago">Recebido</span></div>
+              <div class="mock-linha"><i style="flex:.8"></i><span class="mock-tag receber">A receber</span></div>
+              <div class="mock-linha"><i style="flex:.6"></i><span class="mock-tag aberto">Aberto</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="hero-numeros">
+    <div class="site-largura hero-numeros-interno">
+      <div class="hero-numero"><b>5</b><span>situações acompanhadas por contrato</span></div>
+      <div class="hero-numero"><b>112</b><span>contas contábeis já cadastradas</span></div>
+      <div class="hero-numero"><b>10+</b><span>relatórios prontos, com CSV</span></div>
+      <div class="hero-numero"><b>5</b><span>usuários inclusos na assinatura</span></div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------- contrato de assessoria -->
+  <section class="site-secao" id="contratos-site">
+    <div class="site-largura">
+      <div class="secao-cabecalho">
+        <span class="sobre-titulo">Feito para quem vive de intermediação</span>
+        <h2>Contrato de assessoria do começo ao recebimento</h2>
+        <p>Cadastre o negócio entre comprador e vendedor, cobre a corretagem de cada lado
+           e deixe o sistema transformar isso em contas a receber — sem redigitar nada.</p>
+      </div>
+
+      <div class="contrato-bloco">
+        <ul class="contrato-lista">
+          <li>
+            <span class="marcador">1</span>
+            <div><b>Lance o contrato</b>
+            <p>Comprador, vendedor, representante, produto, modalidade, unidade, quantidade e
+               preço. O número sai automático e o peso total é calculado na hora.</p></div>
+          </li>
+          <li>
+            <span class="marcador">2</span>
+            <div><b>Cobre dos dois lados</b>
+            <p>Um percentual de corretagem para o comprador e outro para o vendedor,
+               independentes — ou um valor fechado quando o combinado foi assim.</p></div>
+          </li>
+          <li>
+            <span class="marcador">3</span>
+            <div><b>Gere as contas a receber</b>
+            <p>Um clique cria os títulos das duas comissões, já classificados em
+               Receita de Corretagem, com vencimento, parcelamento e contabilização.</p></div>
+          </li>
+          <li>
+            <span class="marcador">4</span>
+            <div><b>Acompanhe até o dinheiro entrar</b>
+            <p>O contrato muda de situação sozinho conforme as baixas acontecem, e o
+               relatório mostra o que já entrou, o que falta e o que venceu.</p></div>
+          </li>
+          <li>
+            <span class="marcador">5</span>
+            <div><b>Imprima e mande para as partes</b>
+            <p>Contrato pronto em uma página A4, com o seu logotipo, dados bancários das
+               partes, valor por extenso e campos de assinatura — salve em PDF e envie.</p></div>
+          </li>
+        </ul>
+
+        <div class="ficha-demo" aria-hidden="true">
+          <div class="ficha-demo-topo">
+            <b>Contrato 00000295</b>
+            <span>330 sacas · 19.800 kg</span>
+          </div>
+          <div class="ficha-demo-corpo">
+            <div><span>Negociado</span><b>R$ 435.600</b></div>
+            <div><span>Comprador 0,5%</span><b>R$ 2.178</b></div>
+            <div><span>Vendedor 0,5%</span><b>R$ 2.178</b></div>
+          </div>
+          <div class="ficha-demo-barra">
+            <div class="trilho"><div class="preenchido"></div></div>
+            <div class="legenda"><span>Recebido R$ 2.700</span><span>Falta R$ 1.656</span></div>
+          </div>
+          <div class="ficha-demo-status">
+            <span class="status-demo">Aberto</span>
+            <span class="status-demo">Fechado a Receber</span>
+            <span class="status-demo ativo">Recebido Parcial</span>
+            <span class="status-demo">Recebido Total</span>
+            <span class="status-demo">Cancelado</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------------- recursos -->
+  <section class="site-secao faixa" id="recursos">
+    <div class="site-largura">
+      <div class="secao-cabecalho">
+        <span class="sobre-titulo">O sistema inteiro</span>
+        <h2>Tudo o que o escritório precisa</h2>
+        <p>Do contrato ao balancete, sem planilha solta e sem redigitar informação.</p>
+      </div>
+      <div class="recursos" id="lista-recursos"></div>
+    </div>
+  </section>
+
+  <!-- --------------------------------------------------------- como funciona -->
+  <section class="site-secao" id="como-funciona">
+    <div class="site-largura">
+      <div class="secao-cabecalho">
+        <span class="sobre-titulo">Como funciona</span>
+        <h2>Do cadastro ao acesso liberado em três passos</h2>
+      </div>
+      <div class="passos">
+        <div class="passo">
+          <div class="passo-numero">1</div>
+          <h3>Crie sua conta</h3>
+          <p>Cadastro rápido com seu nome, e-mail e empresa. O acesso fica <b>liberado por 48 horas</b>
+             logo após o cadastro para você testar tudo, com o plano de contas já pronto.</p>
+        </div>
+        <div class="passo">
+          <div class="passo-numero">2</div>
+          <h3>Escolha o plano e faça o Pix</h3>
+          <p>Dentro do sistema você vê a chave Pix, o QR Code e o código copia e cola do plano
+             escolhido. Depois de pagar, é só clicar em <b>“Já fiz o Pix”</b>.</p>
+        </div>
+        <div class="passo">
+          <div class="passo-numero">3</div>
+          <h3>Confirmação e liberação</h3>
+          <p>Assim que o recebimento do Pix é confirmado, sua conta é <b>desbloqueada</b> pelo
+             período do plano — com todos os dados que você já lançou no teste.</p>
+        </div>
+      </div>
+      <div class="observacao-passos">
+        Passadas as 48 horas de teste, a conta fica bloqueada até a confirmação do pagamento.
+        Seus dados continuam guardados e voltam assim que o acesso é liberado.
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------------- planos -->
+  <section class="site-secao faixa" id="planos">
+    <div class="site-largura">
+      <div class="secao-cabecalho">
+        <span class="sobre-titulo">Planos</span>
+        <h2>Pagamento único por Pix</h2>
+        <p>Sem mensalidade automática, sem cartão de crédito e com 5 usuários inclusos.</p>
+      </div>
+      <div class="planos" id="lista-planos"></div>
+      <div class="planos-nota">
+        Os dois planos dão acesso a <b>todos os recursos</b>, sem limite de contratos, lançamentos,
+        clientes, fornecedores ou relatórios.
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------------- dúvidas -->
+  <section class="site-secao" id="duvidas">
+    <div class="site-largura">
+      <div class="secao-cabecalho">
+        <span class="sobre-titulo">Dúvidas frequentes</span>
+        <h2>Perguntas que sempre chegam</h2>
+      </div>
+      <div class="faq" id="lista-faq"></div>
+    </div>
+  </section>
+
+  <section class="chamada">
+    <div class="site-largura">
+      <h2>Comece hoje com 48 horas liberadas</h2>
+      <p>Cadastre-se, lance o seu próximo contrato e assine quando tiver certeza.</p>
+      <button class="btn btn-grande btn-claro" id="btn-cta-final">Criar minha conta</button>
+    </div>
+  </section>
+
+  <footer class="site-rodape">
+    <div class="site-largura rodape-interno">
+      <div>
+        <div class="site-marca claro">
+          <img src="/static/img/agrodock-icone.png" alt="" class="logo-icone">
+          <span class="marca-texto">
+            <b id="rodape-nome">AgroDock</b>
+            <small>Contratos e Gestão</small>
+          </span>
+        </div>
+        <p class="mini" id="rodape-titular"></p>
+      </div>
+      <div class="mini" id="rodape-contatos"></div>
+    </div>
+  </footer>
+</div>
+
+<!-- ------------------------------------------------------- TELA DE PAGAMENTO -->
+<div id="tela-pagamento" class="pagamento-wrap oculto">
+  <div class="pagamento-card" id="pagamento-conteudo"></div>
+</div>
+
+<!-- --------------------------------------------------------------- APLICAÇÃO -->
+<div id="app" class="app oculto">
+  <!-- fundo escuro que fecha a gaveta do menu no celular -->
+  <div class="menu-fundo" id="menu-fundo"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="marca">
+      <img src="/static/img/agrodock-icone.png" alt="" class="logo-icone">
+      <span><b>AgroDock</b><small>Contratos e Gestão</small></span>
+      <button class="fechar-menu" id="btn-fechar-menu" aria-label="Fechar o menu">&times;</button>
+    </div>
+    <nav id="menu"></nav>
+    <div class="sidebar-rodape">
+      <div id="usuario-nome"></div>
+      <button class="btn-link" id="btn-sair">Sair</button>
+      <div class="mini" id="versao-sistema" title="versão do sistema carregada"></div>
+    </div>
+  </aside>
+
+  <main class="conteudo">
+    <div id="faixa-assinatura" class="faixa-assinatura oculto"></div>
+    <header class="topo">
+      <button class="abrir-menu" id="btn-abrir-menu" aria-label="Abrir o menu">☰</button>
+      <div class="topo-titulo">
+        <h2 id="titulo-pagina">Painel</h2>
+        <div class="migalha" id="subtitulo-pagina"></div>
+      </div>
+      <div class="topo-acoes">
+        <label class="campo-inline">
+          <span>Empresa</span>
+          <select id="seletor-empresa"></select>
+        </label>
+      </div>
+    </header>
+    <section id="pagina" class="pagina"></section>
+  </main>
+</div>
+
+<div id="modal-fundo" class="modal-fundo oculto">
+  <div class="modal" id="modal">
+    <header><h3 id="modal-titulo"></h3><button class="btn-fechar" id="modal-fechar">&times;</button></header>
+    <div class="modal-corpo" id="modal-corpo"></div>
+    <footer class="modal-rodape" id="modal-rodape"></footer>
+  </div>
+</div>
+
+<div id="avisos" class="avisos"></div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/ui.js"></script>
+<script src="/static/js/site.js"></script>
+<script src="/static/js/cadastros.js"></script>
+<script src="/static/js/lancamentos.js"></script>
+<script src="/static/js/impressao.js"></script>
+<script src="/static/js/contratos.js"></script>
+<script src="/static/js/caixa.js"></script>
+<script src="/static/js/relatorios.js"></script>
+<script src="/static/js/assinaturas.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

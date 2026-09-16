@@ -1,0 +1,30 @@
+# Receita de bolo do AgroDock no Render (https://render.com).
+#
+# Com este arquivo na pasta, o Render não pergunta nada: ele lê daqui o que
+# instalar, como ligar o sistema e quais informações guardar em segredo.
+#
+# A única coisa que você digita lá é o endereço do banco (FIN_DATABASE_URL),
+# que o Neon fornece quando você cria o banco — por isso ele está marcado
+# como "sync: false" (não fica escrito neste arquivo, nem vai para o GitHub).
+services:
+  - type: web
+    name: agrodock
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: >-
+      uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+      --proxy-headers --forwarded-allow-ips '*'
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      # chave que assina as sessões: o Render sorteia uma e guarda
+      - key: FIN_SECRET_KEY
+        generateValue: true
+      # horas que a pessoa fica conectada sem precisar entrar de novo
+      - key: FIN_TOKEN_HORAS
+        value: "12"
+      # endereço do banco na nuvem (cole o do Neon no painel do Render)
+      - key: FIN_DATABASE_URL
+        sync: false

@@ -1,0 +1,9 @@
+# o que NÃO vai para o Vercel (nem por GitHub, nem pelo comando vercel)
+.venv/
+__pycache__/
+*.pyc
+dados/
+backups/
+testes/
+deploy/nuvem.txt
+deploy/agrodock.env

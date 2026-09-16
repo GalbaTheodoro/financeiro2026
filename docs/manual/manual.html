@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Manual do AgroDock</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+@page :first { margin: 0; }
+:root{ --verde:#14532d; --verde2:#1e7a47; --claro:#e8f3ec; --ambar:#8a5a0b; --ambar-claro:#fbf0da; --tinta:#1a2420; --suave:#5b6a61; --linha:#d7e0d9; }
+*{box-sizing:border-box}
+body{font-family:"Segoe UI", "DejaVu Sans", Arial, sans-serif; color:var(--tinta); font-size:10.6pt; line-height:1.5; margin:0}
+h1,h2,h3{color:var(--verde); line-height:1.2; margin:0}
+h1{font-size:22pt; margin-bottom:6mm; padding-bottom:3mm; border-bottom:2px solid var(--verde2)}
+h2{font-size:14pt; margin:7mm 0 2.5mm}
+h2,h3{break-after:avoid; page-break-after:avoid}
+h3{font-size:11.5pt; margin:5mm 0 1.5mm; color:var(--verde2)}
+p{margin:0 0 2.5mm}
+ul,ol{margin:0 0 3mm; padding-left:6mm}
+li{margin-bottom:1.2mm}
+.capitulo{page-break-before:always}
+.capa{height:297mm; width:210mm; background:linear-gradient(160deg,#0f3d22 0%,#14532d 55%,#1e7a47 100%); color:#fff; padding:36mm 22mm; display:flex; flex-direction:column; justify-content:space-between}
+.capa .logo{background:#fff; border-radius:10px; padding:8mm 10mm; width:92mm}
+.capa .logo img{width:100%; display:block}
+.capa h1{color:#fff; border:0; font-size:34pt; margin:0 0 4mm}
+.capa .sub{font-size:14pt; opacity:.9; max-width:130mm}
+.capa .rodape{font-size:10pt; opacity:.85; border-top:1px solid rgba(255,255,255,.35); padding-top:5mm}
+figure{margin:3mm 0 4mm; page-break-inside:avoid}
+figure img{max-width:100%; max-height:95mm; width:auto; margin:0 auto; border:1px solid var(--linha); border-radius:4px; display:block}
+figure.meia img{width:70%; margin:0 auto}
+figure.estreita img{width:48%; margin:0 auto}
+figcaption{font-size:8.8pt; color:var(--suave); margin-top:1.5mm; text-align:center}
+.lado{display:flex; gap:5mm; page-break-inside:avoid}
+.lado figure{flex:1}
+.dica,.atencao,.passo{border-radius:6px; padding:3mm 4mm; margin:3mm 0 4mm; page-break-inside:avoid}
+.dica{background:var(--claro); border-left:4px solid var(--verde2)}
+.atencao{background:var(--ambar-claro); border-left:4px solid var(--ambar)}
+.dica b.t,.atencao b.t{display:block; margin-bottom:1mm}
+table{border-collapse:collapse; width:100%; margin:2mm 0 4mm; font-size:9.6pt; page-break-inside:avoid}
+th,td{border:1px solid var(--linha); padding:1.6mm 2.4mm; text-align:left; vertical-align:top}
+th{background:var(--claro); color:var(--verde)}
+.ui{font-weight:600; background:#eef2ee; border:1px solid var(--linha); border-radius:3px; padding:0 1.4mm; white-space:nowrap}
+.sumario{columns:2; column-gap:10mm; font-size:10.5pt}
+.sumario div{break-inside:avoid; margin-bottom:2.4mm}
+.sumario b{color:var(--verde)}
+.sumario span.d{display:block; color:var(--suave); font-size:9pt; padding-left:6mm}
+.num{display:inline-block !important; min-width:7mm; color:var(--verde2)}
+code{font-family:Consolas, "DejaVu Sans Mono", monospace; font-size:9pt; background:#eef2ee; padding:0 1mm; border-radius:2px}
+.checklist li{list-style:none; margin-left:-6mm}
+.checklist li::before{content:"☐  "; color:var(--verde2)}
+</style>
+</head>
+<body>
+
+<section class="capa">
+  <div class="logo"><img src="img/logo.png" alt="AgroDock"></div>
+  <div>
+    <h1>Manual do usuário</h1>
+    <div class="sub">Como usar o AgroDock — Contratos e Gestão: cadastros, contratos de corretagem, contas a pagar e a receber, caixa, relatórios, assinatura e administração do site.</div>
+  </div>
+  <div class="rodape">Versão de setembro de 2026 · As telas mostradas usam dados de demonstração.</div>
+</section>
+
+<section class="capitulo">
+  <h1>Sumário</h1>
+  <div class="sumario">
+    <div><b><span class="num">1</span> Conhecendo o AgroDock</b><span class="d">O que o sistema faz, onde abrir, menu e empresa</span></div>
+    <div><b><span class="num">2</span> Criar conta e entrar</b><span class="d">Teste grátis, login e senha</span></div>
+    <div><b><span class="num">3</span> Primeiros passos</b><span class="d">A ordem certa para deixar tudo pronto</span></div>
+    <div><b><span class="num">4</span> Painel</b><span class="d">Saldo, a receber, a pagar e atalhos</span></div>
+    <div><b><span class="num">5</span> Cadastros</b><span class="d">Clientes e fornecedores, formas de pagamento, produtos, unidades, bancos, empresas, usuários e mais</span></div>
+    <div><b><span class="num">6</span> Contratos de corretagem</b><span class="d">Lançar em 5 etapas, gerar contas a receber, situação, imprimir</span></div>
+    <div><b><span class="num">7</span> Contas a receber e a pagar</b><span class="d">Novo título, rateio, parcelas, baixa, estorno</span></div>
+    <div><b><span class="num">8</span> Caixa e bancos</b><span class="d">Extrato, entradas, saídas e transferências</span></div>
+    <div><b><span class="num">9</span> Relatórios</b><span class="d">DRE, balancete, contratos, fluxo de caixa</span></div>
+    <div><b><span class="num">10</span> Minha assinatura</b><span class="d">Planos, pagamento por Pix, usuários</span></div>
+    <div><b><span class="num">11</span> Usando no celular</b><span class="d">Menu, listas em cartões e contrato por etapas</span></div>
+    <div><b><span class="num">12</span> Administração do site</b><span class="d">Só para o dono do sistema: empresas, acessos, Pix e configurações</span></div>
+    <div><b><span class="num">13</span> Dúvidas frequentes</b><span class="d">Problemas comuns e como resolver</span></div>
+  </div>
+</section>
+
+<!-- 1 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>1. Conhecendo o AgroDock</h1>
+  <p>O AgroDock é um sistema para <b>assessorias e corretoras</b> que aproximam comprador e vendedor e cobram comissão. Nele você lança o contrato, o sistema calcula a corretagem dos dois lados, transforma a comissão em contas a receber e acompanha tudo até o dinheiro entrar — com contas a pagar, caixa, DRE e balancete funcionando por trás.</p>
+  <p>O sistema abre no navegador (Chrome, Edge, Safari) do computador ou do celular. Não é preciso instalar nada: basta acessar o endereço do site e entrar com seu e-mail e senha.</p>
+
+  <h2>A tela do sistema</h2>
+  <figure><img src="img/04-painel.jpg" style="max-height:82mm"><figcaption>Tela principal: menu à esquerda, título da página no topo e seletor de empresa à direita.</figcaption></figure>
+  <table>
+    <tr><th style="width:32%">Parte da tela</th><th>Para que serve</th></tr>
+    <tr><td><b>Menu à esquerda</b></td><td>Movimento (Painel, Contas a Receber, Contas a Pagar, Caixa e Bancos, Contratos), Análise (Relatórios), Cadastros e Assinatura.</td></tr>
+    <tr><td><b>Empresa</b> (canto superior direito)</td><td>Se a sua conta tem mais de uma empresa, escolha aqui em qual você está trabalhando. Cadastros, lançamentos e relatórios são sempre da empresa escolhida.</td></tr>
+    <tr><td><b>Seu nome e Sair</b> (rodapé do menu)</td><td>Mostra quem está conectado. <span class="ui">Sair</span> encerra a sessão.</td></tr>
+    <tr><td><b>“versão de …”</b></td><td>Data da versão do sistema carregada. Serve para conferir se uma atualização já chegou.</td></tr>
+    <tr><td><b>Filtrar e Exportar CSV</b></td><td>Quase todas as listas têm busca e o botão <span class="ui">Exportar CSV</span>, que baixa a lista para abrir no Excel.</td></tr>
+  </table>
+</section>
+
+<!-- 2 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>2. Criar conta e entrar</h1>
+  <figure><img src="img/01-site.jpg" style="max-height:78mm"><figcaption>Página inicial do site, com os botões Entrar e Criar conta grátis.</figcaption></figure>
+
+  <h2>Criar a conta (teste grátis)</h2>
+  <ol>
+    <li>Na página inicial, clique em <span class="ui">Criar conta grátis</span> (ou em um dos planos).</li>
+    <li>Preencha nome, e-mail (será o seu login), senha (mínimo 6 caracteres), telefone, CNPJ ou CPF, cidade, UF, nome da empresa e o plano pretendido.</li>
+    <li>Clique em <span class="ui">Criar conta e começar</span>. Você já entra no sistema.</li>
+  </ol>
+  <figure class="meia"><img src="img/02-criar-conta.jpg"><figcaption>Formulário de criação de conta.</figcaption></figure>
+  <p>A conta nasce pronta para uso: com plano de contas, centros de custo, operações, unidades (saca de 60 kg, arroba, tonelada…), modalidades e produtos padrão. O acesso fica <b>liberado por 48 horas para teste</b>; uma faixa no topo mostra quanto tempo falta. Depois disso é preciso pagar o plano (capítulo 10). <b>Nada do que você lançou é perdido.</b></p>
+
+  <h2>Entrar no sistema</h2>
+  <div class="lado">
+    <figure><img src="img/03-entrar.jpg"><figcaption>Tela de login.</figcaption></figure>
+    <div style="flex:1">
+      <ol>
+        <li>Clique em <span class="ui">Entrar</span> no topo do site.</li>
+        <li>Digite e-mail e senha e clique em <span class="ui">Entrar</span>.</li>
+      </ol>
+      <div class="atencao"><b class="t">Esqueceu a senha?</b>Peça ao administrador da sua empresa: em <b>Cadastros → Usuários</b> ele edita o seu usuário e digita uma senha nova.</div>
+    </div>
+  </div>
+  <table>
+    <tr><th style="width:38%">Mensagem ao entrar</th><th>O que significa</th></tr>
+    <tr><td>E-mail ou senha inválidos</td><td>Confira se digitou certo. O e-mail não diferencia maiúsculas.</td></tr>
+    <tr><td>Seu usuário está bloqueado</td><td>O usuário foi bloqueado. Fale com o administrador.</td></tr>
+    <tr><td>Seu acesso terminou em dd/mm/aaaa</td><td>O usuário tinha acesso até uma data que já passou. Fale com o administrador.</td></tr>
+    <tr><td>Tela de pagamento em vez do sistema</td><td>O teste terminou, a assinatura venceu ou a empresa foi bloqueada. Veja o capítulo 10.</td></tr>
+  </table>
+</section>
+
+<!-- 3 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>3. Primeiros passos</h1>
+  <p>Siga esta ordem na primeira vez. Cada item leva poucos minutos e deixa o resto do sistema funcionando sozinho.</p>
+  <ol class="checklist">
+    <li><b>Dados da sua empresa</b> — Cadastros → Empresas: CNPJ, endereço, telefone, <b>logotipo</b> e o <b>texto fixo do contrato</b> (cláusulas, foro). É o que aparece no contrato impresso.</li>
+    <li><b>Bancos e caixa</b> — Cadastros → Bancos: cada conta corrente, poupança ou caixa interno, com o <b>saldo inicial</b> e a data desse saldo.</li>
+    <li><b>Usuários</b> — Cadastros → Usuários: as pessoas da sua equipe (o plano inclui 3 usuários por empresa). Eles também aparecem como <b>representante</b> nos contratos.</li>
+    <li><b>Clientes e fornecedores</b> — Cadastros → Clientes/Fornecedores: compradores, vendedores (produtores) e fornecedores, com as <b>formas de pagamento</b> de cada um.</li>
+    <li><b>Produtos, unidades e modalidades</b> — confira os que já vêm prontos e ajuste ao seu negócio.</li>
+    <li><b>Lance o primeiro contrato</b> — Contratos → <span class="ui">+ Novo contrato</span> (capítulo 6).</li>
+  </ol>
+  <div class="dica"><b class="t">Contas contábeis</b>Você não precisa entender de contabilidade. O plano de contas já vem pronto e o sistema faz os lançamentos contábeis sozinho a cada contrato, título, baixa e movimento de caixa — por isso o DRE e o balancete “fecham” automaticamente.</div>
+
+  <h2>4. Painel</h2>
+  <p>É a primeira tela depois do login e resume a situação da empresa escolhida:</p>
+  <table>
+    <tr><th style="width:30%">Quadro</th><th>O que mostra</th></tr>
+    <tr><td>Saldo disponível</td><td>Soma dos bancos e caixa hoje.</td></tr>
+    <tr><td>A receber / A pagar</td><td>Total em aberto, quanto está vencido e quanto vence no mês.</td></tr>
+    <tr><td>Previsão de saldo</td><td>Saldo + a receber − a pagar.</td></tr>
+    <tr><td>Movimento do mês</td><td>Entradas e saídas do caixa nos últimos meses, em gráfico.</td></tr>
+    <tr><td>Resultado do mês</td><td>Receita bruta e resultado líquido (competência) e saldo por conta.</td></tr>
+    <tr><td>Atalhos</td><td><span class="ui">+ Novo título a receber</span>, <span class="ui">+ Novo título a pagar</span>, <span class="ui">Lançar no caixa</span> e <span class="ui">Ver DRE do mês</span>.</td></tr>
+  </table>
+</section>
+
+<!-- 5 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>5. Cadastros</h1>
+  <p>Todos os cadastros ficam no menu <b>Cadastros</b>, organizados em abas. Em todas as abas o funcionamento é o mesmo:</p>
+  <ul>
+    <li><span class="ui">+ Novo</span> abre o formulário em branco; preencha e clique em <span class="ui">Salvar</span>.</li>
+    <li><span class="ui">Editar</span> na linha abre o registro para alteração; <span class="ui">Excluir</span> remove (ou desativa, quando o registro já foi usado).</li>
+    <li>O campo <b>Filtrar…</b> procura em qualquer coluna da lista.</li>
+    <li>Campos com <b>*</b> são obrigatórios.</li>
+  </ul>
+
+  <h2>5.1 Clientes e Fornecedores</h2>
+  <figure><img src="img/05-clientes.jpg"><figcaption>Lista de clientes e fornecedores, com a coluna “Onde pagar”.</figcaption></figure>
+  <p>É um cadastro único para compradores, vendedores e fornecedores. No campo <b>Tipo</b> escolha Cliente, Fornecedor ou Ambos; em <b>Pessoa</b>, Jurídica (CNPJ) ou Física (CPF).</p>
+  <figure><img src="img/06-cliente-form.jpg"><figcaption>Formulário do cliente/fornecedor com os botões Buscar do CNPJ e do CEP.</figcaption></figure>
+  <ul>
+    <li><b>Busca pelo CNPJ:</b> digite o CNPJ e clique em <span class="ui">Buscar</span>. O sistema preenche razão social, nome fantasia, endereço, telefone e e-mail e mostra a situação cadastral e os sócios.</li>
+    <li><b>Busca pelo CEP:</b> digite o CEP e clique em <span class="ui">Buscar</span> (ou apenas saia do campo). Logradouro, bairro, cidade e UF são preenchidos e o cursor vai para o número.</li>
+  </ul>
+  <div class="dica"><b class="t">Comprador e vendedor do contrato</b>Para aparecerem no contrato, compradores e vendedores precisam estar cadastrados aqui (tipo Cliente ou Ambos).</div>
+
+  <h3>Formas de pagamento (onde pagar cada parceiro)</h3>
+  <p>Na linha do parceiro, clique em <span class="ui">Pagamento</span>. Cadastre quantas formas ele tiver:</p>
+  <ul>
+    <li><b>Pix</b> — tipo da chave (CPF, CNPJ, e-mail, telefone ou aleatória) e a chave;</li>
+    <li><b>Depósito / TED</b> — banco, agência, operação (Caixa), conta e tipo de conta;</li>
+    <li><b>Boleto, dinheiro, cartão ou outro</b>.</li>
+  </ul>
+  <p>Cada forma pode ter titular e CPF/CNPJ próprios. Uma delas fica como <b>principal</b> (a primeira cadastrada assume sozinha; para trocar, clique em <span class="ui">Tornar principal</span>). Na hora de dar baixa num título, essas contas aparecem no topo com o botão <span class="ui">Copiar</span>.</p>
+  <figure class="meia"><img src="img/07-formas-pagamento.jpg"><figcaption>Formas de pagamento de um parceiro: Pix principal e conta para depósito.</figcaption></figure>
+
+  <h2>5.2 Produtos, Unidades e Modalidades</h2>
+  <table>
+    <tr><th style="width:20%">Aba</th><th>Campos e uso</th></tr>
+    <tr><td><b>Produtos</b></td><td>Código, nome, unidade padrão e embalagem (ex.: CAFÉ ARÁBICA, saca de 60 kg, A GRANEL). Ao escolher o produto no contrato, unidade e embalagem vêm preenchidas.</td></tr>
+    <tr><td><b>Unidades</b></td><td>Código, nome e <b>peso de conversão em kg</b>. É o que calcula o peso total do contrato: 330 sacas × 60 kg = 19.800 kg.</td></tr>
+    <tr><td><b>Modalidades</b></td><td>Tipo de negócio: disponível, futuro, a fixar, CIF, FOB…</td></tr>
+  </table>
+  <div class="lado">
+    <figure><img src="img/08-cad-produtos.jpg"><figcaption>Produtos.</figcaption></figure>
+    <figure><img src="img/08-cad-unidades.jpg"><figcaption>Unidades com peso de conversão.</figcaption></figure>
+  </div>
+
+  <h2>5.3 Bancos</h2>
+  <p>Cadastre cada conta onde o dinheiro entra ou sai: nome, banco, agência, conta, tipo (corrente, poupança, aplicação, cartão, caixa), <b>saldo inicial</b> e <b>data do saldo inicial</b>. Informe o saldo real do extrato na data escolhida — a partir dela o sistema calcula o saldo sozinho.</p>
+  <figure><img src="img/08-cad-bancos.jpg" style="max-height:62mm"><figcaption>Bancos e contas de caixa.</figcaption></figure>
+
+  <h2>5.4 Centros de custo, Operações e Plano de contas</h2>
+  <table>
+    <tr><th style="width:22%">Aba</th><th>Para que serve</th></tr>
+    <tr><td><b>Centros de custo</b></td><td>Separar receitas e despesas por área (administrativo, comercial, projetos…). Usado nos relatórios por centro de custo.</td></tr>
+    <tr><td><b>Operações</b></td><td>Natureza do lançamento (venda, compra, aluguel, folha…). Ao escolher a operação, o sistema sugere a conta contábil.</td></tr>
+    <tr><td><b>Plano de contas</b></td><td>Contas contábeis já prontas (112 contas). Só mexa se o seu contador pedir.</td></tr>
+    <tr><td><b>Parâmetros contábeis</b></td><td>Contas usadas automaticamente (clientes, fornecedores, juros, descontos). Vem configurado.</td></tr>
+  </table>
+
+  <h2>5.5 Empresas</h2>
+  <p>Dados da sua empresa: razão social, nome fantasia, CNPJ, inscrições, endereço (com busca por CEP), telefone, e-mail e responsável. Dois campos aparecem no contrato impresso:</p>
+  <ul>
+    <li><b>Logotipo</b> — escolha a imagem (PNG ou JPG). Ela vai para o cabeçalho do contrato.</li>
+    <li><b>Texto do contrato</b> — cláusulas gerais, foro e observações fixas impressas no rodapé.</li>
+  </ul>
+  <p>É possível ter mais de uma empresa na mesma conta; cada uma tem seus cadastros, lançamentos e relatórios. Troque de empresa no seletor do topo.</p>
+  <figure><img src="img/08-cad-empresas.jpg" style="max-height:62mm"><figcaption>Cadastro de empresas.</figcaption></figure>
+
+  <h2>5.6 Usuários</h2>
+  <figure><img src="img/08-cad-usuarios.jpg" style="max-height:62mm"><figcaption>Usuários da empresa.</figcaption></figure>
+  <ul>
+    <li>Informe nome, e-mail (login), senha, perfil e telefone. <b>Ao editar, deixe a senha em branco para mantê-la</b> — ou digite uma nova para trocar.</li>
+    <li>Perfis: <b>Administrador</b> (pode cadastrar e alterar usuários), <b>Operador</b> e <b>Somente consulta</b> (para identificar quem deve apenas consultar).</li>
+    <li>Para tirar o acesso de alguém, desmarque <b>Usuário ativo</b>. O histórico dos lançamentos é mantido.</li>
+  </ul>
+  <div class="atencao"><b class="t">Limite de usuários</b>Cada empresa pode ter <b>3 usuários ativos</b> (contando o responsável). Ao tentar cadastrar o quarto, o sistema avisa e não deixa. Para aumentar o limite, fale com o suporte: após a confirmação do pagamento, o limite é ampliado.</div>
+</section>
+
+<!-- 6 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>6. Contratos de corretagem</h1>
+  <figure><img src="img/09-contratos.jpg"><figcaption>Lista de contratos com totais, filtros e situação de cada contrato.</figcaption></figure>
+  <p>No topo da lista aparecem a quantidade de contratos, a comissão total, quanto já foi recebido e quanto falta receber. Use os filtros de data, situação e a busca por número ou produto; os botões de situação logo abaixo filtram com um clique.</p>
+
+  <h2>6.1 Lançar um contrato</h2>
+  <p>Clique em <span class="ui">+ Novo contrato</span>. O formulário é dividido em <b>cinco etapas</b>; use <span class="ui">Próximo →</span> e <span class="ui">← Voltar</span>, ou clique direto no nome da etapa. O resumo do cálculo fica sempre visível.</p>
+  <figure><img src="img/10-contrato-etapa1.jpg"><figcaption>Etapa 1 — Identificação.</figcaption></figure>
+  <table>
+    <tr><th style="width:20%">Etapa</th><th>O que preencher</th></tr>
+    <tr><td><b>1. Identificação</b></td><td><b>Nº do contrato</b> (já vem sugerido: 00000001, 00000002… — pode digitar outro), data, produto, modalidade, embalagem e <b>representante</b> (um dos usuários da empresa).</td></tr>
+    <tr><td><b>2. Partes</b></td><td><b>Comprador</b> e <b>vendedor</b>, escolhidos entre os clientes cadastrados. Não podem ser a mesma pessoa.</td></tr>
+    <tr><td><b>3. Quantidade</b></td><td>Quantidade, unidade, preço unitário e diferencial. O <b>valor negociado</b> (quantidade × (preço + diferencial)) e o <b>peso total</b> são calculados na hora. Se o valor foi fechado direto, digite-o.</td></tr>
+    <tr><td><b>4. Corretagem</b></td><td>Percentual do comprador e do vendedor, independentes. O valor em reais aparece calculado; se a comissão combinada foi um valor fixo, digite o valor.</td></tr>
+    <tr><td><b>5. Embarque</b></td><td>Datas de embarque e de pagamento, local de coleta e de descarga, números de compra e venda e observações. Clique em <span class="ui">Salvar</span>.</td></tr>
+  </table>
+  <div class="lado">
+    <figure><img src="img/11-contrato-quantidade.jpg"><figcaption>Etapa 3 — quantidade, preço e cálculo.</figcaption></figure>
+    <figure><img src="img/11-contrato-corretagem.jpg"><figcaption>Etapa 4 — corretagem dos dois lados.</figcaption></figure>
+  </div>
+  <div class="dica"><b class="t">Exemplo</b>330 sacas a R$ 1.320,00 = R$ 435.600,00. Com 0,50% de cada lado: R$ 2.178,00 do comprador + R$ 2.178,00 do vendedor = <b>R$ 4.356,00</b> de comissão.</div>
+
+  <h2>6.2 Abrir o contrato e gerar as contas a receber</h2>
+  <p>Na lista, clique em <span class="ui">Abrir</span>. A ficha mostra as partes, a mercadoria, as comissões e a <b>situação financeira</b> (quanto virou conta a receber, quanto foi recebido, quanto falta e quanto está vencido).</p>
+  <figure class="meia"><img src="img/10c-contrato-ficha-aberto.jpg"><figcaption>Ficha de um contrato em aberto, pronta para gerar as contas a receber.</figcaption></figure>
+  <ol>
+    <li>Em <b>Contas a receber deste contrato</b>, confira o vencimento (vem a data de pagamento do contrato).</li>
+    <li>Se quiser parcelar a comissão, informe o número de parcelas e a periodicidade (mensal ou a cada N dias).</li>
+    <li>Marque quais lados gerar: <b>comissão do comprador</b>, <b>comissão do vendedor</b> ou os dois.</li>
+    <li>Clique em <span class="ui">Gerar contas a receber</span>. Os títulos aparecem em Contas a Receber, com o número do contrato como documento.</li>
+  </ol>
+  <p>Enquanto nenhuma parcela foi recebida, <span class="ui">Estornar recebíveis</span> apaga os títulos e o contrato volta para <b>Aberto</b> (para corrigir e gerar de novo). Contrato com títulos gerados não pode ser editado.</p>
+
+  <h2>6.3 Situação do contrato</h2>
+  <p>A situação muda sozinha, conforme o dinheiro entra:</p>
+  <table>
+    <tr><th style="width:32%">Situação</th><th>Quando aparece</th></tr>
+    <tr><td><b>Aberto</b></td><td>Contrato lançado; as comissões ainda não viraram títulos.</td></tr>
+    <tr><td><b>Fechado a Receber</b></td><td>As contas a receber foram geradas, nada recebido.</td></tr>
+    <tr><td><b>Fechado Recebido Parcial</b></td><td>Parte da comissão já foi baixada.</td></tr>
+    <tr><td><b>Fechado Recebido Total</b></td><td>Toda a comissão foi recebida.</td></tr>
+    <tr><td><b>Cancelado</b></td><td>Cancelado na ficha (<span class="ui">Cancelar contrato</span>). Pode ser reaberto com <span class="ui">Reabrir contrato</span>.</td></tr>
+  </table>
+
+  <h2>6.4 Imprimir o contrato (PDF)</h2>
+  <p>Clique em <span class="ui">Imprimir</span> na lista ou na ficha. Abre a folha A4 do contrato — com logotipo e dados da sua empresa, comprador e vendedor com endereço e dados bancários/Pix, mercadoria, quantidade, peso total, valor por extenso, corretagem, embarque, cláusulas e campos de assinatura — e a janela de impressão do navegador. Para gerar o arquivo, escolha <b>Salvar como PDF</b> no destino.</p>
+</section>
+
+<!-- 7 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>7. Contas a receber e a pagar</h1>
+  <figure><img src="img/12-receber.jpg"><figcaption>Contas a Receber: indicadores, filtros e lista de parcelas.</figcaption></figure>
+  <p>As duas telas funcionam igual. No topo, os totais (em aberto, vencidos, vencendo hoje). Filtre por situação (<b>Em aberto</b>, <b>Vencidas</b>, <b>Todas</b>…), período de vencimento, cliente/fornecedor e texto.</p>
+
+  <h2>7.1 Novo título</h2>
+  <p>Clique em <span class="ui">+ Novo título</span> e escolha:</p>
+  <ul>
+    <li><b>Lançamento simples</b> — uma classificação e uma parcela. Preencha descrição, documento, cliente/fornecedor, operação, datas, valor, conta contábil, centro de custo e vencimento. Marque <b>Já pago</b> / <b>Já recebido</b> e a conta bancária para dar baixa na hora (compra ou venda à vista).</li>
+    <li><b>Lançamento múltiplo</b> — divide o valor em várias contas e centros de custo (<span class="ui">+ Adicionar linha</span>) e em várias parcelas (<span class="ui">Gerar parcelas</span>, mensal ou a cada N dias). A soma do rateio e a soma das parcelas precisam bater com o valor total.</li>
+  </ul>
+  <figure><img src="img/14-novo-titulo.jpg"><figcaption>Novo título a pagar — lançamento simples.</figcaption></figure>
+
+  <h2>7.2 Dar baixa (receber ou pagar)</h2>
+  <div class="lado">
+    <figure><img src="img/13-baixa.jpg"><figcaption>Baixa de um título, com os dados bancários do parceiro no topo.</figcaption></figure>
+    <div style="flex:1">
+      <ol>
+        <li>Na linha da parcela, clique em <span class="ui">Receber</span> (ou <span class="ui">Pagar</span>).</li>
+        <li>No topo aparecem as formas de pagamento do parceiro; a principal já vem marcada. <span class="ui">Copiar</span> copia a chave Pix ou os dados da conta.</li>
+        <li>Escolha a <b>conta bancária</b> onde o dinheiro entra/sai e a data.</li>
+        <li>Informe <b>juros</b>, <b>multa</b> e <b>desconto</b>, se houver. O valor final aparece no rodapé.</li>
+        <li>Para <b>baixa parcial</b>, digite um valor menor que o saldo: a parcela fica <b>Parcial</b> com o restante em aberto.</li>
+        <li>Clique em <span class="ui">Confirmar recebimento</span> (ou pagamento).</li>
+      </ol>
+    </div>
+  </div>
+  <ul>
+    <li><b>Baixa em lote:</b> marque várias parcelas na lista e clique em <span class="ui">Baixar selecionadas</span>.</li>
+    <li><b>Ver o título:</b> <span class="ui">Ver</span> mostra os dados, as parcelas e o histórico de baixas.</li>
+    <li><b>Estornar uma baixa:</b> em <span class="ui">Ver</span>, clique em <span class="ui">Estornar</span> ao lado da baixa. O valor sai do caixa e a parcela volta a ficar em aberto.</li>
+    <li><b>Excluir título:</b> em <span class="ui">Ver</span> → <span class="ui">Excluir título</span> (só sem baixas).</li>
+  </ul>
+</section>
+
+<!-- 8 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>8. Caixa e bancos</h1>
+  <figure><img src="img/15-caixa.jpg" style="max-height:80mm"><figcaption>Caixa e Bancos: saldos por conta e extrato com saldo acumulado.</figcaption></figure>
+  <ul>
+    <li>No topo, o <b>saldo total</b> e o saldo de cada conta.</li>
+    <li>O <b>extrato</b> mostra cada movimento com saldo acumulado linha a linha. Filtre por conta, período e tipo; exporte em CSV.</li>
+    <li><span class="ui">+ Entrada</span> e <span class="ui">− Saída</span> lançam movimentos avulsos que não vêm de títulos (tarifa bancária, aporte, resgate), com conta contábil e centro de custo.</li>
+    <li><span class="ui">Transferência entre contas</span> tira de uma conta e coloca em outra (ex.: saque do banco para o caixa), gerando os dois lados.</li>
+  </ul>
+  <div class="dica"><b class="t">Conferência</b>Compare o saldo de cada conta com o extrato do banco. Se não bater, confira baixas lançadas na conta errada ou tarifas ainda não lançadas.</div>
+
+  <h1 style="margin-top:9mm">9. Relatórios</h1>
+  <p>Em <b>Relatórios</b>, escolha a aba, o período e os filtros e clique em <span class="ui">Gerar</span>. Todos têm <span class="ui">CSV</span> (planilha) e <span class="ui">Imprimir</span>.</p>
+  <table>
+    <tr><th style="width:26%">Relatório</th><th>O que mostra</th></tr>
+    <tr><td><b>DRE</b></td><td>Receitas, custos, despesas e resultado, por competência ou caixa, com % sobre a receita e comparação com o período anterior.</td></tr>
+    <tr><td><b>Balancete</b></td><td>Saldo anterior, débitos, créditos e saldo atual de cada conta contábil.</td></tr>
+    <tr><td><b>Contas a receber / a pagar</b></td><td>Títulos por vencimento, emissão ou pagamento, com atraso agrupado (a vencer, 1–30, 31–60, 61–90, +90 dias).</td></tr>
+    <tr><td><b>Fluxo de caixa</b></td><td>Entradas, saídas e saldo por dia ou mês, com projeção dos títulos em aberto.</td></tr>
+    <tr><td><b>Contratos</b></td><td>Cada contrato com comissão, quanto virou título, recebido, falta receber e vencido; resumo por situação, comprador, representante, produto ou mês.</td></tr>
+    <tr><td><b>Por centro de custo / conta / operação / cliente-fornecedor</b></td><td>Receitas e despesas agrupadas.</td></tr>
+    <tr><td><b>Razão contábil</b></td><td>Todos os lançamentos de uma conta, com contrapartida e saldo.</td></tr>
+  </table>
+  <figure><img src="img/17-rel-contratos.jpg"><figcaption>Relatório de contratos × financeiro.</figcaption></figure>
+</section>
+
+<!-- 10 --------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>10. Minha assinatura</h1>
+  <div class="lado">
+    <figure style="flex:0 0 46%"><img src="img/18-minha-assinatura.jpg"><figcaption>Minha Assinatura: situação, plano, Pix e usuários.</figcaption></figure>
+    <div style="flex:1">
+      <p>Em <b>Minha Assinatura</b> você vê a situação da conta, escolhe o plano e paga por Pix.</p>
+      <h3>Como pagar</h3>
+      <ol>
+        <li>Escolha o plano (<b>Semestral</b> ou <b>Anual</b>).</li>
+        <li>Pague pelo <b>QR Code</b> ou copie o código <b>Pix copia e cola</b> no aplicativo do banco. O valor já vem preenchido.</li>
+        <li>Clique em <span class="ui">Já fiz o Pix</span> (se quiser, escreva uma observação, como o nome de quem pagou).</li>
+        <li>Assim que o recebimento é confirmado, o acesso fica liberado pelo prazo do plano.</li>
+      </ol>
+      <h3>Situações da conta</h3>
+      <table>
+        <tr><th>Situação</th><th>Acesso</th></tr>
+        <tr><td>Período de teste</td><td>Liberado por 48 h após o cadastro</td></tr>
+        <tr><td>Aguardando confirmação</td><td>Pix informado, aguardando conferência</td></tr>
+        <tr><td>Assinatura ativa</td><td>Liberado até a data de vencimento</td></tr>
+        <tr><td>Vencida / teste encerrado</td><td>Bloqueado até o pagamento</td></tr>
+        <tr><td>Acesso bloqueado</td><td>Bloqueado pelo suporte</td></tr>
+      </table>
+      <p>Com o acesso bloqueado, o sistema abre direto na tela de pagamento. <b>Os dados ficam guardados</b> e voltam assim que o acesso é liberado.</p>
+      <h3>Usuários da conta</h3>
+      <p>O quadro <b>Usuários do sistema</b> mostra quantos estão em uso, o limite e as vagas. Precisando de mais usuários, fale com o suporte (WhatsApp ou e-mail exibidos na tela).</p>
+    </div>
+  </div>
+
+  <h1 style="margin-top:8mm">11. Usando no celular</h1>
+  <div class="lado">
+    <figure class="estreita" style="flex:0 0 28%"><img src="img/19-celular-contratos.jpg" style="width:100%"><figcaption>Contratos no celular.</figcaption></figure>
+    <figure class="estreita" style="flex:0 0 28%"><img src="img/20-celular-menu.jpg" style="width:100%"><figcaption>Menu aberto.</figcaption></figure>
+    <div style="flex:1">
+      <p>É o mesmo sistema, ajustado à tela:</p>
+      <ul>
+        <li>O menu abre no botão <b>☰</b> e fecha ao escolher a tela.</li>
+        <li>Cada linha das listas vira um <b>cartão</b>, com o nome do campo ao lado do valor.</li>
+        <li>O contrato é lançado <b>uma etapa por tela</b>, com Voltar/Próximo.</li>
+        <li>Relatórios grandes (DRE, balancete) diminuem a fonte e continuam em tabela.</li>
+      </ul>
+      <div class="dica"><b class="t">Atalho na tela inicial</b>No Chrome (Android) ou Safari (iPhone), abra o site e use <b>Adicionar à tela inicial</b> para abrir o AgroDock como um aplicativo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 --------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>12. Administração do site</h1>
+  <div class="atencao"><b class="t">Somente para o administrador do site</b>Este capítulo é para o dono do sistema. O menu <b>Administração</b> aparece apenas para a conta de administrador do site; os assinantes não veem essas telas.</div>
+
+  <h2>12.1 Empresas e acessos</h2>
+  <figure><img src="img/21-admin-empresas.jpg"><figcaption>Lista de empresas cadastradas, com situação, prazo e usuários em uso.</figcaption></figure>
+  <p>Mostra todas as empresas assinantes com CNPJ, responsável, situação, até quando estão liberadas e <b>usuários em uso / limite</b>. Os quadros do topo contam as empresas liberadas, as que <b>vencem em até 15 dias</b> e as bloqueadas. Use a busca para achar por nome, CNPJ ou e-mail.</p>
+  <table>
+    <tr><th style="width:22%">Botão</th><th>O que faz</th></tr>
+    <tr><td><span class="ui">Liberar até…</span></td><td>Escolha a data final (atalhos <b>+30 dias</b>, <b>+6 meses</b>, <b>+1 ano</b>) e uma observação (ex.: “Pix semestral de 16/09”). O acesso fica liberado até essa data e <b>bloqueia sozinho no dia seguinte</b>.</td></tr>
+    <tr><td><span class="ui">Bloquear</span></td><td>Corta o acesso da empresa na hora. Os dados ficam guardados; para voltar, use Liberar até…</td></tr>
+    <tr><td><span class="ui">Limite</span></td><td>Quantos usuários a empresa pode ter. O padrão é 3; aumente depois de receber o pagamento. Em branco volta ao padrão.</td></tr>
+    <tr><td><span class="ui">Usuários</span></td><td>Lista as pessoas da empresa. Para cada uma: marque/desmarque <b>Liberado</b> e defina <b>Acesso até</b> uma data (em branco = sem prazo). Clique em <span class="ui">Salvar</span> na linha.</td></tr>
+  </table>
+  <div class="lado">
+    <figure><img src="img/22-admin-liberar.jpg"><figcaption>Liberar acesso até uma data.</figcaption></figure>
+    <figure><img src="img/23-admin-limite.jpg"><figcaption>Aumentar o limite de usuários.</figcaption></figure>
+  </div>
+  <figure><img src="img/24-admin-usuarios.jpg"><figcaption>Acesso por usuário: liberado e prazo.</figcaption></figure>
+  <div class="dica"><b class="t">Bloqueio que o cliente não desfaz</b>Um usuário bloqueado aqui não pode ser reativado pelo administrador da empresa assinante — só por você.</div>
+
+  <h2>12.2 Assinaturas</h2>
+  <figure><img src="img/25-admin-assinaturas.jpg" style="max-height:75mm"><figcaption>Assinaturas: quem está em teste, aguardando confirmação e ativo.</figcaption></figure>
+  <ul>
+    <li>Quando o cliente clica em “Já fiz o Pix”, ele aparece como <b>Aguardando Pix</b>. Confira no seu banco e clique em <span class="ui">Confirmar Pix</span>: informe os meses a liberar (6 ou 12) e uma observação. O acesso é liberado até a nova data (renovações somam a partir do vencimento atual).</li>
+    <li><span class="ui">Liberar pacotes</span> aparece quando o cliente pediu pacotes de usuários extras pelo sistema.</li>
+    <li><span class="ui">Gerenciar</span> muda situação, plano, reabre um período de teste (horas) e guarda observações internas.</li>
+  </ul>
+
+  <h2>12.3 Config. do site</h2>
+  <figure><img src="img/26-config.jpg" style="max-height:75mm"><figcaption>Configurações do site.</figcaption></figure>
+  <table>
+    <tr><th style="width:28%">Grupo</th><th>O que configurar</th></tr>
+    <tr><td>Identidade do site</td><td>Nome do produto, slogan e nome da sua empresa (rodapé do site).</td></tr>
+    <tr><td>Contato exibido no site</td><td>WhatsApp e e-mail de suporte.</td></tr>
+    <tr><td>Recebimento por Pix</td><td><b>Chave Pix</b>, titular, banco e cidade — usados no QR Code e no copia e cola dos clientes — e o aviso da tela de pagamento. Sem chave Pix, o cliente vê um aviso para falar com o suporte.</td></tr>
+    <tr><td>Planos e teste</td><td>Valor e duração dos planos semestral e anual e horas de teste grátis.</td></tr>
+    <tr><td>Consulta de CNPJ e CEP</td><td>Provedor das buscas (AUTO já funciona sem credenciais) e credenciais das APIs oficiais, se contratadas.</td></tr>
+  </table>
+  <p>Clique em <span class="ui">Salvar configurações</span> no topo.</p>
+</section>
+
+<!-- 13 --------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>13. Dúvidas frequentes</h1>
+  <table>
+    <tr><th style="width:36%">Situação</th><th>O que fazer</th></tr>
+    <tr><td>Não aparece o comprador/vendedor no contrato</td><td>Cadastre a pessoa em Cadastros → Clientes/Fornecedores com tipo <b>Cliente</b> ou <b>Ambos</b>, e confira se está na empresa escolhida no topo.</td></tr>
+    <tr><td>Não consigo editar um contrato</td><td>Contrato com contas a receber geradas fica travado. Na ficha, use <span class="ui">Estornar recebíveis</span> (só se nada foi recebido), edite e gere de novo.</td></tr>
+    <tr><td>“Seu plano permite 3 usuário(s)…”</td><td>O limite de usuários foi atingido. Desative um usuário que não usa mais ou peça ampliação do limite ao suporte.</td></tr>
+    <tr><td>O saldo do banco não bate</td><td>Confira a data e o valor do saldo inicial em Cadastros → Bancos e procure baixas lançadas em conta errada no extrato de Caixa e Bancos.</td></tr>
+    <tr><td>Lancei uma baixa errada</td><td>Em Contas a Receber/Pagar, clique em <span class="ui">Ver</span> no título e em <span class="ui">Estornar</span> na baixa. Depois lance de novo.</td></tr>
+    <tr><td>A busca de CNPJ ou CEP não trouxe dados</td><td>Confira os números digitados. Se o serviço estiver fora do ar, preencha à mão — o cadastro funciona normalmente.</td></tr>
+    <tr><td>Caí na tela de pagamento</td><td>O teste terminou, a assinatura venceu ou o acesso foi bloqueado. Pague pelo Pix e clique em “Já fiz o Pix”, ou fale com o suporte.</td></tr>
+    <tr><td>Uma mudança no sistema não apareceu</td><td>Veja a data “versão de …” no rodapé do menu. Se estiver antiga, atualize a página com <b>Ctrl + F5</b>.</td></tr>
+    <tr><td>O contrato impresso saiu sem logotipo</td><td>Envie o logotipo em Cadastros → Empresas e imprima de novo.</td></tr>
+    <tr><td>Como fazer uma cópia dos dados?</td><td>Use <span class="ui">Exportar CSV</span> nas listas e relatórios. O suporte também pode gerar uma cópia completa do banco de dados.</td></tr>
+  </table>
+  <div class="dica" style="margin-top:8mm"><b class="t">Precisa de ajuda?</b>Fale com o suporte pelo WhatsApp ou e-mail exibidos na página inicial do site e na tela Minha Assinatura.</div>
+</section>
+
+</body>
+</html>

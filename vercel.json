@@ -4,7 +4,7 @@
   "functions": {
     "app.py": {
       "maxDuration": 60,
-      "excludeFiles": "{testes/**,deploy/**,dados/**,backups/**,.venv/**,README.md,render.yaml,*.bat,*.sh}"
+      "excludeFiles": "{testes/**,deploy/**,dados/**,backups/**,docs/**,.venv/**,README.md,render.yaml,*.bat,*.sh}"
     }
   }
 }

@@ -49,6 +49,9 @@ const Site = {
     { p: 'Quantas pessoas podem usar?',
       r: 'A assinatura já inclui {U} usuários por empresa. Se precisar de mais, fale com a gente: '
        + 'o limite é ampliado depois da confirmação do pagamento, por Pix como a assinatura.' },
+    { p: 'Existe um manual de uso?',
+      r: 'Sim. O manual em PDF, com as telas do sistema passo a passo, pode ser baixado no rodapé desta '
+       + 'página e, dentro do sistema, no menu Ajuda.' },
     { p: 'Existe cobrança automática ou fidelidade?',
       r: 'Não. O pagamento é único, por Pix, e vale pelo prazo do plano. Ao final do período você decide '
        + 'se renova, sem qualquer cobrança automática no cartão.' },

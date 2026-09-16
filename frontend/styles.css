@@ -699,3 +699,5 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .forma-opcao.ativo{border-color:var(--primaria);background:var(--primaria-clara)}
 .forma-opcao input{width:auto}
 .forma-opcao .mini{margin-left:auto;text-align:right}
+
+.link-manual{display:inline-block;margin-top:8px;color:inherit;text-decoration:underline;font-weight:600}

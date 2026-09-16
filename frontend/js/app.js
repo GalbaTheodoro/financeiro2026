@@ -40,13 +40,23 @@ const App = {
         { rota: '/assinatura', icone: '★', rotulo: 'Minha Assinatura' },
       );
     }
+    itens.push(
+      { grupo: 'Ajuda' },
+      { link: App.MANUAL, icone: '?', rotulo: 'Manual do sistema (PDF)' },
+    );
     return itens;
   },
+
+  /* Manual em PDF (frontend/manual/). Abre numa aba nova e dá para baixar. */
+  MANUAL: '/static/manual/Manual-AgroDock.pdf',
 
   desenharMenu() {
     document.getElementById('menu').innerHTML = App.menu()
       .map((i) => (i.grupo
         ? `<div class="menu-grupo">${i.grupo}</div>`
+        : i.link
+        ? `<a class="menu-item" href="${i.link}" target="_blank" rel="noopener" download="Manual-AgroDock.pdf">
+             <span class="menu-icone">${i.icone}</span><span>${i.rotulo}</span></a>`
         : `<a class="menu-item" href="#${i.rota}" data-rota="${i.rota}">
              <span class="menu-icone">${i.icone}</span><span>${i.rotulo}</span></a>`))
       .join('');

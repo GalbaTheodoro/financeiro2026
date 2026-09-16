@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import EM_VERCEL, FRONTEND_DIR
+from .config import EM_VERCEL, ERRO_CONFIG, FRONTEND_DIR
 from .diagnostico import pagina_html, resumo_erro
 from .migracao import preparar_banco
 from .routers import (
@@ -30,11 +30,14 @@ log = logging.getLogger("financeiro")
 
 # Se o banco não abrir na subida (endereço errado, banco suspenso...), o sistema
 # continua de pé mostrando a causa, e tenta de novo a cada 15 segundos.
-_BANCO = {"erro": None, "ultima_tentativa": 0.0}
+_BANCO = {"erro": ERRO_CONFIG, "ultima_tentativa": 0.0}
 
 
 def _tentar_preparar_banco() -> bool:
     _BANCO["ultima_tentativa"] = time.monotonic()
+    if ERRO_CONFIG:  # falta variável no Vercel: nem tenta abrir o banco
+        _BANCO["erro"] = ERRO_CONFIG
+        return False
     try:
         modo = preparar_banco()
     except Exception as erro:  # noqa: BLE001 — qualquer falha vira tela de diagnóstico

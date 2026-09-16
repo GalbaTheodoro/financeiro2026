@@ -67,9 +67,14 @@ DATABASE_URL = _normalizar(_endereco_do_banco()) or \
 
 USANDO_POSTGRES = DATABASE_URL.startswith("postgresql")
 
+# Configuração que impede o sistema de funcionar no Vercel. Em vez de derrubar o
+# sistema (o que só mostraria "500" sem explicação), a mensagem é guardada aqui e o
+# main.py mostra uma página dizendo o que falta.
+ERRO_CONFIG: str | None = None
+
 if EM_VERCEL and not USANDO_POSTGRES:
     # Sem isto o sistema "funcionaria" num arquivo temporário e perderia tudo.
-    raise RuntimeError(
+    ERRO_CONFIG = (
         "AgroDock no Vercel precisa do banco na nuvem: cadastre FIN_DATABASE_URL "
         "(endereço do Neon) em Settings → Environment Variables e faça Redeploy."
     )
@@ -78,10 +83,10 @@ if EM_VERCEL and not USANDO_POSTGRES:
 # Em produção defina a variável de ambiente FIN_SECRET_KEY.
 SECRET_KEY = os.getenv("FIN_SECRET_KEY", "troque-esta-chave-em-producao-1234567890")
 
-if EM_VERCEL and SECRET_KEY.startswith("troque-esta-chave"):
-    raise RuntimeError(
+if EM_VERCEL and SECRET_KEY.startswith("troque-esta-chave") and not ERRO_CONFIG:
+    ERRO_CONFIG = (
         "AgroDock no Vercel precisa de FIN_SECRET_KEY (uma frase longa e secreta) "
-        "em Settings → Environment Variables."
+        "em Settings → Environment Variables e faça Redeploy."
     )
 
 TOKEN_HORAS_VALIDADE = int(os.getenv("FIN_TOKEN_HORAS", "12"))

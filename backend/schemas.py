@@ -297,10 +297,15 @@ class ContratoIn(BaseModel):
     """Contrato de compra e venda intermediado (corretagem)."""
 
     empresa_id: int
+    tipo: str = "CORRETAGEM"          # CORRETAGEM | COMPRA | VENDA
     numero: str | None = None        # em branco = numeração automática
     data: date | None = None
-    comprador_id: int
-    vendedor_id: int
+    # na compra o comprador é a empresa; na venda o vendedor é a empresa
+    comprador_id: int | None = None
+    vendedor_id: int | None = None
+    agente_id: int | None = None          # quem intermediou (opcional)
+    agente_percentual: float = 0
+    agente_valor: float | None = None     # em branco = calculado pelo percentual
     corretor: str | None = None
     representante_id: int | None = None
     produto_id: int | None = None
@@ -333,7 +338,12 @@ class ContratoIn(BaseModel):
 
 
 class GerarRecebiveisIn(BaseModel):
-    """Opções da geração das contas a receber das comissões."""
+    """Opções da geração dos títulos do contrato.
+
+    Corretagem: contas a receber das comissões do comprador e do vendedor.
+    Compra: conta a pagar do fornecedor (mercadoria) e do agente.
+    Venda: conta a receber do cliente (mercadoria) e conta a pagar do agente.
+    """
 
     vencimento: date | None = None        # padrão: data de pagamento do contrato
     num_parcelas: int = 1
@@ -341,6 +351,10 @@ class GerarRecebiveisIn(BaseModel):
     intervalo_dias: int = 30
     gerar_comprador: bool = True
     gerar_vendedor: bool = True
+    gerar_mercadoria: bool = True         # compra/venda
+    gerar_agente: bool = True             # comissão do agente
+    vencimento_agente: date | None = None  # padrão: o mesmo da mercadoria
+    num_parcelas_agente: int = 1
 
 
 class MovimentoCaixaIn(BaseModel):

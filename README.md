@@ -206,10 +206,26 @@ acessos** depois de receber o pagamento. Continua existindo o caminho automátic
 pacotes: em **Minha Assinatura** o assinante pede pacotes de **+5 usuários** com **65% de
 desconto** sobre o plano, paga pelo Pix próprio do pedido e o limite sobe na confirmação.
 
-### Contratos de intermediação (corretagem)
+### Contratos: corretagem, compra e venda
 
-Para quem trabalha aproximando **comprador e vendedor** e cobra comissão dos dois lados.
-Em **Movimento → Contratos** você lança o negócio e o sistema cuida do resto:
+Em **Movimento → Contratos** cabem os três jeitos de fazer o negócio. O tipo é escolhido na
+primeira etapa do formulário e decide quem são as partes e quais títulos o contrato gera:
+
+| Tipo | Partes | O que o contrato gera |
+|---|---|---|
+| **Corretagem (intermediação)** | comprador e vendedor, os dois de fora | **contas a receber** das comissões do comprador e do vendedor |
+| **Compra de café** | o comprador é a **sua empresa**; escolha só o fornecedor | **conta a pagar** do fornecedor (valor do café), classificada em *Custo das Mercadorias Vendidas* |
+| **Venda de café** | o vendedor é a **sua empresa**; escolha só o cliente | **conta a receber** do cliente, classificada em *Receita de Venda de Mercadorias* |
+
+Nos três tipos dá para informar um **agente** que intermediou, com percentual sobre o valor
+do contrato ou valor fechado: a comissão dele vira uma **conta a pagar** da sua empresa, em
+*Comissões sobre Vendas*. Na compra e na venda o ICMS usa a UF da sua empresa de um lado e a
+do parceiro do outro. A ficha e a folha impressa mudam conforme o tipo (na compra, por
+exemplo, sai "Contrato de compra", com a sua empresa no lado do comprador), e a situação do
+contrato aparece com as palavras certas: na compra, *Fechado a Pagar*, *Pago Parcial* e
+*Pago Total*.
+
+O resto vale para todos os tipos:
 
 - **Numeração automática**: o número sai pronto (00000001, 00000002...) seguindo o maior
   número já usado na empresa. Dá para digitar outro quando o contrato vem numerado de fora.
@@ -220,13 +236,14 @@ Em **Movimento → Contratos** você lança o negócio e o sistema cuida do rest
   19.800 kg, calculado na tela enquanto você digita.
 - **Quantidade e valores**: quantidade × (preço unitário + diferencial) = valor negociado,
   calculado na hora enquanto você digita. Dá para digitar o valor fechado direto.
-- **Corretagem dos dois lados**: um percentual para o comprador e outro para o vendedor,
-  independentes. O valor aparece calculado e pode ser ajustado à mão quando o combinado
+- **Corretagem dos dois lados** (só na corretagem): um percentual para o comprador e outro
+  para o vendedor, independentes. O valor aparece calculado e pode ser ajustado à mão quando o combinado
   foi um valor fixo.
-- **Gerar contas a receber**: um clique cria os títulos — um no nome do comprador, outro no
-  do vendedor — com vencimento na data de pagamento do contrato, número do contrato como
-  documento e classificação em *Receita de Corretagem e Comissões*. Aceita parcelar e
-  escolher gerar só um dos lados.
+- **Gerar os títulos**: um clique cria as contas — na corretagem, uma para cada comissão;
+  na compra, a conta a pagar do café; na venda, a conta a receber do café; e, quando há
+  agente, a conta a pagar dele (com vencimento próprio, se quiser). Sempre com o número do
+  contrato como documento, vencimento na data de pagamento do contrato e classificação
+  contábil automática. Aceita parcelar e escolher o que gerar.
 - **Situação que anda sozinha**: cada contrato mostra em que pé está, e a situação muda
   conforme o dinheiro entra — sem ninguém marcar nada:
 
@@ -239,10 +256,14 @@ Em **Movimento → Contratos** você lança o negócio e o sistema cuida do rest
   | **Cancelado** | cancelado à mão (dá para reabrir depois) |
 
   Na lista, as situações aparecem como botões com a contagem — um clique filtra.
+- **Migração automática**: quem já usava o sistema não precisa fazer nada. Na primeira
+  subida os contratos antigos passam a ser do tipo *Corretagem* e os campos de comprador e
+  vendedor deixam de ser obrigatórios (na compra e na venda um dos lados é a própria
+  empresa). Teste: `python testes/teste_migracao.py`.
 - **Estorno**: enquanto não houver baixa, um clique apaga os títulos e devolve o contrato
   para "aberto".
 - **Lançamento em etapas**: o formulário é dividido em cinco etapas curtas
-  (Identificação › Partes › Quantidade › Corretagem › Embarque), com Voltar/Próximo e o
+  (Identificação › Partes › Quantidade › Comissões › Embarque), com Voltar/Próximo e o
   resumo do cálculo sempre à vista. **No celular dá para lançar um contrato inteiro com o
   polegar**; no computador as etapas viram abas e você pula direto para a que interessa.
 - **Impressão em PDF**: o botão **Imprimir** (na lista e na ficha) abre a folha do contrato
@@ -513,6 +534,8 @@ python testes/teste_cnpj.py         # consulta de CNPJ contra um Conecta Gov sim
 python testes/teste_cep.py          # consulta de CEP contra os Correios simulados
 python testes/teste_formas_pagamento.py   # contas e chaves Pix por parceiro e uso na baixa
 python testes/teste_contratos.py    # contrato de corretagem, comissões e contas a receber
+python testes/teste_compra_venda.py # compra e venda de café, agente e títulos gerados
+python testes/teste_icms.py         # tabela de ICMS e o ICMS calculado no contrato
 python testes/teste_cadastros.py    # unidades, modalidades, produtos, nº automático e usuários
 python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/capturas/contrato.pdf)
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos
@@ -520,6 +543,14 @@ python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões 
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:
 python testes/teste_empresas_acesso.py  # administrador, liberar/bloquear por data e limites
+```
+
+Sem precisar de servidor:
+
+```bash
+python testes/teste_cotacoes.py     # faixa de cotações, com respostas gravadas
+python testes/teste_mercado.py      # painel Mercado do Café, com respostas gravadas
+python testes/teste_migracao.py     # atualização de um banco antigo para o formato novo
 ```
 
 Com o banco na nuvem (o servidor precisa estar apontando para o mesmo endereço):

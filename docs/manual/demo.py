@@ -41,8 +41,15 @@ usuarios=api("GET","/api/usuarios",token=t); rep=usuarios[0]["id"]
 prods=api("GET",f"/api/produtos?empresa_id={eid}",token=t); mods=api("GET",f"/api/modalidades?empresa_id={eid}",token=t); unis=api("GET",f"/api/unidades?empresa_id={eid}",token=t)
 sc=next(u for u in unis if u["codigo"]=="SC")
 def contrato(comprador,vendedor,q,p,dias,**kw):
-    d=dict(empresa_id=eid,comprador_id=comprador["id"],vendedor_id=vendedor["id"],representante_id=rep,produto_id=prods[0]["id"],modalidade_id=mods[0]["id"],unidade_id=sc["id"],embalagem="A GRANEL",quantidade=q,preco_unitario=p,data=(hoje-timedelta(days=dias)).isoformat(),data_pagamento=(hoje+timedelta(days=10-dias)).isoformat(),data_embarque=(hoje+timedelta(days=5)).isoformat(),comissao_comprador_percentual=0.5,comissao_vendedor_percentual=0.5,local_coleta="Armazém Brascafé",local_descarga="Armazém do comprador")
+    d=dict(empresa_id=eid,comprador_id=comprador["id"] if comprador else None,
+           vendedor_id=vendedor["id"] if vendedor else None,representante_id=rep,produto_id=prods[0]["id"],modalidade_id=mods[0]["id"],unidade_id=sc["id"],embalagem="A GRANEL",quantidade=q,preco_unitario=p,data=(hoje-timedelta(days=dias)).isoformat(),data_pagamento=(hoje+timedelta(days=10-dias)).isoformat(),data_embarque=(hoje+timedelta(days=5)).isoformat(),comissao_comprador_percentual=0.5,comissao_vendedor_percentual=0.5,local_coleta="Armazém Brascafé",local_descarga="Armazém do comprador")
     d.update(kw); return api("POST","/api/contratos",d,t)
+# contratos de compra e de venda da própria empresa, com agente
+agente=api("POST","/api/parceiros",{"empresa_id":eid,"tipo":"AMBOS","pessoa":"F","nome":"JOSÉ AGENTE DE CAFÉ","cpf_cnpj":"555.666.777-88","cidade":"Araguari","uf":"MG"},t)
+compra=contrato(None,vend2,200,1300,5,tipo="COMPRA",comprador_id=None,agente_id=agente["id"],agente_percentual=1)
+api("POST",f"/api/contratos/{compra['id']}/gerar-recebiveis",{"gerar_mercadoria":True,"gerar_agente":True},t)
+venda=contrato(comp3,None,200,1450,2,tipo="VENDA",vendedor_id=None,agente_id=agente["id"],agente_valor=1500,agente_percentual=0)
+api("POST",f"/api/contratos/{venda['id']}/gerar-recebiveis",{"gerar_mercadoria":True,"gerar_agente":True},t)
 c1=contrato(comp3,vend,330,1320,12)
 c2=contrato(comp2,vend2,500,1285,8)
 c3=contrato(comp,vend2,120,1410,3)

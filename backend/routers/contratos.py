@@ -1,8 +1,17 @@
-"""Contratos de intermediação (corretagem).
+"""Contratos de café: corretagem, compra e venda.
 
-Registra o negócio entre comprador e vendedor — quantidade, preço, valor — e a
-corretagem cobrada de cada lado. A partir do contrato o sistema gera as contas
-a receber das comissões, já classificadas e contabilizadas.
+Três tipos, no mesmo cadastro:
+
+* **CORRETAGEM** — a empresa só aproxima comprador e vendedor e cobra comissão dos
+  dois lados. Gera as **contas a receber** das duas comissões.
+* **COMPRA** — a empresa compra o café de um fornecedor. Gera a **conta a pagar** do
+  fornecedor (valor da mercadoria) e, se houver agente, a conta a pagar da comissão dele.
+* **VENDA** — a empresa vende o café para um cliente. Gera a **conta a receber** do
+  cliente (valor da mercadoria) e, se houver agente, a conta a pagar da comissão dele.
+
+Na compra o comprador é a própria empresa; na venda, o vendedor. Por isso um dos dois
+campos fica em branco e a folha impressa mostra o nome da empresa naquele lado.
+Todos os títulos saem classificados e contabilizados.
 """
 from datetime import date, datetime, timedelta
 
@@ -17,6 +26,7 @@ from ..deps import acesso_liberado, validar_empresa
 from ..models import (
     Contrato,
     ContaContabil,
+    Empresa,
     Lancamento,
     LancamentoItem,
     ModalidadeContrato,
@@ -40,6 +50,24 @@ from ..utils import (
 router = APIRouter(prefix="/api/contratos", tags=["contratos"])
 
 CODIGO_CONTA_COMISSAO = "3.1.01.004"
+
+TIPOS_CONTRATO = {
+    "CORRETAGEM": "Corretagem (intermediação)",
+    "COMPRA": "Compra de café",
+    "VENDA": "Venda de café",
+}
+
+# conta contábil padrão de cada tipo: (parâmetro, código, nome, tipo, natureza, grupo do DRE)
+CONTAS_PADRAO = {
+    "comissao_recebida": ("conta_comissao", CODIGO_CONTA_COMISSAO,
+                          "Receita de Corretagem e Comissoes", "RECEITA", "C", "RECEITA_BRUTA"),
+    "venda": ("conta_venda_mercadoria", "3.1.01.001",
+              "Receita de Venda de Mercadorias", "RECEITA", "C", "RECEITA_BRUTA"),
+    "compra": ("conta_compra_mercadoria", "4.1.01.001",
+               "Custo das Mercadorias Vendidas", "CUSTO", "D", "CUSTO"),
+    "comissao_paga": ("conta_comissao_paga", "4.4.01.001",
+                      "Comissoes sobre Vendas", "DESPESA", "D", "DESPESA_COMERCIAL"),
+}
 
 
 def proximo_numero(db: Session, empresa_id: int) -> str:
@@ -85,6 +113,10 @@ def aplicar_cadastros(db: Session, contrato: Contrato, dados: ContratoIn):
         representante = db.get(Usuario, dados.representante_id)
         if not representante:
             raise HTTPException(400, "Representante inválido")
+    if dados.agente_id:
+        agente = db.get(Parceiro, dados.agente_id)
+        if not agente or agente.empresa_id != contrato.empresa_id:
+            raise HTTPException(400, "Selecione um agente válido.")
     # ICMS informativo: alíquota da tabela (UF vendedor x UF comprador) ou digitada
     for campo, valor in calcular_icms(
         db, contrato.empresa_id, contrato.vendedor_id, contrato.comprador_id,
@@ -97,7 +129,9 @@ def aplicar_cadastros(db: Session, contrato: Contrato, dados: ContratoIn):
 # Cálculos
 # --------------------------------------------------------------------------- #
 def calcular(dados: ContratoIn) -> dict:
-    """Valor negociado e comissões. O percentual manda; o valor pode ser digitado."""
+    """Valor negociado, comissões e comissão do agente.
+
+    O percentual manda; o valor pode ser digitado quando foi combinado fechado."""
     quantidade = float(dados.quantidade or 0)
     preco = float(dados.preco_unitario or 0)
     diferencial = float(dados.diferencial or 0)
@@ -119,39 +153,42 @@ def calcular(dados: ContratoIn) -> dict:
         "comissao_vendedor_valor": comissao(
             dados.comissao_vendedor_percentual, dados.comissao_vendedor_valor
         ),
+        "agente_valor": (comissao(dados.agente_percentual, dados.agente_valor)
+                         if dados.agente_id else 0.0),
     }
 
 
-def conta_comissao(db: Session, empresa_id: int) -> int:
-    """Conta de receita usada nas comissões; cria a padrão se ainda não existir."""
-    conta_id = parametro_conta(db, empresa_id, "conta_comissao")
+def conta_padrao(db: Session, empresa_id: int, uso: str) -> int:
+    """Conta contábil usada nos títulos do contrato; cria a padrão se faltar.
+
+    uso: comissao_recebida (corretagem), venda, compra ou comissao_paga (agente)."""
+    chave, codigo, nome, tipo, natureza, grupo = CONTAS_PADRAO[uso]
+    conta_id = parametro_conta(db, empresa_id, chave)
     if conta_id and db.get(ContaContabil, conta_id):
         return conta_id
 
     conta = (
         db.query(ContaContabil)
-        .filter(
-            ContaContabil.empresa_id == empresa_id,
-            ContaContabil.codigo == CODIGO_CONTA_COMISSAO,
-        )
+        .filter(ContaContabil.empresa_id == empresa_id, ContaContabil.codigo == codigo)
         .first()
     )
     if not conta:
         pai = (
             db.query(ContaContabil)
-            .filter(ContaContabil.empresa_id == empresa_id, ContaContabil.codigo == "3.1")
+            .filter(ContaContabil.empresa_id == empresa_id,
+                    ContaContabil.codigo == codigo.rsplit(".", 2)[0])
             .first()
         )
         conta = ContaContabil(
             empresa_id=empresa_id,
-            codigo=CODIGO_CONTA_COMISSAO,
-            nome="Receita de Corretagem e Comissoes",
-            tipo="RECEITA",
-            natureza="C",
+            codigo=codigo,
+            nome=nome,
+            tipo=tipo,
+            natureza=natureza,
             analitica=True,
             nivel=4,
             pai_id=pai.id if pai else None,
-            grupo_dre="RECEITA_BRUTA",
+            grupo_dre=grupo,
         )
         db.add(conta)
         db.flush()
@@ -160,15 +197,26 @@ def conta_comissao(db: Session, empresa_id: int) -> int:
 
     registro = (
         db.query(Parametro)
-        .filter(Parametro.empresa_id == empresa_id, Parametro.chave == "conta_comissao")
+        .filter(Parametro.empresa_id == empresa_id, Parametro.chave == chave)
         .first()
     )
     if registro:
         registro.valor = str(conta.id)
     else:
-        db.add(Parametro(empresa_id=empresa_id, chave="conta_comissao", valor=str(conta.id)))
+        db.add(Parametro(empresa_id=empresa_id, chave=chave, valor=str(conta.id)))
     db.flush()
     return conta.id
+
+
+def conta_comissao(db: Session, empresa_id: int) -> int:
+    """Conta de receita das comissões de corretagem (compatibilidade)."""
+    return conta_padrao(db, empresa_id, "comissao_recebida")
+
+
+def conta_do_contrato(db: Session, contrato: Contrato) -> int:
+    """Conta contábil da mercadoria/comissão principal, conforme o tipo."""
+    uso = {"COMPRA": "compra", "VENDA": "venda"}.get(contrato.tipo, "comissao_recebida")
+    return conta_padrao(db, contrato.empresa_id, uso)
 
 
 # --------------------------------------------------------------------------- #
@@ -186,6 +234,44 @@ STATUS_CONTRATO = {
     "CANCELADO": "Cancelado",
 }
 
+# na compra o dinheiro sai, então os mesmos códigos aparecem com outro nome
+STATUS_COMPRA = {
+    "ABERTO": "Aberto",
+    "FECHADO_A_RECEBER": "Fechado a Pagar",
+    "RECEBIDO_PARCIAL": "Fechado Pago Parcial",
+    "RECEBIDO_TOTAL": "Fechado Pago Total",
+    "CANCELADO": "Cancelado",
+}
+
+
+def nome_status(tipo: str, status: str) -> str:
+    tabela = STATUS_COMPRA if tipo == "COMPRA" else STATUS_CONTRATO
+    return tabela.get(status, status)
+
+
+def previsto_receber(c: Contrato) -> float:
+    """Quanto o contrato traz para a empresa."""
+    if c.tipo == "VENDA":
+        return dinheiro(c.valor_total)
+    if c.tipo == "COMPRA":
+        return 0.0
+    return round(dinheiro(c.comissao_comprador_valor) + dinheiro(c.comissao_vendedor_valor), 2)
+
+
+def previsto_pagar(c: Contrato) -> float:
+    """Quanto a empresa paga: o café comprado e a comissão do agente."""
+    pagar = dinheiro(c.agente_valor)
+    if c.tipo == "COMPRA":
+        pagar += dinheiro(c.valor_total)
+    return round(pagar, 2)
+
+
+def valor_previsto(c: Contrato) -> float:
+    """Quanto o contrato deve virar título (para saber se já foi tudo gerado)."""
+    if c.tipo in ("COMPRA", "VENDA"):
+        return round(dinheiro(c.valor_total) + dinheiro(c.agente_valor), 2)
+    return round(dinheiro(c.comissao_comprador_valor) + dinheiro(c.comissao_vendedor_valor), 2)
+
 # como cada status aparece na tela (classe da tag colorida)
 TAG_STATUS = {
     "ABERTO": "tag-aberto",
@@ -196,8 +282,12 @@ TAG_STATUS = {
 }
 
 
+CAMPOS_LANCAMENTO = ("lancamento_comprador_id", "lancamento_vendedor_id",
+                     "lancamento_mercadoria_id", "lancamento_agente_id")
+
+
 def _lancamentos_do_contrato(db: Session, c: Contrato) -> list[Lancamento]:
-    ids = [i for i in (c.lancamento_comprador_id, c.lancamento_vendedor_id) if i]
+    ids = [getattr(c, campo) for campo in CAMPOS_LANCAMENTO if getattr(c, campo)]
     return [lanc for lanc in (db.get(Lancamento, i) for i in ids) if lanc]
 
 
@@ -226,9 +316,7 @@ def situacao_financeira(db: Session, c: Contrato) -> dict:
 
     gerado = round(gerado, 2)
     baixado = round(baixado, 2)
-    comissao = round(
-        dinheiro(c.comissao_comprador_valor) + dinheiro(c.comissao_vendedor_valor), 2
-    )
+    comissao = valor_previsto(c)
     return {
         "gerado": gerado,
         "a_gerar": round(max(comissao - gerado, 0), 2),
@@ -288,18 +376,36 @@ def _saldo_lancamento(db: Session, lancamento_id: int | None) -> dict | None:
     }
 
 
+def nome_da_empresa(db: Session, empresa_id: int) -> str:
+    empresa = db.get(Empresa, empresa_id)
+    if not empresa:
+        return "Minha empresa"
+    return empresa.nome_fantasia or empresa.razao_social
+
+
 def contrato_dict(db: Session, c: Contrato, completo: bool = False) -> dict:
     total_comissao = round(
         dinheiro(c.comissao_comprador_valor) + dinheiro(c.comissao_vendedor_valor), 2
     )
     financeiro = sincronizar_status(db, c)   # o status acompanha as baixas
+    minha = nome_da_empresa(db, c.empresa_id)
+    compra, venda = c.tipo == "COMPRA", c.tipo == "VENDA"
+    parceiro = c.vendedor if compra else c.comprador if venda else None
     dados = serializar(
         c,
         extras={
-            "comprador_nome": c.comprador.nome if c.comprador else "-",
+            "comprador_nome": c.comprador.nome if c.comprador else (minha if compra else "-"),
             "comprador_documento": c.comprador.cpf_cnpj if c.comprador else "",
-            "vendedor_nome": c.vendedor.nome if c.vendedor else "-",
+            "vendedor_nome": c.vendedor.nome if c.vendedor else (minha if venda else "-"),
             "vendedor_documento": c.vendedor.cpf_cnpj if c.vendedor else "",
+            "tipo_nome": TIPOS_CONTRATO.get(c.tipo, c.tipo),
+            "empresa_nome": minha,
+            "parceiro_nome": parceiro.nome if parceiro else None,
+            "parceiro_papel": "Fornecedor" if compra else "Cliente" if venda else None,
+            "agente_nome": c.agente.nome if c.agente else None,
+            "valor_previsto": valor_previsto(c),
+            "previsto_receber": previsto_receber(c),
+            "previsto_pagar": previsto_pagar(c),
             "conta_contabil_nome": (
                 f"{c.conta_contabil.codigo} - {c.conta_contabil.nome}" if c.conta_contabil else None
             ),
@@ -319,7 +425,7 @@ def contrato_dict(db: Session, c: Contrato, completo: bool = False) -> dict:
                 f"{c.icms_uf_origem or '?'} → {c.icms_uf_destino or '?'}"
                 if (c.icms_uf_origem or c.icms_uf_destino) else None
             ),
-            "status_nome": STATUS_CONTRATO.get(c.status, c.status),
+            "status_nome": nome_status(c.tipo, c.status),
             "status_tag": TAG_STATUS.get(c.status, ""),
             "financeiro": financeiro,
             # atalhos usados na lista e no relatório
@@ -331,20 +437,46 @@ def contrato_dict(db: Session, c: Contrato, completo: bool = False) -> dict:
     if completo:
         dados["recebivel_comprador"] = _saldo_lancamento(db, c.lancamento_comprador_id)
         dados["recebivel_vendedor"] = _saldo_lancamento(db, c.lancamento_vendedor_id)
+        dados["titulo_mercadoria"] = _saldo_lancamento(db, c.lancamento_mercadoria_id)
+        dados["titulo_agente"] = _saldo_lancamento(db, c.lancamento_agente_id)
     return dados
 
 
 # --------------------------------------------------------------------------- #
 # CRUD
 # --------------------------------------------------------------------------- #
+def tem_titulos(c: Contrato) -> bool:
+    return any(getattr(c, campo) for campo in CAMPOS_LANCAMENTO)
+
+
 def _validar_partes(db: Session, dados: ContratoIn, usuario: Usuario):
+    """Confere as partes conforme o tipo do contrato.
+
+    Compra: só o vendedor (o comprador é a empresa). Venda: só o comprador.
+    Corretagem: os dois, e diferentes entre si."""
     validar_empresa(db, dados.empresa_id, usuario)
-    if dados.comprador_id == dados.vendedor_id:
-        raise HTTPException(400, "O comprador e o vendedor devem ser cadastros diferentes.")
-    for campo, parceiro_id in (("comprador", dados.comprador_id), ("vendedor", dados.vendedor_id)):
-        parceiro = db.get(Parceiro, parceiro_id)
+    if dados.tipo not in TIPOS_CONTRATO:
+        raise HTTPException(400, "Escolha o tipo do contrato: corretagem, compra ou venda.")
+
+    if dados.tipo == "COMPRA":
+        obrigatorios = [("vendedor", dados.vendedor_id, "de quem você está comprando")]
+        dados.comprador_id = None
+    elif dados.tipo == "VENDA":
+        obrigatorios = [("comprador", dados.comprador_id, "para quem você está vendendo")]
+        dados.vendedor_id = None
+    else:
+        obrigatorios = [("comprador", dados.comprador_id, ""), ("vendedor", dados.vendedor_id, "")]
+        if dados.comprador_id == dados.vendedor_id:
+            raise HTTPException(400, "O comprador e o vendedor devem ser cadastros diferentes.")
+
+    for campo, parceiro_id, ajuda in obrigatorios:
+        parceiro = db.get(Parceiro, parceiro_id) if parceiro_id else None
         if not parceiro or parceiro.empresa_id != dados.empresa_id:
-            raise HTTPException(400, f"Selecione um {campo} válido.")
+            extra = f" ({ajuda})" if ajuda else ""
+            raise HTTPException(400, f"Selecione um {campo} válido{extra}.")
+
+    if dados.agente_id and dados.agente_id in (dados.comprador_id, dados.vendedor_id):
+        raise HTTPException(400, "O agente precisa ser um cadastro diferente das partes.")
 
 
 @router.post("")
@@ -375,7 +507,7 @@ def criar_contrato(
     for campo, valor in calculado.items():
         setattr(contrato, campo, valor)
     if not contrato.conta_contabil_id:
-        contrato.conta_contabil_id = conta_comissao(db, dados.empresa_id)
+        contrato.conta_contabil_id = conta_do_contrato(db, contrato)
     aplicar_cadastros(db, contrato, dados)
     db.add(contrato)
     db.commit()
@@ -386,6 +518,7 @@ def criar_contrato(
 @router.get("")
 def listar_contratos(
     empresa_id: int,
+    tipo: str | None = None,
     status: str | None = None,
     parceiro_id: int | None = None,
     de: str | None = None,
@@ -400,9 +533,12 @@ def listar_contratos(
         .options(joinedload(Contrato.comprador), joinedload(Contrato.vendedor))
         .filter(Contrato.empresa_id == empresa_id)
     )
+    if tipo:
+        query = query.filter(Contrato.tipo == tipo)
     if parceiro_id:
         query = query.filter(
-            or_(Contrato.comprador_id == parceiro_id, Contrato.vendedor_id == parceiro_id)
+            or_(Contrato.comprador_id == parceiro_id, Contrato.vendedor_id == parceiro_id,
+                Contrato.agente_id == parceiro_id)
         )
     if de:
         query = query.filter(Contrato.data >= parse_data(de))
@@ -441,12 +577,20 @@ def listar_contratos(
             "comissao_recebida": soma("comissao_recebida"),
             "comissao_a_receber": soma("comissao_a_receber"),
             "comissao_vencida": soma("comissao_vencida"),
+            "comissao_agente": soma("agente_valor"),
+            "a_receber_total": soma("previsto_receber"),
+            "a_pagar_total": soma("previsto_pagar"),
             "por_status": {
                 codigo: sum(1 for l in linhas if l["status"] == codigo)
                 for codigo in STATUS_CONTRATO
             },
+            "por_tipo": {
+                codigo: sum(1 for l in linhas if l["tipo"] == codigo)
+                for codigo in TIPOS_CONTRATO
+            },
         },
         "status": [{"codigo": c, "nome": n} for c, n in STATUS_CONTRATO.items()],
+        "tipos": [{"codigo": c, "nome": n} for c, n in TIPOS_CONTRATO.items()],
     }
 
 
@@ -493,6 +637,21 @@ def dados_impressao(
             ],
         )
 
+    def parte_empresa() -> dict:
+        """A própria empresa como parte (compra: comprador; venda: vendedor)."""
+        return {
+            "nome": empresa.razao_social or empresa.nome_fantasia,
+            "nome_fantasia": empresa.nome_fantasia,
+            "pessoa": "J",
+            "cpf_cnpj": empresa.cnpj,
+            "rg_ie": empresa.inscricao_estadual,
+            "endereco": endereco_linha(empresa),
+            "telefone": empresa.telefone,
+            "email": empresa.email,
+            "e_minha_empresa": True,
+            "formas": [],
+        }
+
     unidade = db.get(Unidade, contrato.unidade_id) if contrato.unidade_id else None
     return {
         "contrato": contrato_dict(db, contrato, completo=True),
@@ -500,8 +659,9 @@ def dados_impressao(
             serializar(empresa),
             endereco=endereco_linha(empresa),
         ),
-        "comprador": parte(contrato.comprador),
-        "vendedor": parte(contrato.vendedor),
+        "comprador": parte_empresa() if contrato.tipo == "COMPRA" else parte(contrato.comprador),
+        "vendedor": parte_empresa() if contrato.tipo == "VENDA" else parte(contrato.vendedor),
+        "agente": parte(contrato.agente) if contrato.agente_id else None,
         "unidade": serializar(unidade) if unidade else None,
         "emitido_em": datetime.now().isoformat(timespec="minutes"),
     }
@@ -518,10 +678,10 @@ def atualizar_contrato(
     if not contrato:
         raise HTTPException(404, "Contrato não encontrado")
     validar_empresa(db, contrato.empresa_id, usuario)
-    if contrato.lancamento_comprador_id or contrato.lancamento_vendedor_id:
+    if tem_titulos(contrato):
         raise HTTPException(
             400,
-            "Este contrato já gerou contas a receber. Estorne os recebíveis antes de alterá-lo.",
+            "Este contrato já gerou títulos. Estorne-os antes de alterá-lo.",
         )
     _validar_partes(db, dados, usuario)
     calculado = calcular(dados)
@@ -531,7 +691,7 @@ def atualizar_contrato(
     for campo, valor in calculado.items():
         setattr(contrato, campo, valor)
     if not contrato.conta_contabil_id:
-        contrato.conta_contabil_id = conta_comissao(db, contrato.empresa_id)
+        contrato.conta_contabil_id = conta_do_contrato(db, contrato)
     aplicar_cadastros(db, contrato, dados)
     db.commit()
     return contrato_dict(db, contrato, completo=True)
@@ -545,9 +705,9 @@ def excluir_contrato(
     if not contrato:
         raise HTTPException(404, "Contrato não encontrado")
     validar_empresa(db, contrato.empresa_id, usuario)
-    if contrato.lancamento_comprador_id or contrato.lancamento_vendedor_id:
+    if tem_titulos(contrato):
         raise HTTPException(
-            400, "Estorne as contas a receber geradas antes de excluir o contrato."
+            400, "Estorne os títulos gerados por este contrato antes de excluí-lo."
         )
     db.delete(contrato)
     db.commit()
@@ -557,25 +717,31 @@ def excluir_contrato(
 # --------------------------------------------------------------------------- #
 # Geração das contas a receber
 # --------------------------------------------------------------------------- #
-def _criar_recebivel(
+def _criar_titulo(
     db: Session,
     contrato: Contrato,
     parceiro_id: int,
     valor: float,
-    lado: str,
-    opcoes: GerarRecebiveisIn,
+    descricao: str,
     usuario: Usuario,
+    tipo_titulo: str = "RECEBER",
+    conta_contabil_id: int | None = None,
+    vencimento: date | None = None,
+    parcelas: int = 1,
+    periodicidade: str = "MENSAL",
+    intervalo_dias: int = 30,
 ) -> Lancamento:
-    base = opcoes.vencimento or contrato.data_pagamento or contrato.data or date.today()
-    qtd = max(1, int(opcoes.num_parcelas or 1))
+    """Cria o título (a receber ou a pagar) do contrato, já contabilizado."""
+    base = vencimento or contrato.data_pagamento or contrato.data or date.today()
+    qtd = max(1, int(parcelas or 1))
 
     lanc = Lancamento(
         empresa_id=contrato.empresa_id,
-        tipo="RECEBER",
+        tipo=tipo_titulo,
         modo="MULTIPLO" if qtd > 1 else "SIMPLES",
         numero_documento=contrato.numero,
         parceiro_id=parceiro_id,
-        descricao=f"Corretagem {lado} - contrato {contrato.numero}",
+        descricao=descricao,
         data_emissao=contrato.data or date.today(),
         data_competencia=contrato.data or date.today(),
         valor_total=valor,
@@ -592,10 +758,11 @@ def _criar_recebivel(
     db.add(
         LancamentoItem(
             lancamento_id=lanc.id,
-            conta_contabil_id=contrato.conta_contabil_id or conta_comissao(db, contrato.empresa_id),
+            conta_contabil_id=conta_contabil_id or contrato.conta_contabil_id
+            or conta_do_contrato(db, contrato),
             centro_custo_id=contrato.centro_custo_id,
             operacao_id=contrato.operacao_id,
-            descricao=f"Corretagem {lado} - contrato {contrato.numero}",
+            descricao=descricao,
             valor=valor,
         )
     )
@@ -603,17 +770,17 @@ def _criar_recebivel(
     valor_parcela = round(valor / qtd, 2)
     acumulado = 0.0
     for i in range(qtd):
-        if opcoes.periodicidade == "DIAS":
-            vencimento = base + timedelta(days=int(opcoes.intervalo_dias or 30) * i)
+        if periodicidade == "DIAS":
+            dia = base + timedelta(days=int(intervalo_dias or 30) * i)
         else:
-            vencimento = adicionar_meses(base, i)
+            dia = adicionar_meses(base, i)
         parcela = valor_parcela if i < qtd - 1 else round(valor - acumulado, 2)
         acumulado += parcela
         db.add(
             Parcela(
                 lancamento_id=lanc.id,
                 numero=i + 1,
-                data_vencimento=vencimento,
+                data_vencimento=dia,
                 valor=parcela,
             )
         )
@@ -630,7 +797,12 @@ def gerar_recebiveis(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(acesso_liberado),
 ):
-    """Cria as contas a receber das comissões do comprador e do vendedor."""
+    """Cria os títulos do contrato.
+
+    Corretagem: contas a receber das comissões do comprador e do vendedor.
+    Compra: conta a pagar do fornecedor e, se houver, a do agente.
+    Venda: conta a receber do cliente e a conta a pagar do agente.
+    """
     contrato = db.get(Contrato, contrato_id)
     if not contrato:
         raise HTTPException(404, "Contrato não encontrado")
@@ -638,47 +810,111 @@ def gerar_recebiveis(
     opcoes = opcoes or GerarRecebiveisIn()
 
     if contrato.status == "CANCELADO":
-        raise HTTPException(400, "Contrato cancelado não gera contas a receber.")
-
-    comissao_comprador = dinheiro(contrato.comissao_comprador_valor)
-    comissao_vendedor = dinheiro(contrato.comissao_vendedor_valor)
-    if not comissao_comprador and not comissao_vendedor:
-        raise HTTPException(
-            400, "Informe a comissão do comprador e/ou do vendedor antes de gerar os recebíveis."
-        )
+        raise HTTPException(400, "Contrato cancelado não gera títulos.")
 
     criados = []
-    if opcoes.gerar_comprador and comissao_comprador > 0:
-        if contrato.lancamento_comprador_id:
-            raise HTTPException(400, "A comissão do comprador já foi gerada.")
-        lanc = _criar_recebivel(
-            db, contrato, contrato.comprador_id, comissao_comprador, "do comprador", opcoes, usuario
-        )
-        contrato.lancamento_comprador_id = lanc.id
-        criados.append({"lado": "comprador", "lancamento_id": lanc.id, "valor": comissao_comprador})
 
-    if opcoes.gerar_vendedor and comissao_vendedor > 0:
-        if contrato.lancamento_vendedor_id:
-            raise HTTPException(400, "A comissão do vendedor já foi gerada.")
-        lanc = _criar_recebivel(
-            db, contrato, contrato.vendedor_id, comissao_vendedor, "do vendedor", opcoes, usuario
+    def agente(vencimento_base):
+        """Comissão do agente: sempre conta a pagar da empresa."""
+        valor = dinheiro(contrato.agente_valor)
+        if not (opcoes.gerar_agente and contrato.agente_id and valor > 0):
+            return
+        if contrato.lancamento_agente_id:
+            raise HTTPException(400, "A comissão do agente já foi gerada.")
+        lanc = _criar_titulo(
+            db, contrato, contrato.agente_id, valor,
+            f"Comissão do agente - contrato {contrato.numero}", usuario,
+            tipo_titulo="PAGAR",
+            conta_contabil_id=conta_padrao(db, contrato.empresa_id, "comissao_paga"),
+            vencimento=opcoes.vencimento_agente or vencimento_base,
+            parcelas=opcoes.num_parcelas_agente,
+            periodicidade=opcoes.periodicidade, intervalo_dias=opcoes.intervalo_dias,
         )
-        contrato.lancamento_vendedor_id = lanc.id
-        criados.append({"lado": "vendedor", "lancamento_id": lanc.id, "valor": comissao_vendedor})
+        contrato.lancamento_agente_id = lanc.id
+        criados.append({"lado": "agente", "tipo": "PAGAR", "lancamento_id": lanc.id, "valor": valor})
 
-    if not criados:
-        raise HTTPException(400, "Nenhuma comissão selecionada para gerar.")
+    if contrato.tipo in ("COMPRA", "VENDA"):
+        compra = contrato.tipo == "COMPRA"
+        valor = dinheiro(contrato.valor_total)
+        if valor <= 0:
+            raise HTTPException(400, "Informe o valor do contrato antes de gerar os títulos.")
+        if opcoes.gerar_mercadoria:
+            if contrato.lancamento_mercadoria_id:
+                raise HTTPException(
+                    400, "O título da mercadoria deste contrato já foi gerado.")
+            parceiro_id = contrato.vendedor_id if compra else contrato.comprador_id
+            if not parceiro_id:
+                raise HTTPException(
+                    400, "Contrato sem a outra parte: escolha o fornecedor ou o cliente.")
+            lanc = _criar_titulo(
+                db, contrato, parceiro_id, valor,
+                f"{'Compra' if compra else 'Venda'} de {contrato.produto or 'café'} - "
+                f"contrato {contrato.numero}",
+                usuario,
+                tipo_titulo="PAGAR" if compra else "RECEBER",
+                conta_contabil_id=contrato.conta_contabil_id or conta_do_contrato(db, contrato),
+                vencimento=opcoes.vencimento, parcelas=opcoes.num_parcelas,
+                periodicidade=opcoes.periodicidade, intervalo_dias=opcoes.intervalo_dias,
+            )
+            contrato.lancamento_mercadoria_id = lanc.id
+            criados.append({"lado": "mercadoria", "tipo": "PAGAR" if compra else "RECEBER",
+                            "lancamento_id": lanc.id, "valor": valor})
+        agente(opcoes.vencimento)
+        if not criados:
+            raise HTTPException(400, "Nada selecionado para gerar.")
+    else:
+        comissao_comprador = dinheiro(contrato.comissao_comprador_valor)
+        comissao_vendedor = dinheiro(contrato.comissao_vendedor_valor)
+        if not comissao_comprador and not comissao_vendedor and not dinheiro(contrato.agente_valor):
+            raise HTTPException(
+                400,
+                "Informe a comissão do comprador e/ou do vendedor antes de gerar os recebíveis.",
+            )
+        if opcoes.gerar_comprador and comissao_comprador > 0:
+            if contrato.lancamento_comprador_id:
+                raise HTTPException(400, "A comissão do comprador já foi gerada.")
+            lanc = _criar_titulo(
+                db, contrato, contrato.comprador_id, comissao_comprador,
+                f"Corretagem do comprador - contrato {contrato.numero}", usuario,
+                vencimento=opcoes.vencimento, parcelas=opcoes.num_parcelas,
+                periodicidade=opcoes.periodicidade, intervalo_dias=opcoes.intervalo_dias,
+            )
+            contrato.lancamento_comprador_id = lanc.id
+            criados.append({"lado": "comprador", "tipo": "RECEBER", "lancamento_id": lanc.id,
+                            "valor": comissao_comprador})
+
+        if opcoes.gerar_vendedor and comissao_vendedor > 0:
+            if contrato.lancamento_vendedor_id:
+                raise HTTPException(400, "A comissão do vendedor já foi gerada.")
+            lanc = _criar_titulo(
+                db, contrato, contrato.vendedor_id, comissao_vendedor,
+                f"Corretagem do vendedor - contrato {contrato.numero}", usuario,
+                vencimento=opcoes.vencimento, parcelas=opcoes.num_parcelas,
+                periodicidade=opcoes.periodicidade, intervalo_dias=opcoes.intervalo_dias,
+            )
+            contrato.lancamento_vendedor_id = lanc.id
+            criados.append({"lado": "vendedor", "tipo": "RECEBER", "lancamento_id": lanc.id,
+                            "valor": comissao_vendedor})
+        agente(opcoes.vencimento)
+        if not criados:
+            raise HTTPException(400, "Nenhuma comissão selecionada para gerar.")
 
     db.flush()
     sincronizar_status(db, contrato)
     db.commit()
     db.refresh(contrato)
+    a_receber = sum(1 for c in criados if c["tipo"] == "RECEBER")
+    a_pagar = len(criados) - a_receber
+    partes = []
+    if a_receber:
+        partes.append(f"{a_receber} conta(s) a receber")
+    if a_pagar:
+        partes.append(f"{a_pagar} conta(s) a pagar")
     return {
         "ok": True,
         "gerados": criados,
         "contrato": contrato_dict(db, contrato, completo=True),
-        "mensagem": f"{len(criados)} conta(s) a receber gerada(s) a partir do contrato "
-                    f"{contrato.numero}.",
+        "mensagem": f"{' e '.join(partes)} gerada(s) a partir do contrato {contrato.numero}.",
     }
 
 
@@ -686,14 +922,14 @@ def gerar_recebiveis(
 def estornar_recebiveis(
     contrato_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(acesso_liberado)
 ):
-    """Apaga as contas a receber geradas, desde que ainda não tenham baixa."""
+    """Apaga os títulos gerados pelo contrato, desde que ainda não tenham baixa."""
     contrato = db.get(Contrato, contrato_id)
     if not contrato:
         raise HTTPException(404, "Contrato não encontrado")
     validar_empresa(db, contrato.empresa_id, usuario)
 
     removidos = 0
-    for campo in ("lancamento_comprador_id", "lancamento_vendedor_id"):
+    for campo in CAMPOS_LANCAMENTO:
         lanc_id = getattr(contrato, campo)
         if not lanc_id:
             continue
@@ -703,7 +939,7 @@ def estornar_recebiveis(
                 raise HTTPException(
                     400,
                     f"O título '{lanc.descricao}' já tem baixa. Estorne a baixa antes de "
-                    "cancelar os recebíveis do contrato.",
+                    "cancelar os títulos do contrato.",
                 )
             contabil.estornar(db, "LANCAMENTO", lanc.id)
             db.delete(lanc)
@@ -728,8 +964,8 @@ def cancelar_contrato(
     if not contrato:
         raise HTTPException(404, "Contrato não encontrado")
     validar_empresa(db, contrato.empresa_id, usuario)
-    if contrato.lancamento_comprador_id or contrato.lancamento_vendedor_id:
-        raise HTTPException(400, "Estorne as contas a receber antes de cancelar o contrato.")
+    if tem_titulos(contrato):
+        raise HTTPException(400, "Estorne os títulos gerados antes de cancelar o contrato.")
     contrato.status = "CANCELADO"
     db.commit()
     return contrato_dict(db, contrato, completo=True)

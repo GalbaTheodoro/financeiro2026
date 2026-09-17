@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from .models import AliquotaIcms, Parceiro
+from .models import AliquotaIcms, Empresa, Parceiro
 
 UFS = [
     "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB",
@@ -64,14 +64,20 @@ def buscar_aliquota(db: Session, empresa_id: int, uf_origem: str | None,
     return next((l for l in linhas if l.produto_id is None), None)
 
 
-def calcular_icms(db: Session, empresa_id: int, vendedor_id: int, comprador_id: int,
+def calcular_icms(db: Session, empresa_id: int, vendedor_id: int | None, comprador_id: int | None,
                   produto_id: int | None, valor_total: float, manual: bool,
                   percentual_digitado: float | None) -> dict:
-    """Campos icms_* do contrato."""
+    """Campos icms_* do contrato.
+
+    Quem não está preenchido é a própria empresa: na compra o comprador é a
+    empresa, na venda o vendedor é a empresa — então vale a UF do cadastro dela.
+    """
+    empresa = db.get(Empresa, empresa_id)
+    uf_empresa = normalizar_uf(empresa.uf if empresa else None)
     vendedor = db.get(Parceiro, vendedor_id) if vendedor_id else None
     comprador = db.get(Parceiro, comprador_id) if comprador_id else None
-    origem = normalizar_uf(vendedor.uf if vendedor else None)
-    destino = normalizar_uf(comprador.uf if comprador else None)
+    origem = normalizar_uf(vendedor.uf) if vendedor else uf_empresa
+    destino = normalizar_uf(comprador.uf) if comprador else uf_empresa
     if manual:
         percentual = max(0.0, float(percentual_digitado or 0))
     else:

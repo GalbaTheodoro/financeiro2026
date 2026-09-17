@@ -68,7 +68,7 @@ code{font-family:Consolas, "DejaVu Sans Mono", monospace; font-size:9pt; backgro
     <div><b><span class="num">3</span> Primeiros passos</b><span class="d">A ordem certa para deixar tudo pronto</span></div>
     <div><b><span class="num">4</span> Painel</b><span class="d">Saldo, a receber, a pagar e atalhos</span></div>
     <div><b><span class="num">5</span> Cadastros</b><span class="d">Clientes e fornecedores, formas de pagamento, produtos, unidades, bancos, empresas, usuários, tabela de ICMS e mais</span></div>
-    <div><b><span class="num">6</span> Contratos de corretagem</b><span class="d">Lançar em 5 etapas, ICMS, gerar contas a receber, situação, imprimir</span></div>
+    <div><b><span class="num">6</span> Contratos de café</b><span class="d">Corretagem, compra e venda; lançar em 5 etapas, agente, ICMS, gerar títulos, imprimir</span></div>
     <div><b><span class="num">7</span> Contas a receber e a pagar</b><span class="d">Novo título, rateio, parcelas, baixa, estorno</span></div>
     <div><b><span class="num">8</span> Caixa e bancos</b><span class="d">Extrato, entradas, saídas e transferências</span></div>
     <div><b><span class="num">9</span> Relatórios</b><span class="d">DRE, balancete, contratos, fluxo de caixa</span></div>
@@ -263,56 +263,85 @@ code{font-family:Consolas, "DejaVu Sans Mono", monospace; font-size:9pt; backgro
 
 <!-- 6 ---------------------------------------------------------------- -->
 <section class="capitulo">
-  <h1>6. Contratos de corretagem</h1>
-  <figure><img src="img/09-contratos.jpg"><figcaption>Lista de contratos com totais, filtros e situação de cada contrato.</figcaption></figure>
-  <p>No topo da lista aparecem a quantidade de contratos, a comissão total, quanto já foi recebido e quanto falta receber. Use os filtros de data, situação e a busca por número ou produto; os botões de situação logo abaixo filtram com um clique.</p>
+  <h1>6. Contratos</h1>
+  <figure><img src="img/09-contratos.jpg"><figcaption>Lista de contratos: tipo, partes, valores e situação de cada um.</figcaption></figure>
+  <p>No topo da lista aparecem a quantidade de contratos, quanto eles trazem <b>a receber</b>, quanto sai <b>a pagar</b> e quanto já foi liquidado. Use os filtros de data, <b>tipo</b>, situação e a busca por número ou produto; os botões de situação logo abaixo filtram com um clique.</p>
 
-  <h2>6.1 Lançar um contrato</h2>
+  <h2>6.1 Os três tipos de contrato</h2>
+  <p>O tipo é a primeira coisa que você escolhe no formulário e decide quem são as partes e quais títulos o contrato gera:</p>
+  <table>
+    <tr><th style="width:24%">Tipo</th><th>Quem são as partes</th><th style="width:34%">O que o contrato gera</th></tr>
+    <tr><td><b>Corretagem</b><br><span class="ui">intermediação</span></td>
+        <td>Comprador e vendedor, os dois de fora. Sua empresa só aproxima as partes.</td>
+        <td><b>Contas a receber</b> das comissões do comprador e do vendedor.</td></tr>
+    <tr><td><b>Compra de café</b></td>
+        <td>Quem compra é a <b>sua empresa</b>: você escolhe só o <b>fornecedor</b> (o produtor, a cooperativa…).</td>
+        <td><b>Conta a pagar</b> do fornecedor, com o valor do café.</td></tr>
+    <tr><td><b>Venda de café</b></td>
+        <td>Quem vende é a <b>sua empresa</b>: você escolhe só o <b>cliente</b> (a torrefação, o exportador…).</td>
+        <td><b>Conta a receber</b> do cliente, com o valor do café.</td></tr>
+  </table>
+  <figure class="meia"><img src="img/11e-contrato-tipo.jpg"><figcaption>Etapa 1: escolha do tipo do contrato.</figcaption></figure>
+  <div class="dica"><b class="t">Agente: vale nos três tipos</b>Se alguém intermediou o negócio, informe o <b>agente</b> na etapa Partes, com o percentual sobre o valor do contrato ou o valor combinado. A comissão dele vira uma <b>conta a pagar</b> da sua empresa — classificada em <i>Comissões sobre Vendas</i> — com vencimento próprio, se você quiser.</div>
+
+  <h2>6.2 Lançar um contrato</h2>
   <p>Clique em <span class="ui">+ Novo contrato</span>. O formulário é dividido em <b>cinco etapas</b>; use <span class="ui">Próximo →</span> e <span class="ui">← Voltar</span>, ou clique direto no nome da etapa. O resumo do cálculo fica sempre visível.</p>
   <figure><img src="img/10-contrato-etapa1.jpg"><figcaption>Etapa 1 — Identificação.</figcaption></figure>
   <table>
     <tr><th style="width:20%">Etapa</th><th>O que preencher</th></tr>
-    <tr><td><b>1. Identificação</b></td><td><b>Nº do contrato</b> (já vem sugerido: 00000001, 00000002… — pode digitar outro), data, produto, modalidade, embalagem e <b>representante</b> (um dos usuários da empresa).</td></tr>
-    <tr><td><b>2. Partes</b></td><td><b>Comprador</b> e <b>vendedor</b>, escolhidos entre os clientes cadastrados. Não podem ser a mesma pessoa.</td></tr>
-    <tr><td><b>3. Quantidade</b></td><td>Quantidade, unidade, preço unitário e diferencial. O <b>valor negociado</b> (quantidade × (preço + diferencial)) e o <b>peso total</b> são calculados na hora. Se o valor foi fechado direto, digite-o. Logo abaixo, o bloco <b>ICMS</b> traz a alíquota da tabela e o valor do imposto (seção 6.5).</td></tr>
-    <tr><td><b>4. Corretagem</b></td><td>Percentual do comprador e do vendedor, independentes. O valor em reais aparece calculado; se a comissão combinada foi um valor fixo, digite o valor.</td></tr>
+    <tr><td><b>1. Identificação</b></td><td><b>Tipo do contrato</b> (corretagem, compra ou venda), <b>Nº do contrato</b> (já vem sugerido: 00000001, 00000002… — pode digitar outro), data, produto, modalidade, embalagem e <b>representante</b> (um dos usuários da empresa).</td></tr>
+    <tr><td><b>2. Partes</b></td><td>Conforme o tipo: na corretagem, <b>comprador</b> e <b>vendedor</b> (não podem ser o mesmo cadastro); na compra, só o <b>fornecedor</b>; na venda, só o <b>cliente</b>. Aqui também entra o <b>agente</b> (opcional) com a comissão dele. Um aviso na tela lembra quem paga e quem recebe.</td></tr>
+    <tr><td><b>3. Quantidade</b></td><td>Quantidade, unidade, preço unitário e diferencial. O <b>valor negociado</b> (quantidade × (preço + diferencial)) e o <b>peso total</b> são calculados na hora. Se o valor foi fechado direto, digite-o. Logo abaixo, o bloco <b>ICMS</b> traz a alíquota da tabela e o valor do imposto (seção 6.6).</td></tr>
+    <tr><td><b>4. Corretagem</b><br><span class="ui">Comissões</span></td><td>Só na corretagem: percentual do comprador e do vendedor, independentes. O valor em reais aparece calculado; se a comissão combinada foi um valor fixo, digite o valor. Na compra e na venda esta etapa fica vazia — a comissão do agente é informada na etapa Partes.</td></tr>
     <tr><td><b>5. Embarque</b></td><td>Datas de embarque e de pagamento, local de coleta e de descarga, números de compra e venda e observações. Clique em <span class="ui">Salvar</span>.</td></tr>
   </table>
   <div class="lado">
     <figure><img src="img/11-contrato-quantidade.jpg"><figcaption>Etapa 3 — quantidade, preço, ICMS e cálculo.</figcaption></figure>
     <figure><img src="img/11-contrato-corretagem.jpg"><figcaption>Etapa 4 — corretagem dos dois lados.</figcaption></figure>
   </div>
-  <div class="dica"><b class="t">Exemplo</b>330 sacas a R$ 1.320,00 = R$ 435.600,00. Com 0,50% de cada lado: R$ 2.178,00 do comprador + R$ 2.178,00 do vendedor = <b>R$ 4.356,00</b> de comissão.</div>
+  <div class="dica"><b class="t">Exemplo de corretagem</b>330 sacas a R$ 1.320,00 = R$ 435.600,00. Com 0,50% de cada lado: R$ 2.178,00 do comprador + R$ 2.178,00 do vendedor = <b>R$ 4.356,00</b> de comissão.</div>
+  <h3>Compra: o que muda na tela</h3>
+  <div class="lado">
+    <figure><img src="img/11f-compra-partes.jpg"><figcaption>Na compra você escolhe só o fornecedor — e o agente, se houver.</figcaption></figure>
+    <figure><img src="img/11g-compra-resumo.jpg"><figcaption>O resumo mostra o total a pagar: café + comissão do agente.</figcaption></figure>
+  </div>
+  <p>Na venda é o espelho disso: você escolhe o <b>cliente</b>, e o resumo mostra quanto há <b>a receber</b> dele e quanto sai para o agente.</p>
 
-  <h2>6.2 Abrir o contrato e gerar as contas a receber</h2>
-  <p>Na lista, clique em <span class="ui">Abrir</span>. A ficha mostra as partes, a mercadoria, as comissões e a <b>situação financeira</b> (quanto virou conta a receber, quanto foi recebido, quanto falta e quanto está vencido).</p>
-  <figure class="meia"><img src="img/10c-contrato-ficha-aberto.jpg"><figcaption>Ficha de um contrato em aberto, pronta para gerar as contas a receber.</figcaption></figure>
+  <h2>6.3 Abrir o contrato e gerar os títulos</h2>
+  <p>Na lista, clique em <span class="ui">Abrir</span>. A ficha mostra as partes, a mercadoria, os valores e a <b>situação financeira</b> (quanto virou título, quanto já foi pago ou recebido, quanto falta e quanto está vencido).</p>
+  <figure class="meia"><img src="img/10c-contrato-ficha-aberto.jpg"><figcaption>Corretagem em aberto, pronta para gerar as contas a receber.</figcaption></figure>
   <ol>
-    <li>Em <b>Contas a receber deste contrato</b>, confira o vencimento (vem a data de pagamento do contrato).</li>
-    <li>Se quiser parcelar a comissão, informe o número de parcelas e a periodicidade (mensal ou a cada N dias).</li>
-    <li>Marque quais lados gerar: <b>comissão do comprador</b>, <b>comissão do vendedor</b> ou os dois.</li>
-    <li>Clique em <span class="ui">Gerar contas a receber</span>. Os títulos aparecem em Contas a Receber, com o número do contrato como documento.</li>
+    <li>Confira o <b>vencimento</b> (vem a data de pagamento do contrato) e, se houver agente, o vencimento da comissão dele.</li>
+    <li>Para parcelar, informe o número de parcelas e a periodicidade (mensal ou a cada N dias).</li>
+    <li>Marque o que gerar: na corretagem, a comissão do comprador e/ou do vendedor; na compra e na venda, o título do café e/ou a comissão do agente.</li>
+    <li>Clique no botão verde — <span class="ui">Gerar contas a receber</span>, <span class="ui">Gerar contas a pagar</span> ou <span class="ui">Gerar títulos do contrato</span>, conforme o tipo. Os títulos aparecem em Contas a Receber / a Pagar, com o número do contrato como documento.</li>
   </ol>
-  <p>Enquanto nenhuma parcela foi recebida, <span class="ui">Estornar recebíveis</span> apaga os títulos e o contrato volta para <b>Aberto</b> (para corrigir e gerar de novo). Contrato com títulos gerados não pode ser editado.</p>
+  <div class="lado">
+    <figure><img src="img/11h-compra-ficha.jpg"><figcaption>Compra já gerada: conta a pagar do café e a do agente.</figcaption></figure>
+    <figure><img src="img/11i-venda-ficha.jpg"><figcaption>Venda já gerada: conta a receber do cliente e a pagar do agente.</figcaption></figure>
+  </div>
+  <p>Enquanto nenhuma parcela foi paga ou recebida, <span class="ui">Estornar títulos</span> apaga os títulos e o contrato volta para <b>Aberto</b> (para corrigir e gerar de novo). Contrato com títulos gerados não pode ser editado.</p>
 
-  <h2>6.3 Situação do contrato</h2>
-  <p>A situação muda sozinha, conforme o dinheiro entra:</p>
+  <h2>6.4 Situação do contrato</h2>
+  <p>A situação muda sozinha, conforme o dinheiro entra — ou sai, na compra:</p>
   <table>
     <tr><th style="width:32%">Situação</th><th>Quando aparece</th></tr>
     <tr><td><b>Aberto</b></td><td>Contrato lançado; as comissões ainda não viraram títulos.</td></tr>
-    <tr><td><b>Fechado a Receber</b></td><td>As contas a receber foram geradas, nada recebido.</td></tr>
-    <tr><td><b>Fechado Recebido Parcial</b></td><td>Parte da comissão já foi baixada.</td></tr>
-    <tr><td><b>Fechado Recebido Total</b></td><td>Toda a comissão foi recebida.</td></tr>
+    <tr><td><b>Fechado a Receber</b><br><span class="ui">Fechado a Pagar</span> na compra</td><td>Os títulos foram gerados, nada pago nem recebido.</td></tr>
+    <tr><td><b>Fechado Recebido Parcial</b><br><span class="ui">Pago Parcial</span> na compra</td><td>Parte já foi baixada.</td></tr>
+    <tr><td><b>Fechado Recebido Total</b><br><span class="ui">Pago Total</span> na compra</td><td>Tudo pago ou recebido.</td></tr>
     <tr><td><b>Cancelado</b></td><td>Cancelado na ficha (<span class="ui">Cancelar contrato</span>). Pode ser reaberto com <span class="ui">Reabrir contrato</span>.</td></tr>
   </table>
 
-  <h2>6.4 Imprimir o contrato (PDF)</h2>
-  <p>Clique em <span class="ui">Imprimir</span> na lista ou na ficha. Abre a folha A4 do contrato — com logotipo e dados da sua empresa, comprador e vendedor com endereço e dados bancários/Pix, mercadoria, quantidade, peso total, valor por extenso, ICMS, corretagem, embarque, cláusulas e campos de assinatura — e a janela de impressão do navegador. Para gerar o arquivo, escolha <b>Salvar como PDF</b> no destino.</p>
+  <h2>6.5 Imprimir o contrato (PDF)</h2>
+  <p>Clique em <span class="ui">Imprimir</span> na lista ou na ficha. O título da folha acompanha o tipo — <b>Contrato de intermediação</b>, <b>Contrato de compra</b> ou <b>Contrato de venda</b> — e, na compra e na venda, a sua empresa aparece no lado dela, com o agente num quadro à parte e um bloco de pagamento/recebimento em vez da corretagem. Abre a folha A4 do contrato — com logotipo e dados da sua empresa, comprador e vendedor com endereço e dados bancários/Pix, mercadoria, quantidade, peso total, valor por extenso, ICMS, corretagem, embarque, cláusulas e campos de assinatura — e a janela de impressão do navegador. Para gerar o arquivo, escolha <b>Salvar como PDF</b> no destino.</p>
 
-  <h2>6.5 ICMS no contrato e na impressão</h2>
+  <figure><img src="img/11j-compra-impressao.jpg" style="max-height:78mm"><figcaption>Folha impressa de um contrato de compra, com o agente e o bloco de pagamento.</figcaption></figure>
+
+  <h2>6.6 ICMS no contrato e na impressão</h2>
   <p>O ICMS é calculado sozinho a partir da <b>tabela de ICMS</b> (seção 5.7):</p>
   <ol>
-    <li>O sistema lê a <b>UF do cadastro do vendedor</b> e a <b>UF do cadastro do comprador</b>.</li>
+    <li>O sistema lê a <b>UF do cadastro do vendedor</b> e a <b>UF do cadastro do comprador</b> — na compra e na venda, um dos lados é a UF da <b>sua empresa</b> (Cadastros → Empresas).</li>
     <li>Procura na tabela a linha desse par de estados — primeiro a do produto do contrato; se não houver, a de “todos os produtos”.</li>
     <li>Calcula <b>ICMS = valor negociado × alíquota</b> e mostra na etapa 3 e no resumo do cálculo.</li>
   </ol>
@@ -544,6 +573,8 @@ code{font-family:Consolas, "DejaVu Sans Mono", monospace; font-size:9pt; backgro
     <tr><td>A busca de CNPJ ou CEP não trouxe dados</td><td>Confira os números digitados. Se o serviço estiver fora do ar, preencha à mão — o cadastro funciona normalmente.</td></tr>
     <tr><td>Caí na tela de pagamento</td><td>O teste terminou, a assinatura venceu ou o acesso foi bloqueado. Pague pelo Pix e clique em “Já fiz o Pix”, ou fale com o suporte.</td></tr>
     <tr><td>Uma mudança no sistema não apareceu</td><td>Veja a data “versão de …” no rodapé do menu. Se estiver antiga, atualize a página com <b>Ctrl + F5</b>.</td></tr>
+    <tr><td>Na compra, não acho onde escolher o comprador</td><td>É proposital: na compra quem compra é a sua empresa, então só o fornecedor é escolhido. Na venda, só o cliente.</td></tr>
+    <tr><td>O contrato de compra não gerou conta a receber</td><td>Compra gera conta a <b>pagar</b> (o dinheiro sai). Quem gera conta a receber é a venda e a corretagem.</td></tr>
     <tr><td>O ICMS do contrato ficou zerado</td><td>Confira a <b>UF</b> no cadastro do comprador e do vendedor e se existe alíquota ativa para esse par de estados em Cadastros → ICMS. Depois edite e salve o contrato.</td></tr>
     <tr><td>Mudei a tabela de ICMS e o contrato não mudou</td><td>É proposital: o contrato guarda a alíquota do dia em que foi salvo. Edite e salve o contrato para aplicar a tabela nova.</td></tr>
     <tr><td>A faixa de cotações sumiu</td><td>Veja em Config. do site se <b>Cotações ativas</b> está 1. Se as fontes estiverem fora do ar, a faixa mostra o último valor ou some até voltarem.</td></tr>

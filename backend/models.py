@@ -562,9 +562,15 @@ class Contrato(Base):
     empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
     numero = Column(String(30), nullable=False, index=True)
     data = Column(Date, nullable=False, default=date.today)
+    # CORRETAGEM = a empresa só intermedeia (comissão dos dois lados)
+    # COMPRA     = a empresa compra (conta a pagar do fornecedor)
+    # VENDA      = a empresa vende (conta a receber do cliente)
+    tipo = Column(String(12), nullable=False, default="CORRETAGEM", index=True)
 
-    comprador_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)
-    vendedor_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)
+    # na compra o comprador é a própria empresa (comprador_id vazio);
+    # na venda o vendedor é a própria empresa (vendedor_id vazio)
+    comprador_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    vendedor_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
     corretor = Column(String(160))
     # representante da equipe que fechou o negócio (usuário da empresa)
     representante_id = Column(Integer, ForeignKey("usuarios.id"), index=True)
@@ -596,6 +602,12 @@ class Contrato(Base):
     comissao_vendedor_percentual = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     comissao_vendedor_valor = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
 
+    # agente que intermediou a compra/venda (opcional): a comissão dele vira
+    # conta a pagar da empresa
+    agente_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    agente_percentual = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    agente_valor = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
     # ICMS (informativo: não altera o valor negociado nem a corretagem)
     # icms_manual = False -> o percentual vem da tabela de ICMS (UF vendedor x UF comprador)
     icms_uf_origem = Column(String(2))
@@ -615,11 +627,15 @@ class Contrato(Base):
     status = Column(String(20), nullable=False, default="ABERTO")
     lancamento_comprador_id = Column(Integer, ForeignKey("lancamentos.id"))
     lancamento_vendedor_id = Column(Integer, ForeignKey("lancamentos.id"))
+    # compra/venda: título da mercadoria e título da comissão do agente
+    lancamento_mercadoria_id = Column(Integer, ForeignKey("lancamentos.id"))
+    lancamento_agente_id = Column(Integer, ForeignKey("lancamentos.id"))
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     comprador = relationship("Parceiro", foreign_keys=[comprador_id])
     vendedor = relationship("Parceiro", foreign_keys=[vendedor_id])
+    agente = relationship("Parceiro", foreign_keys=[agente_id])
     representante = relationship("Usuario", foreign_keys=[representante_id])
     produto_ref = relationship("Produto")
     modalidade_ref = relationship("ModalidadeContrato")

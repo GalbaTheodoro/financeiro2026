@@ -61,6 +61,52 @@ def _padrao_sql(coluna) -> str:
     return ""
 
 
+def _colunas_que_deixaram_de_ser_obrigatorias(inspetor, tabela) -> list[str]:
+    """Colunas que o banco antigo tem como NOT NULL e o modelo novo aceita em branco."""
+    no_banco = {c["name"]: c for c in inspetor.get_columns(tabela.name)}
+    return [
+        coluna.name
+        for coluna in tabela.columns
+        if coluna.nullable
+        and coluna.name in no_banco
+        and not no_banco[coluna.name]["nullable"]
+        and not coluna.primary_key
+    ]
+
+
+def _permitir_nulo(tabela, colunas: list[str]) -> None:
+    """Deixa as colunas aceitarem vazio.
+
+    No PostgreSQL é um ALTER COLUMN. O SQLite não sabe alterar coluna, então a
+    tabela é recriada com o formato novo e as linhas são copiadas — nenhuma outra
+    tabela aponta para 'contratos', que é o caso de uso aqui.
+    """
+    if _e_postgres():
+        with engine.begin() as conexao:
+            for nome in colunas:
+                conexao.execute(
+                    text(f'ALTER TABLE {tabela.name} ALTER COLUMN "{nome}" DROP NOT NULL')
+                )
+        return
+
+    nomes = ", ".join(f'"{c.name}"' for c in tabela.columns)
+    antiga = f"{tabela.name}_antiga_migracao"
+    # tudo na mesma conexão: o PRAGMA vale por conexão e não pode estar numa transação
+    conexao = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+    try:
+        conexao.execute(text("PRAGMA foreign_keys=OFF"))
+        conexao.execute(text(f"DROP TABLE IF EXISTS {antiga}"))
+        conexao.execute(text(f"ALTER TABLE {tabela.name} RENAME TO {antiga}"))
+        tabela.create(bind=conexao)
+        conexao.execute(
+            text(f"INSERT INTO {tabela.name} ({nomes}) SELECT {nomes} FROM {antiga}")
+        )
+        conexao.execute(text(f"DROP TABLE {antiga}"))
+    finally:
+        conexao.execute(text("PRAGMA foreign_keys=ON"))
+        conexao.close()
+
+
 def migrar() -> list[str]:
     """Sincroniza o esquema do banco com os modelos. Devolve o que foi alterado."""
     Base.metadata.create_all(bind=engine)
@@ -88,6 +134,13 @@ def migrar() -> list[str]:
                     raise
                 continue
             alteracoes.append(f"{tabela.name}.{coluna.name}")
+
+        # colunas que antes eram obrigatórias e agora podem ficar em branco
+        # (ex.: contratos.comprador_id numa compra, em que o comprador é a empresa)
+        soltar = _colunas_que_deixaram_de_ser_obrigatorias(inspetor, tabela)
+        if soltar:
+            _permitir_nulo(tabela, soltar)
+            alteracoes.extend(f"{tabela.name}.{nome} (aceita vazio)" for nome in soltar)
 
     if alteracoes:
         log.info("Banco atualizado: %s", ", ".join(alteracoes))

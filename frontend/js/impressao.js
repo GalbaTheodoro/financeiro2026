@@ -122,6 +122,7 @@ const Impressao = {
   },
 
   parte(titulo, p, formas) {
+    if (p && p.e_minha_empresa) formas = false;   // a empresa não recebe os próprios dados
     const contato = [p.telefone, p.celular, p.email].filter(Boolean).map(Impressao.esc).join(' · ');
     const pagamento = formas && p.formas && p.formas.length
       ? `<div class="parte-pagamento">
@@ -175,7 +176,8 @@ const Impressao = {
       ${Impressao.cabecalho(e)}
 
       <div class="titulo-documento">
-        <h1>Contrato de intermediação</h1>
+        <h1>${{ COMPRA: 'Contrato de compra', VENDA: 'Contrato de venda' }[c.tipo]
+          || 'Contrato de intermediação'}</h1>
         <div class="numero-contrato">
           <span class="rotulo-mini">Contrato nº</span><b>${Impressao.esc(c.numero)}</b>
           <span class="rotulo-mini">Data</span><b>${Impressao.data(c.data)}</b>
@@ -183,9 +185,12 @@ const Impressao = {
       </div>
 
       <div class="partes">
-        ${Impressao.parte('Comprador', d.comprador, true)}
-        ${Impressao.parte('Vendedor', d.vendedor, true)}
+        ${Impressao.parte(c.tipo === 'COMPRA' ? 'Comprador (nós)' : 'Comprador', d.comprador, true)}
+        ${Impressao.parte(c.tipo === 'VENDA' ? 'Vendedor (nós)' : 'Vendedor', d.vendedor, true)}
       </div>
+      ${d.agente ? `<div class="partes" style="margin-top:6px">
+        ${Impressao.parte('Agente', d.agente, true)}
+      </div>` : ''}
 
       <h2>Objeto do contrato</h2>
       <div class="grade">
@@ -208,6 +213,7 @@ const Impressao = {
            <span class="nota">sobre o valor negociado; valor informativo, não somado ao total</span>`, 'larga') : ''}
       </div>
 
+      ${c.tipo === 'CORRETAGEM' ? `
       <h2>Corretagem</h2>
       <table class="tabela">
         <thead>
@@ -224,6 +230,11 @@ const Impressao = {
             <td class="num">${Impressao.numero(c.comissao_vendedor_percentual, 3)}%</td>
             <td class="num">${Impressao.moeda(c.comissao_vendedor_valor)}</td>
           </tr>
+          ${Number(c.agente_valor) ? `<tr>
+            <td>${Impressao.esc(c.agente_nome || '')} <span class="cinza">(agente)</span></td>
+            <td class="num">${Impressao.numero(c.agente_percentual, 3)}%</td>
+            <td class="num">${Impressao.moeda(c.agente_valor)}</td>
+          </tr>` : ''}
         </tbody>
         <tfoot>
           <tr>
@@ -235,6 +246,31 @@ const Impressao = {
       </table>
       <div class="extenso">${Impressao.extenso(total)}, a pagar
         ${c.data_pagamento ? `em ${Impressao.data(c.data_pagamento)}` : 'conforme combinado'}.</div>
+      ` : `
+      <h2>${c.tipo === 'COMPRA' ? 'Pagamento' : 'Recebimento'}</h2>
+      <table class="tabela">
+        <thead>
+          <tr><th>Quem</th><th>O que</th><th class="num">Valor</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${Impressao.esc(c.tipo === 'COMPRA' ? d.vendedor.nome : d.comprador.nome)}
+              <span class="cinza">(${c.tipo === 'COMPRA' ? 'fornecedor' : 'cliente'})</span></td>
+            <td>${c.tipo === 'COMPRA' ? 'Café comprado' : 'Café vendido'}
+              ${c.data_pagamento ? `<span class="cinza">— ${c.tipo === 'COMPRA' ? 'a pagar' : 'a receber'} em ${Impressao.data(c.data_pagamento)}</span>` : ''}</td>
+            <td class="num"><b>${Impressao.moeda(c.valor_total)}</b></td>
+          </tr>
+          ${Number(c.agente_valor) ? `<tr>
+            <td>${Impressao.esc(c.agente_nome || '')} <span class="cinza">(agente)</span></td>
+            <td>Comissão de ${Impressao.numero(c.agente_percentual, 3)}% sobre o valor do contrato
+              <span class="cinza">— a pagar</span></td>
+            <td class="num">${Impressao.moeda(c.agente_valor)}</td>
+          </tr>` : ''}
+        </tbody>
+      </table>
+      <div class="extenso">${Impressao.extenso(c.valor_total)}${
+        Number(c.agente_valor) ? `, mais ${Impressao.extenso(c.agente_valor)} de comissão do agente` : ''}.</div>
+      `}
 
       ${logistica ? `<h2>Embarque e pagamento</h2><div class="grade">${logistica}</div>` : ''}
 
@@ -252,12 +288,20 @@ const Impressao = {
           <div class="assinatura-nome">${Impressao.esc(d.vendedor.nome)}</div>
           <div class="cinza">Vendedor</div>
         </div>
-        <div class="assinatura">
+        ${c.tipo === 'CORRETAGEM' ? `<div class="assinatura">
           <div class="linha-assinatura"></div>
           <div class="assinatura-nome">${Impressao.esc(e.nome_fantasia || e.razao_social)}</div>
           <div class="cinza">Interveniente${c.representante_nome
             ? ` · ${Impressao.esc(c.representante_nome)}` : ''}</div>
-        </div>
+        </div>` : (d.agente ? `<div class="assinatura">
+          <div class="linha-assinatura"></div>
+          <div class="assinatura-nome">${Impressao.esc(d.agente.nome)}</div>
+          <div class="cinza">Agente</div>
+        </div>` : `<div class="assinatura">
+          <div class="linha-assinatura"></div>
+          <div class="assinatura-nome">${Impressao.esc(c.representante_nome || '')}</div>
+          <div class="cinza">Testemunha</div>
+        </div>`)}
       </div>
 
       <footer class="rodape">
@@ -355,7 +399,7 @@ const Impressao = {
         + 'Libere as janelas pop-up para este endereço e tente de novo.');
     }
 
-    const titulo = `Contrato ${dados.contrato.numero}`;
+    const titulo = `${dados.contrato.tipo_nome || 'Contrato'} ${dados.contrato.numero}`;
     janela.document.write(`<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <title>${Impressao.esc(titulo)}</title>

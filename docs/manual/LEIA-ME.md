@@ -9,8 +9,9 @@ O PDF que o site oferece para download fica em `frontend/manual/Manual-AgroDock.
   `dono@agrodock.com.br` e cotações/notícias lidas das respostas gravadas em `testes/`
   (não precisa de internet).
 - `demo.py` — cria os dados de demonstração (inclui comprador em SP e tabela de ICMS de MG).
-- `shots.py`, `ficha.py`, `folha.py` (ICMS na folha impressa) e `cfg.py` (grupo de cotações
-  em Config. do site) — tiram as capturas (precisa de `playwright`).
+- `shots.py`, `ficha.py`, `folha.py` (ICMS na folha impressa), `cfg.py` (grupo de cotações
+  em Config. do site) e `cv.py` (contratos de compra e de venda) — tiram as capturas
+  (precisa de `playwright`).
 - `pdf.py` — gera `Manual-AgroDock.pdf` a partir do `manual.html`.
 
 Os scripts usam o caminho `/home/claude/manual`; ajuste para a sua pasta antes de rodar.

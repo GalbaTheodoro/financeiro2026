@@ -128,6 +128,9 @@ PLANO_PADRAO = [
 PARAMETROS_PADRAO = {
     "conta_clientes": "1.1.02.001",
     "conta_comissao": "3.1.01.004",
+    "conta_venda_mercadoria": "3.1.01.001",
+    "conta_compra_mercadoria": "4.1.01.001",
+    "conta_comissao_paga": "4.4.01.001",
     "conta_fornecedores": "2.1.01.001",
     "conta_caixa_padrao": "1.1.01.001",
     "conta_banco_padrao": "1.1.01.002",

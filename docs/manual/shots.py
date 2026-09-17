@@ -32,8 +32,14 @@ async def main():
         # linha da Rosalina
         linha=pg.locator("tr", has_text="ROSALINA").locator("[data-acao]").first
         await linha.click(); await shot("07-formas-pagamento", clip_modal=True); await fechar()
-        for aba in ("produtos","unidades","bancos","empresas","usuarios"):
+        for aba in ("produtos","unidades","bancos","empresas","usuarios","icms"):
             await ir(f"#/cadastros/{aba}"); await shot(f"08-cad-{aba}")
+        await pg.click("#btn-novo"); await pg.wait_for_timeout(400)
+        await pg.select_option("#modal select[name=uf_origem]","MG"); await pg.select_option("#modal select[name=uf_destino]","SP")
+        await pg.fill("#modal input[name=aliquota]","12"); await pg.select_option("#modal select[name=produto_id]", index=1)
+        await pg.fill("#modal input[name=observacao]","Café cru em grão — conferido com o contador")
+        await shot("08b-icms-novo", clip_modal=True); await fechar()
+        await pg.locator("[data-extra='0']").click(); await shot("08c-icms-gerar", clip_modal=True); await fechar()
         await ir("#/contratos"); await shot("09-contratos")
         await pg.click("#btn-novo-contrato"); await pg.wait_for_timeout(800); await shot("10-contrato-etapa1", clip_modal=True)
         await fechar()
@@ -42,6 +48,10 @@ async def main():
         for i,n in ((1,"partes"),(2,"quantidade"),(3,"corretagem")):
             await pg.locator(f"#barra-etapas [data-etapa='{i}']").first.click(); await shot(f"11-contrato-{n}", clip_modal=True)
         await fechar()
+        # faixa de cotações no rodapé
+        await ir("#/painel"); await pg.wait_for_timeout(1500)
+        await pg.evaluate("document.querySelector('.faixa-conteudo').style.animation='none'")
+        await pg.screenshot(path=D+"27-faixa.jpg", type="jpeg", quality=85, clip={"x":0,"y":820-110,"width":1366,"height":110})
         await ir("#/receber"); await shot("12-receber")
         await pg.locator("[data-baixar]").first.click(); await shot("13-baixa", clip_modal=True); await fechar()
         await ir("#/pagar"); await pg.click("#btn-novo-titulo"); await shot("14-novo-titulo", clip_modal=True); await fechar()
@@ -66,6 +76,17 @@ async def main():
         await pg.locator("tr", has_text="Brascafé").locator("[data-usuarios]").first.click(); await shot("24-admin-usuarios", clip_modal=True); await fechar()
         await ir("#/admin-assinaturas"); await shot("25-admin-assinaturas")
         await ir("#/configuracoes"); await shot("26-config")
+        # painel Mercado do Café
+        mc=await ctx.new_page()
+        await mc.goto(B+"/mercado"); await mc.wait_for_timeout(2500)
+        await mc.click(".mc-periodos button[data-dias='90']"); await mc.wait_for_timeout(1200)
+        caixa=await mc.locator("#g-grafico svg").bounding_box()
+        await mc.mouse.move(caixa["x"]+caixa["width"]*0.62, caixa["y"]+120); await mc.wait_for_timeout(300)
+        await mc.screenshot(path=D+"28-mercado-bolsas.jpg", type="jpeg", quality=82)
+        await mc.click("button[data-aba='cidades']"); await mc.wait_for_timeout(1000)
+        await mc.screenshot(path=D+"29-mercado-cidades.jpg", type="jpeg", quality=82)
+        await mc.click("button[data-aba='noticias']"); await mc.wait_for_timeout(1500)
+        await mc.screenshot(path=D+"30-mercado-noticias.jpg", type="jpeg", quality=82)
         print("erros:", erros)
         await b.close()
 asyncio.run(main())

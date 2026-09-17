@@ -519,6 +519,31 @@ class Produto(Base):
     unidade = relationship("Unidade")
 
 
+class AliquotaIcms(Base):
+    """Tabela de ICMS usada nos contratos: UF do vendedor x UF do comprador.
+
+    `produto_id` vazio = vale para qualquer produto. Uma linha específica do
+    produto tem prioridade sobre a linha geral do mesmo par de estados.
+    """
+
+    __tablename__ = "aliquotas_icms"
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "uf_origem", "uf_destino", "produto_id", name="uq_aliquota_icms"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    uf_origem = Column(String(2), nullable=False)    # estado do vendedor
+    uf_destino = Column(String(2), nullable=False)   # estado do comprador
+    produto_id = Column(Integer, ForeignKey("produtos.id"))
+    aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    observacao = Column(String(200))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    produto = relationship("Produto")
+
+
 # --------------------------------------------------------------------------- #
 # Contratos de intermediação (corretagem)
 # --------------------------------------------------------------------------- #
@@ -570,6 +595,14 @@ class Contrato(Base):
     comissao_comprador_valor = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     comissao_vendedor_percentual = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     comissao_vendedor_valor = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    # ICMS (informativo: não altera o valor negociado nem a corretagem)
+    # icms_manual = False -> o percentual vem da tabela de ICMS (UF vendedor x UF comprador)
+    icms_uf_origem = Column(String(2))
+    icms_uf_destino = Column(String(2))
+    icms_percentual = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    icms_valor = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    icms_manual = Column(Boolean, nullable=False, default=False)
 
     # classificação usada nas contas a receber geradas
     conta_contabil_id = Column(Integer, ForeignKey("contas_contabeis.id"))

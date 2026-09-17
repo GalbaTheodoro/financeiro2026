@@ -24,6 +24,7 @@ from ..models import (
     Empresa,
     FormaPagamentoParceiro,
     Lancamento,
+    AliquotaIcms,
     ModalidadeContrato,
     LancamentoItem,
     MovimentoCaixa,
@@ -646,6 +647,8 @@ def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None):
             raise HTTPException(
                 400, f"Existem contratos usando {rotulo}. Inative em vez de excluir."
             )
+        if model is Produto and db.query(AliquotaIcms).filter(AliquotaIcms.produto_id == registro_id).first():
+            raise HTTPException(400, "Existem alíquotas de ICMS usando este produto. Inative-o ou apague as alíquotas.")
         if model is Unidade and db.query(Produto).filter(Produto.unidade_id == registro_id).first():
             raise HTTPException(400, "Existem produtos usando esta unidade. Inative-a.")
         db.delete(registro)

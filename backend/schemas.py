@@ -266,6 +266,27 @@ class ProdutoIn(BaseModel):
     ativo: bool = True
 
 
+class AliquotaIcmsIn(BaseModel):
+    """Linha da tabela de ICMS: UF do vendedor x UF do comprador (x produto)."""
+
+    empresa_id: int
+    uf_origem: str
+    uf_destino: str
+    produto_id: int | None = None    # vazio = todos os produtos
+    aliquota: float = 0
+    observacao: str | None = None
+    ativo: bool = True
+
+
+class GerarIcmsPadraoIn(BaseModel):
+    """Gera as alíquotas interestaduais de referência a partir de um estado."""
+
+    empresa_id: int
+    uf_origem: str
+    aliquota_interna: float | None = None   # opcional: operação dentro do próprio estado
+    substituir: bool = False                # True = sobrescreve as linhas gerais já existentes
+
+
 class PacotesUsuariosIn(BaseModel):
     """Pedido de pacotes de usuários extras."""
 
@@ -303,6 +324,8 @@ class ContratoIn(BaseModel):
     comissao_comprador_valor: float | None = None   # em branco = calculado pelo percentual
     comissao_vendedor_percentual: float = 0
     comissao_vendedor_valor: float | None = None
+    icms_percentual: float | None = None   # usado só quando icms_manual = True
+    icms_manual: bool = False              # False = alíquota da tabela de ICMS
     conta_contabil_id: int | None = None
     centro_custo_id: int | None = None
     operacao_id: int | None = None

@@ -177,7 +177,13 @@ const Contratos = {
           ${UI.campo('Preço unitário', `<input type="number" inputmode="decimal" step="0.0001" name="preco_unitario" value="${v('preco_unitario', 0)}">`)}
           ${UI.campo('Diferencial', `<input type="number" inputmode="decimal" step="0.0001" name="diferencial" value="${v('diferencial', 0)}">`)}
           ${UI.campo('Valor negociado', `<input type="number" inputmode="decimal" step="0.01" name="valor_total" value="${v('valor_total', 0)}">`, 'calculado; pode ajustar')}
-        </div>`,
+        </div>
+        <h4 class="titulo-bloco">ICMS <span class="mini" style="font-weight:400">informativo — não altera o valor negociado nem a corretagem</span></h4>
+        <div class="linha-campos">
+          ${UI.campo('Alíquota de ICMS (%)', `<input type="number" inputmode="decimal" step="0.01" min="0" name="icms_percentual" value="${v('icms_percentual', 0)}">`, 'vem da tabela de ICMS; pode ajustar')}
+          ${UI.campo('Valor do ICMS', '<input type="text" name="icms_valor_tela" readonly tabindex="-1">', 'valor negociado × alíquota')}
+        </div>
+        <div class="mini" id="icms-info" style="margin-top:8px"></div>`,
 
       corretagem: `
         <div class="linha-campos">
@@ -234,6 +240,47 @@ const Contratos = {
     const num = (nome) => Number(campo(nome).value || 0);
     const set = (nome, valor) => { campo(nome).value = valor.toFixed(2); };
     let totalManual = edicao;
+    let icmsManual = Boolean(contrato && contrato.icms_manual);
+    const parceiro = (id) => (Estado.cache.parceiros || []).find((p) => String(p.id) === String(id));
+
+    /* ICMS: procura a alíquota pela UF do vendedor e do comprador (e produto) */
+    const atualizarIcms = (total) => {
+      const vendedor = parceiro(campo('vendedor_id').value);
+      const comprador = parceiro(campo('comprador_id').value);
+      const origem = (vendedor && vendedor.uf || '').toUpperCase();
+      const destino = (comprador && comprador.uf || '').toUpperCase();
+      const linha = Api.aliquotaIcms(origem, destino, campo('produto_id').value);
+      if (!icmsManual) campo('icms_percentual').value = (linha ? Number(linha.aliquota) : 0).toFixed(2);
+      const percentual = num('icms_percentual');
+      const valor = Math.round(total * percentual) / 100;
+      campo('icms_valor_tela').value = UI.moeda(valor);
+
+      const faltando = [];
+      if (vendedor && !origem) faltando.push(`vendedor (${vendedor.nome})`);
+      if (comprador && !destino) faltando.push(`comprador (${comprador.nome})`);
+      let texto;
+      if (!vendedor || !comprador) {
+        texto = 'Escolha o comprador e o vendedor na etapa Partes para buscar a alíquota.';
+      } else if (faltando.length) {
+        texto = `⚠ Falta a UF no cadastro do ${faltando.join(' e do ')}. Complete em Clientes/Fornecedores.`;
+      } else if (icmsManual) {
+        texto = `${UI.escapar(origem)} → ${UI.escapar(destino)} · alíquota digitada`
+          + (linha ? ` (tabela: ${UI.numero(linha.aliquota, 2)}%)` : '')
+          + ' · <a href="#" data-icms-tabela>usar a da tabela</a>';
+      } else if (linha) {
+        texto = `${UI.escapar(origem)} → ${UI.escapar(destino)} · tabela de ICMS: ${UI.numero(linha.aliquota, 2)}%`
+          + (linha.produto_id ? ` para ${UI.escapar(linha.produto_nome || 'este produto')}` : ' (todos os produtos)')
+          + (linha.observacao ? ` · ${UI.escapar(linha.observacao)}` : '');
+      } else {
+        texto = `⚠ Não há alíquota cadastrada para ${UI.escapar(origem)} → ${UI.escapar(destino)}. `
+          + 'Cadastre em Cadastros › ICMS ou digite a alíquota aqui.';
+      }
+      const info = corpo.querySelector('#icms-info');
+      info.innerHTML = texto;
+      const link = info.querySelector('[data-icms-tabela]');
+      if (link) link.onclick = (ev) => { ev.preventDefault(); icmsManual = false; recalcular('icms_tabela'); };
+      return { origem, destino, percentual, valor };
+    };
 
     const recalcular = (origem) => {
       if (origem === 'valor_total') totalManual = true;
@@ -248,6 +295,8 @@ const Contratos = {
       if (origem !== 'comissao_vendedor_valor') {
         set('comissao_vendedor_valor', total * num('comissao_vendedor_percentual') / 100);
       }
+      if (origem === 'icms_percentual') icmsManual = true;
+      const icms = atualizarIcms(total);
       const comissao = num('comissao_comprador_valor') + num('comissao_vendedor_valor');
       const unidade = Api.unidadesAtivas()
         .find((u) => String(u.id) === campo('unidade_id').value);
@@ -270,6 +319,10 @@ const Contratos = {
           <b class="positivo">${UI.moeda(comissao)}
             ${total ? `<small>${UI.numero(comissao / total * 100, 3)}% do contrato</small>` : ''}</b>
         </div>
+        ${icms.percentual ? `<div class="resumo-linha">
+          <span>ICMS ${icms.origem && icms.destino ? `${UI.escapar(icms.origem)} → ${UI.escapar(icms.destino)}` : ''}</span>
+          <b>${UI.moeda(icms.valor)} <small>${UI.numero(icms.percentual, 2)}% · informativo</small></b>
+        </div>` : ''}
         ${peso ? `<div class="resumo-linha">
           <span>Peso total</span><b>${UI.numero(peso, 3)} kg
             <small>${UI.numero(unidade.peso_conversao, 3)} kg por ${UI.escapar(unidade.codigo)}</small></b>
@@ -278,10 +331,12 @@ const Contratos = {
 
     ['quantidade', 'preco_unitario', 'diferencial', 'valor_total',
      'comissao_comprador_percentual', 'comissao_vendedor_percentual',
-     'comissao_comprador_valor', 'comissao_vendedor_valor'].forEach((nome) => {
+     'comissao_comprador_valor', 'comissao_vendedor_valor', 'icms_percentual'].forEach((nome) => {
       campo(nome).oninput = () => recalcular(nome);
     });
     campo('unidade_id').onchange = () => recalcular('unidade_id');
+    campo('comprador_id').onchange = () => recalcular('comprador_id');
+    campo('vendedor_id').onchange = () => recalcular('vendedor_id');
     /* o produto pode trazer a unidade e a embalagem padrão */
     campo('produto_id').onchange = (ev) => {
       const produto = Api.produtosAtivos().find((p) => String(p.id) === ev.target.value);
@@ -328,7 +383,10 @@ const Contratos = {
         conta_contabil_id: opcional('conta_contabil_id'),
         centro_custo_id: opcional('centro_custo_id'),
         operacao_id: opcional('operacao_id'),
+        icms_manual: icmsManual,
+        icms_percentual: Number(d.icms_percentual || 0),
       };
+      delete payload.icms_valor_tela;
       try {
         const salvo = edicao
           ? await Api.put(`/api/contratos/${contrato.id}`, payload)
@@ -440,6 +498,9 @@ const Contratos = {
           ${c.peso_total ? `<div class="mini">${UI.numero(c.peso_total, 3)} kg no total</div>` : ''}`)}
         ${linha('Preço unitário', UI.moeda(c.preco_unitario))}
         ${linha('Valor negociado', `<span style="font-size:17px">${UI.moeda(c.valor_total)}</span>`)}
+        ${linha('ICMS', c.icms_percentual
+          ? `${UI.moeda(c.icms_valor)}<div class="mini">${UI.numero(c.icms_percentual, 2)}%${c.icms_regra ? ` · ${UI.escapar(c.icms_regra)}` : ''}${c.icms_manual ? ' · digitado' : ' · tabela'}</div>`
+          : `<span class="mini">sem ICMS${c.icms_regra ? ` (${UI.escapar(c.icms_regra)})` : ''}</span>`)}
         ${linha('Embarque', c.data_embarque ? UI.data(c.data_embarque) : '')}
         ${linha('Pagamento', c.data_pagamento ? UI.data(c.data_pagamento) : '')}
         ${linha('Nº compra', UI.escapar(c.numero_compra || ''))}

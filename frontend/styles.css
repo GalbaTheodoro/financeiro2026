@@ -300,6 +300,7 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   .kpi-rotulo{font-size:10.5px}
   .kpi-nota{font-size:11px}
   .linha-campos{grid-template-columns:1fr;gap:12px}
+  .linha-campos > *{grid-column:auto !important}  /* campos "largura 2" não criam coluna extra no celular */
   .col-2{grid-column:auto}
 
   /* filtros empilhados, com o botão ocupando a linha */

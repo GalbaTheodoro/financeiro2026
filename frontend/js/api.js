@@ -89,7 +89,7 @@ const Api = {
     if (!eid) return;
     if (!forcar && Estado.cache.empresaId === eid) return;
     const [contas, centros, operacoes, bancos, parceiros,
-      unidades, modalidades, produtos, usuarios] = await Promise.all([
+      unidades, modalidades, produtos, usuarios, icms] = await Promise.all([
       Api.get('/api/contas-contabeis', { empresa_id: eid }),
       Api.get('/api/centros-custo', { empresa_id: eid }),
       Api.get('/api/operacoes', { empresa_id: eid }),
@@ -99,10 +99,11 @@ const Api = {
       Api.get('/api/modalidades', { empresa_id: eid }),
       Api.get('/api/produtos', { empresa_id: eid }),
       Api.get('/api/usuarios').catch(() => []),
+      Api.get('/api/icms', { empresa_id: eid }).catch(() => []),
     ]);
     Estado.cache = {
       empresaId: eid, contas, centros, operacoes, bancos, parceiros,
-      unidades, modalidades, produtos, usuarios,
+      unidades, modalidades, produtos, usuarios, icms,
     };
   },
 
@@ -131,6 +132,17 @@ const Api = {
   },
   modalidadesAtivas() {
     return (Estado.cache.modalidades || []).filter((m) => m.ativo);
+  },
+  /* Alíquota de ICMS que o contrato usa: linha do produto > linha geral do par de UFs.
+     Espelha backend/icms.py (buscar_aliquota). */
+  aliquotaIcms(ufOrigem, ufDestino, produtoId) {
+    const origem = String(ufOrigem || '').trim().toUpperCase();
+    const destino = String(ufDestino || '').trim().toUpperCase();
+    if (!origem || !destino) return null;
+    const linhas = (Estado.cache.icms || []).filter((l) => l.ativo
+      && l.uf_origem === origem && l.uf_destino === destino);
+    return (produtoId && linhas.find((l) => String(l.produto_id) === String(produtoId)))
+      || linhas.find((l) => !l.produto_id) || null;
   },
   produtosAtivos() {
     return (Estado.cache.produtos || []).filter((p) => p.ativo);

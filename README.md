@@ -259,6 +259,23 @@ de comissão, virando duas contas a receber.
 A lista de contratos totaliza valor negociado e comissão do período, com filtros por data,
 situação e busca por número, e exporta CSV.
 
+#### ICMS no contrato
+
+Em **Cadastros → ICMS** fica a grade de alíquotas: **UF do vendedor × UF do comprador**, com
+produto opcional (em branco = todos os produtos; a linha do produto vale antes da geral).
+O botão **Gerar alíquotas interestaduais** cria, a partir de um estado, as 26 linhas de
+referência (7% de MG/PR/RJ/RS/SC/SP para N, NE, CO e ES; 12% nas demais) e, se informada, a
+alíquota interna. Confirme com o contador: isenção, diferimento e redução de base do café
+variam por estado.
+
+No contrato (etapa **Quantidade**) o sistema pega a UF do cadastro do vendedor e do comprador,
+busca a alíquota e mostra **ICMS = valor negociado × alíquota**. Dá para digitar outra
+alíquota (fica marcada como "digitada") e voltar para a da tabela. O ICMS é **informativo**:
+não soma no valor negociado nem muda a corretagem. Aparece no resumo, na ficha e na folha
+impressa. O contrato guarda percentual e valor — mudar a tabela depois só afeta o contrato
+quando ele for editado. Código: `backend/icms.py`, `backend/routers/icms.py`;
+teste: `python testes/teste_icms.py` (com o servidor no ar).
+
 ### Onde pagar cada cliente/fornecedor
 
 Um mesmo parceiro costuma ter mais de uma forma de receber. Na lista de

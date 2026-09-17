@@ -202,6 +202,10 @@ const Impressao = {
         ${Impressao.celula('Valor negociado',
           `<b class="destaque">${Impressao.moeda(c.valor_total)}</b>
            <span class="nota">${Impressao.extenso(c.valor_total)}</span>`, 'larga')}
+        ${Number(c.icms_percentual) ? Impressao.celula(
+          `ICMS${c.icms_regra ? ` (${c.icms_regra})` : ''}`,
+          `<b>${Impressao.moeda(c.icms_valor)}</b> · alíquota ${Impressao.numero(c.icms_percentual, 2)}%
+           <span class="nota">sobre o valor negociado; valor informativo, não somado ao total</span>`, 'larga') : ''}
       </div>
 
       <h2>Corretagem</h2>

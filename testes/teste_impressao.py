@@ -101,6 +101,8 @@ api("POST", f"/api/parceiros/{vendedor['id']}/formas-pagamento", {
 }, t)
 
 print("\n=== 3. Contrato completo ===")
+# ICMS da venda dentro de MG, para a folha mostrar o imposto
+api("POST", "/api/icms", {"empresa_id": eid, "uf_origem": "MG", "uf_destino": "MG", "aliquota": 18}, t)
 produtos = api("GET", f"/api/produtos?empresa_id={eid}", token=t)
 modalidades = api("GET", f"/api/modalidades?empresa_id={eid}", token=t)
 unidades = api("GET", f"/api/unidades?empresa_id={eid}", token=t)
@@ -208,6 +210,8 @@ if sync_playwright:
             ("local de coleta", "BRASCAFE ARMAZENS GERAIS"),
             ("cláusula do foro", "foro da comarca de Varginha"),
             ("representante", "Corretor Impressão"),
+            ("ICMS com os estados", "ICMS (MG → MG)"),
+            ("valor do ICMS", "R$ 78.408,00"),
         ]:
             checar(f"folha traz {rotulo}", esperado in texto, "" if esperado in texto else esperado)
 

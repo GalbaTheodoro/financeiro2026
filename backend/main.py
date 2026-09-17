@@ -19,6 +19,7 @@ from .routers import (
     caixa,
     consulta,
     contratos,
+    icms,
     lancamentos,
     publico,
     relatorios,
@@ -93,6 +94,7 @@ app.include_router(assinatura.router)
 app.include_router(cadastros.router)
 app.include_router(consulta.router)
 app.include_router(contratos.router)
+app.include_router(icms.router)
 app.include_router(lancamentos.router)
 app.include_router(caixa.router)
 app.include_router(relatorios.router)

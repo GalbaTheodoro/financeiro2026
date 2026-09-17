@@ -11,6 +11,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from .. import contabil
+from ..icms import calcular_icms
 from ..database import get_db
 from ..deps import acesso_liberado, validar_empresa
 from ..models import (
@@ -84,6 +85,12 @@ def aplicar_cadastros(db: Session, contrato: Contrato, dados: ContratoIn):
         representante = db.get(Usuario, dados.representante_id)
         if not representante:
             raise HTTPException(400, "Representante inválido")
+    # ICMS informativo: alíquota da tabela (UF vendedor x UF comprador) ou digitada
+    for campo, valor in calcular_icms(
+        db, contrato.empresa_id, contrato.vendedor_id, contrato.comprador_id,
+        contrato.produto_id, contrato.valor_total, dados.icms_manual, dados.icms_percentual,
+    ).items():
+        setattr(contrato, campo, valor)
 
 
 # --------------------------------------------------------------------------- #
@@ -307,6 +314,10 @@ def contrato_dict(db: Session, c: Contrato, completo: bool = False) -> dict:
             "comissao_total": total_comissao,
             "percentual_total": round(
                 (total_comissao / dinheiro(c.valor_total) * 100) if c.valor_total else 0, 4
+            ),
+            "icms_regra": (
+                f"{c.icms_uf_origem or '?'} → {c.icms_uf_destino or '?'}"
+                if (c.icms_uf_origem or c.icms_uf_destino) else None
             ),
             "status_nome": STATUS_CONTRATO.get(c.status, c.status),
             "status_tag": TAG_STATUS.get(c.status, ""),

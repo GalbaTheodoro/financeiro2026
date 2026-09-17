@@ -11,6 +11,7 @@ const Cadastros = {
     { id: 'produtos', rotulo: 'Produtos', acao: () => Cadastros.produtos() },
     { id: 'unidades', rotulo: 'Unidades', acao: () => Cadastros.unidades() },
     { id: 'modalidades', rotulo: 'Modalidades', acao: () => Cadastros.modalidades() },
+    { id: 'icms', rotulo: 'ICMS', acao: () => Cadastros.icms() },
     { id: 'bancos', rotulo: 'Bancos', acao: () => Cadastros.bancos() },
     { id: 'centros-custo', rotulo: 'Centros de Custo', acao: () => Cadastros.centrosCusto() },
     { id: 'operacoes', rotulo: 'Operações', acao: () => Cadastros.operacoes() },
@@ -388,7 +389,7 @@ const Cadastros = {
 
   async excluir(cfg, registro) {
     const ok = await UI.confirmar(
-      `Excluir "${registro.nome || registro.razao_social || registro.codigo}"? Esta ação não pode ser desfeita.`,
+      `Excluir "${registro.nome || registro.razao_social || registro.codigo || registro.regra}"? Esta ação não pode ser desfeita.`,
       'Excluir',
     );
     if (!ok) return;
@@ -773,6 +774,98 @@ const Cadastros = {
         { nome: 'embalagem', rotulo: 'Embalagem', dica: 'a granel, sacaria...' },
         { nome: 'descricao', rotulo: 'Descrição', largura: 2 },
         { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Produto ativo' },
+      ],
+    });
+  },
+
+  /* ------------------------------------------------------------------ ICMS
+     Grade UF do vendedor x UF do comprador (x produto) usada no contrato. */
+  UFS: ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB',
+    'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'],
+
+  opcoesUf() {
+    return Cadastros.UFS.map((uf) => ({ valor: uf, rotulo: uf }));
+  },
+
+  icms() {
+    return Cadastros.tela({
+      titulo: 'Tabela de ICMS',
+      endpoint: '/api/icms',
+      ajuda: 'o contrato busca a alíquota pela UF do vendedor e do comprador; a linha de um produto vale antes da linha "todos os produtos"',
+      listar: () => Api.get('/api/icms', { empresa_id: Estado.empresaId }),
+      acoesExtras: [{ rotulo: 'Gerar alíquotas interestaduais', acao: () => Cadastros.gerarIcmsPadrao() }],
+      colunas: [
+        { titulo: 'UF vendedor', classe: 'centro', valor: (r) => `<span class="forte">${UI.escapar(r.uf_origem)}</span>` },
+        { titulo: '', classe: 'centro', valor: () => '→' },
+        { titulo: 'UF comprador', classe: 'centro', valor: (r) => `<span class="forte">${UI.escapar(r.uf_destino)}</span>` },
+        { titulo: 'Produto', valor: (r) => (r.produto_nome ? UI.escapar(r.produto_nome) : '<span class="mini">Todos os produtos</span>') },
+        { titulo: 'Alíquota', classe: 'num', valor: (r) => `<span class="forte">${UI.numero(r.aliquota, 2)}%</span>` },
+        { titulo: 'Observação', valor: (r) => UI.escapar(r.observacao || '-') },
+        { titulo: 'Situação', classe: 'centro', valor: (r) => (r.ativo ? '<span class="tag tag-pago">Ativa</span>' : '<span class="tag tag-cancelado">Inativa</span>') },
+      ],
+      campos: [
+        { nome: 'uf_origem', rotulo: 'UF do vendedor', tipo: 'select', obrigatorio: true,
+          opcoes: () => Cadastros.opcoesUf(), dica: 'de onde sai a mercadoria' },
+        { nome: 'uf_destino', rotulo: 'UF do comprador', tipo: 'select', obrigatorio: true,
+          opcoes: () => Cadastros.opcoesUf(), dica: 'para onde vai' },
+        { nome: 'aliquota', rotulo: 'Alíquota de ICMS (%)', tipo: 'dinheiro', padrao: 0,
+          obrigatorio: true, dica: 'ex.: 12 para 12%' },
+        { nome: 'produto_id', rotulo: 'Produto', tipo: 'select', vazio: 'Todos os produtos',
+          opcoes: () => Api.produtosAtivos().map((p) => ({ valor: p.id, rotulo: `${p.codigo} — ${p.nome}` })),
+          dica: 'deixe em branco para valer para qualquer produto' },
+        { nome: 'observacao', rotulo: 'Observação', largura: 2, dica: 'ex.: diferimento, redução de base, fundamento legal' },
+        { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Alíquota ativa' },
+      ],
+      montarPayload: (d) => ({
+        ...d,
+        produto_id: d.produto_id ? Number(d.produto_id) : null,
+        aliquota: Number(d.aliquota || 0),
+      }),
+    });
+  },
+
+  gerarIcmsPadrao() {
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <p class="mini" style="margin-top:0">
+        Cria as linhas "todos os produtos" saindo do estado escolhido para os outros 26, com a
+        alíquota interestadual de referência: <b>7%</b> de MG, PR, RJ, RS, SC e SP para o Norte,
+        Nordeste, Centro-Oeste e ES; <b>12%</b> nas demais. Confirme com o contador —
+        isenção, diferimento e redução de base do café variam por estado.
+      </p>
+      <div class="linha-campos">
+        ${UI.campo('UF do vendedor *', UI.select('uf_origem', Cadastros.opcoesUf(), 'MG', { vazio: false }))}
+        ${UI.campo('Alíquota interna (%)', '<input type="number" step="0.01" name="aliquota_interna" placeholder="opcional">', 'venda dentro do mesmo estado; em branco = não cria')}
+      </div>
+      <label class="mini" style="display:block;margin-top:10px">
+        <input type="checkbox" name="substituir"> substituir as alíquotas gerais que já existem para esse estado
+      </label>`;
+    UI.abrirModal({
+      titulo: 'Gerar alíquotas interestaduais',
+      corpo,
+      botoes: [
+        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        {
+          rotulo: 'Gerar',
+          classe: 'btn-primario',
+          acao: async () => {
+            const d = UI.lerFormulario(corpo);
+            try {
+              const r = await Api.post('/api/icms/gerar-padrao', {
+                empresa_id: Estado.empresaId,
+                uf_origem: d.uf_origem,
+                aliquota_interna: d.aliquota_interna === null ? null : Number(d.aliquota_interna),
+                substituir: Boolean(d.substituir),
+              });
+              UI.fecharModal();
+              UI.sucesso(r.mensagem);
+              await Api.carregarCache(true);
+              App.recarregar();
+            } catch (e) {
+              UI.erro(e.message);
+            }
+          },
+        },
       ],
     });
   },

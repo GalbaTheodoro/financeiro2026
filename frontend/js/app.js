@@ -64,7 +64,7 @@ const App = {
 
   /* Links antigos (#/parceiros, #/bancos...) continuam funcionando: viram abas do hub. */
   ABAS_ANTIGAS: ['parceiros', 'bancos', 'centros-custo', 'operacoes', 'plano-contas',
-    'empresas', 'usuarios', 'parametros', 'produtos', 'unidades', 'modalidades'],
+    'empresas', 'usuarios', 'parametros', 'produtos', 'unidades', 'modalidades', 'icms'],
 
   async navegar() {
     if (!Estado.token) return;

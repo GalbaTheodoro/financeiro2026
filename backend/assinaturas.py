@@ -68,6 +68,8 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
     "cep_usuario": ("", "Usuário do Meu Correios (contrato)", False),
     "cep_senha": ("", "Senha / código de acesso da API dos Correios", False),
     "cep_cartao_postagem": ("", "Número do cartão de postagem usado na autenticação", False),
+    "cotacoes_ativas": ("1", "Mostrar a faixa de cotações do café no rodapé: 1 sim, 0 não", True),
+    "cotacoes_minutos": ("10", "De quantos em quantos minutos buscar as cotações de novo", False),
     "aviso_pagamento": (
         "Após o pagamento o acesso é liberado assim que confirmarmos o recebimento do Pix.",
         "Aviso exibido na tela de pagamento",

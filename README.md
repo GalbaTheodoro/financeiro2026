@@ -123,6 +123,28 @@ com o suporte, em vez de dados de pagamento inventados.
 
 Os valores, a duração e as horas de teste são editáveis em **Config. do site**.
 
+### Faixa de cotações do café (rodapé)
+
+Uma faixa fixa no rodapé — no site e dentro do sistema — fica passando as cotações:
+
+| Grupo | Contratos | Fonte |
+|---|---|---|
+| **Bolsa de NY** (arábica, ¢/lb) | os 3 próximos vencimentos (mar, mai, jul, set, dez) | ICE US via Yahoo Finance, com poucos minutos de atraso; se falhar, Notícias Agrícolas |
+| **Bolsa de Londres** (robusta, US$/t) | 3 próximos vencimentos | fechamento do dia anterior, Notícias Agrícolas |
+| **Bolsa B3** (arábica 4/5, US$/sc) | 3 próximos vencimentos, variação em % | fechamento do dia anterior, Notícias Agrícolas |
+| **Moedas** | DXY, Dólar, Euro e Ptax | Yahoo Finance (dólar/euro têm reserva na AwesomeAPI) e Banco Central (Ptax) |
+
+O servidor consulta as fontes no máximo de 10 em 10 minutos e guarda o resultado no banco
+(tabela `cache_externo`); os navegadores pedem a faixa de 5 em 5 minutos. Se uma fonte cair,
+o grupo continua com o último valor bom ("último valor disponível"). Passar o mouse pausa
+a faixa. Em **Config. do site → Faixa de cotações** dá para desligar (`cotacoes_ativas`) ou
+mudar o intervalo (`cotacoes_minutos`). Código: `backend/cotacoes.py` e `frontend/js/cotacoes.js`;
+teste sem internet: `python testes/teste_cotacoes.py`.
+
+> As cotações de bolsa são informativas e vêm de fontes públicas gratuitas, sem garantia
+> de disponibilidade. Para uso comercial com clientes pagantes, avalie contratar um
+> provedor de dados licenciado.
+
 ### Cadastros
 
 Tudo num único menu **Cadastros**, com abas — não há mais itens de cadastro espalhados

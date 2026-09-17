@@ -286,6 +286,17 @@ class Assinatura(Base):
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
 
 
+class CacheExterno(Base):
+    """Dados buscados na internet (ex.: cotações do café), guardados para não
+    consultar as fontes a cada visita."""
+
+    __tablename__ = "cache_externo"
+
+    chave = Column(String(60), primary_key=True)
+    conteudo = Column(Text)
+    atualizado_em = Column(DateTime)
+
+
 class Configuracao(Base):
     """Configurações gerais do sistema (chave Pix, valores dos planos, contatos)."""
 

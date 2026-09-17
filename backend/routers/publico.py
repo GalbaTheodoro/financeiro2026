@@ -1,8 +1,9 @@
 """Área pública: informações do site, planos e cadastro de novos assinantes."""
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from .. import assinaturas as regras
+from .. import cotacoes as fontes_cotacoes
 from ..database import get_db
 from ..deps import situacao_da_conta
 from ..models import Empresa, Usuario
@@ -35,6 +36,21 @@ def info(db: Session = Depends(get_db)):
         "planos": regras.planos(db),
         "pix_configurado": bool(conf.get("pix_chave")),
     }
+
+
+@router.get("/cotacoes")
+def cotacoes(resposta: Response, db: Session = Depends(get_db)):
+    """Cotações do café (NY, Londres, B3) e moedas para a faixa do rodapé."""
+    if regras.config(db, "cotacoes_ativas", "1").strip() in ("0", "nao", "não", "false"):
+        return {"ativo": False, "grupos": []}
+    try:
+        minutos = int(float(regras.config(db, "cotacoes_minutos", "10")))
+    except ValueError:
+        minutos = 10
+    dados = fontes_cotacoes.obter(db, minutos)
+    # o navegador pode reaproveitar por 1 minuto; o servidor guarda por mais tempo
+    resposta.headers["Cache-Control"] = "public, max-age=60"
+    return {"ativo": True, **dados}
 
 
 @router.post("/cadastro")

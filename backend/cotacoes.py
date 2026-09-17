@@ -332,6 +332,9 @@ def atualizar(db: Session, anterior: dict | None = None) -> dict:
                  "grupos": grupos}
     if grupos:
         _gravar_cache(db, resultado)
+        from .mercado import registrar_faixa  # guarda dólar/euro/DXY do dia no histórico
+
+        registrar_faixa(db, resultado)
     return resultado
 
 

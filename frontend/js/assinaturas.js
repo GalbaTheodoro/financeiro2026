@@ -737,7 +737,8 @@ const Assinaturas = {
       'Identidade do site': ['nome_produto', 'slogan', 'empresa_titular'],
       'Contato exibido no site': ['contato_whatsapp', 'contato_email'],
       'Recebimento por Pix': ['pix_chave', 'pix_titular', 'pix_banco', 'pix_cidade', 'aviso_pagamento'],
-      'Faixa de cotações do café (rodapé)': ['cotacoes_ativas', 'cotacoes_minutos'],
+      'Faixa de cotações e painel Mercado do Café': ['cotacoes_ativas', 'cotacoes_minutos', 'mercado_minutos',
+        'noticias_minutos', 'mercado_agnocafe'],
       'Planos e teste': ['plano_semestral_valor', 'plano_semestral_meses', 'plano_anual_valor',
         'plano_anual_meses', 'horas_teste'],
       'Consulta de CNPJ (API do governo)': ['cnpj_provedor', 'cnpj_tipo_consulta', 'cnpj_endpoint',
@@ -750,6 +751,7 @@ const Assinaturas = {
       cnpj_tipo_consulta: ['basica', 'qsa', 'empresa'],
       cnpj_incluir_socios: ['1', '0'],
       cotacoes_ativas: ['1', '0'],
+      mercado_agnocafe: ['1', '0'],
       cep_provedor: ['AUTO', 'CORREIOS', 'VIACEP', 'BRASILAPI', 'DESATIVADO'],
     };
     const sensiveis = ['cnpj_consumer_secret', 'cep_senha'];

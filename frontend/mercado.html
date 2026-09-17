@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mercado do Café — AgroDock</title>
+  <meta name="description" content="Cotações do café nas bolsas, preços por cidade e notícias do agro — Patrocínio, Varginha, Araguari e Patos de Minas.">
+  <meta name="theme-color" content="#0e2b1c">
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/mercado.css">
+  <link rel="icon" type="image/png" href="/static/img/favicon.png">
+</head>
+<body class="mercado">
+
+<header class="mc-topo">
+  <div class="mc-largura mc-topo-interno">
+    <a class="mc-marca" href="/" title="Ir para o AgroDock">
+      <img src="/static/img/agrodock-icone.png" alt="" class="logo-icone">
+      <span><b>Mercado do Café</b><small>AgroDock · Contratos e Gestão</small></span>
+    </a>
+    <div class="mc-topo-acoes">
+      <span class="mc-atualizado" id="mc-atualizado">Carregando…</span>
+      <button class="btn btn-sm mc-btn-claro" id="mc-recarregar" type="button" title="Buscar de novo">↻ Atualizar</button>
+      <a class="btn btn-sm mc-btn-laranja" href="/">Voltar ao sistema</a>
+    </div>
+  </div>
+</header>
+
+<section class="mc-agora" aria-label="Cotações de agora">
+  <div class="mc-largura" id="mc-agora"><div class="mc-vazio-escuro">Buscando cotações…</div></div>
+</section>
+
+<main class="mc-largura mc-principal">
+  <nav class="mc-abas" role="tablist" aria-label="Seções do painel">
+    <button role="tab" data-aba="bolsas" aria-selected="true">📈 Bolsas e indicadores</button>
+    <button role="tab" data-aba="cidades" aria-selected="false">📍 Preços por cidade</button>
+    <button role="tab" data-aba="noticias" aria-selected="false">📰 Notícias</button>
+  </nav>
+
+  <!-- ============================================================ BOLSAS -->
+  <section class="mc-painel" id="aba-bolsas" role="tabpanel">
+    <div class="mc-filtros">
+      <label>Série
+        <select id="f-serie"></select>
+      </label>
+      <label>Contrato / item
+        <select id="f-item"></select>
+      </label>
+      <div class="mc-periodos" role="group" aria-label="Período">
+        <button type="button" data-dias="7">7 dias</button>
+        <button type="button" data-dias="30" class="ativo">30 dias</button>
+        <button type="button" data-dias="90">90 dias</button>
+        <button type="button" data-dias="365">1 ano</button>
+        <button type="button" data-dias="0">Tudo</button>
+      </div>
+      <label>De <input type="date" id="f-de"></label>
+      <label>Até <input type="date" id="f-ate"></label>
+    </div>
+
+    <div class="mc-grade">
+      <div class="card mc-card-grafico">
+        <div class="mc-card-topo">
+          <div>
+            <h2 id="g-titulo">—</h2>
+            <p class="mc-sub" id="g-sub"></p>
+          </div>
+          <div class="mc-numeros" id="g-numeros"></div>
+        </div>
+        <div class="mc-grafico" id="g-grafico"></div>
+        <p class="mc-fonte" id="g-fonte"></p>
+      </div>
+
+      <div class="card mc-card-ultimo">
+        <h3 id="u-titulo">Último fechamento</h3>
+        <p class="mc-sub" id="u-data"></p>
+        <div id="u-tabela"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="mc-card-topo">
+        <h3>Fechamentos do período</h3>
+        <button class="btn btn-sm" type="button" id="b-csv">⬇ Baixar planilha (CSV)</button>
+      </div>
+      <div class="tabela-wrap mc-rolagem" id="h-tabela"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ CIDADES -->
+  <section class="mc-painel oculto" id="aba-cidades" role="tabpanel">
+    <div class="mc-filtros">
+      <label>Tipo de café
+        <select id="c-tipo"><option value="">Todos os tipos</option></select>
+      </label>
+      <label>Cidade
+        <select id="c-cidade"><option value="">Todas as cidades</option></select>
+      </label>
+      <label>Data
+        <input type="date" id="c-data">
+      </label>
+      <label class="mc-check"><input type="checkbox" id="c-foco"> Só Patrocínio, Varginha, Araguari e Patos de Minas</label>
+    </div>
+    <p class="mc-nota" id="c-nota"></p>
+    <div class="mc-cidades" id="c-lista"></div>
+
+    <div class="card oculto" id="c-historico">
+      <div class="mc-card-topo">
+        <div>
+          <h3 id="ch-titulo">Histórico</h3>
+          <p class="mc-sub">Escolha a cotação para ver a evolução nos últimos 90 dias.</p>
+        </div>
+        <label class="mc-inline">Cotação <select id="ch-item"></select></label>
+      </div>
+      <div class="mc-grafico" id="ch-grafico"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ NOTÍCIAS -->
+  <section class="mc-painel oculto" id="aba-noticias" role="tabpanel">
+    <div class="mc-filtros">
+      <label class="mc-busca">Buscar
+        <input type="search" id="n-busca" placeholder="Ex.: florada, geada, Expocaccer…">
+      </label>
+      <label>De <input type="date" id="n-de"></label>
+      <label>Até <input type="date" id="n-ate"></label>
+    </div>
+    <div class="mc-chips" id="n-regioes" aria-label="Região"></div>
+    <div class="mc-chips" id="n-culturas" aria-label="Cultura"></div>
+    <p class="mc-nota" id="n-nota"></p>
+    <div class="mc-noticias" id="n-lista"></div>
+  </section>
+
+  <footer class="mc-rodape">
+    Informações de mercado para consulta, reunidas de fontes públicas (Notícias Agrícolas,
+    Cepea/Esalq, Banco Central, AgnoCafé, Canal Rural e g1). Confirme o preço com sua cooperativa
+    ou comprador antes de fechar negócio. As notícias abrem no site de quem publicou.
+  </footer>
+</main>
+
+<script src="/static/js/ui.js"></script>
+<script src="/static/js/mercado.js"></script>
+</body>
+</html>

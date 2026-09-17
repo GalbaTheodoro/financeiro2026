@@ -1,8 +1,9 @@
 /* Faixa de cotações do café (NY, Londres, B3) e moedas, passando no rodapé.
-   Aparece no site e dentro do sistema. Busca /api/publico/cotacoes a cada 5 minutos;
+   Aparece no site e dentro do sistema. Clicar nela abre o painel /mercado numa nova aba. Busca /api/publico/cotacoes a cada 5 minutos;
    o servidor guarda as cotações e só consulta as fontes de 10 em 10 minutos. */
 const Cotacoes = {
   INTERVALO: 5 * 60 * 1000,
+  PAINEL: '/mercado',
   dados: null,
 
   iniciar() {
@@ -10,10 +11,19 @@ const Cotacoes = {
     const faixa = document.createElement('div');
     faixa.id = 'faixa-cotacoes';
     faixa.className = 'faixa-cotacoes oculto';
-    faixa.setAttribute('role', 'marquee');
-    faixa.setAttribute('aria-label', 'Cotações do café e das moedas');
-    faixa.innerHTML = '<div class="faixa-trilho"><div class="faixa-conteudo"></div></div>';
+    faixa.setAttribute('role', 'link');
+    faixa.setAttribute('tabindex', '0');
+    faixa.setAttribute('title', 'Clique para abrir o painel Mercado do Café');
+    faixa.setAttribute('aria-label', 'Cotações do café e das moedas — abrir o painel Mercado do Café');
+    faixa.innerHTML = '<div class="faixa-trilho"><div class="faixa-conteudo"></div></div>'
+      + '<span class="faixa-mais" aria-hidden="true">Painel completo ›</span>';
     document.body.appendChild(faixa);
+    // clique (ou Enter) abre o painel com histórico, preços por cidade e notícias numa nova aba
+    const abrir = () => window.open(Cotacoes.PAINEL, '_blank', 'noopener');
+    faixa.addEventListener('click', abrir);
+    faixa.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); }
+    });
     Cotacoes.atualizar();
     setInterval(Cotacoes.atualizar, Cotacoes.INTERVALO);
     let espera;

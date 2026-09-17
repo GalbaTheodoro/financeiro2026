@@ -18,6 +18,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Float,
     Numeric,
     String,
     Text,
@@ -295,6 +296,30 @@ class CacheExterno(Base):
     chave = Column(String(60), primary_key=True)
     conteudo = Column(Text)
     atualizado_em = Column(DateTime)
+
+
+class CotacaoHistorico(Base):
+    """Histórico diário das cotações do painel "Mercado do Café".
+
+    grupo ... série de onde veio: ny, londres, b3, cepea, moedas, fisico_6_7,
+              fisico_6_duro, cereja, conilon_es, agnocafe
+    item .... contrato ("Dezembro/26"), praça ("Patrocínio/MG (Expocaccer)") ou
+              descrição ("Patrocínio · Safra 25/26 15%")
+    cidade .. cidade normalizada, para o filtro por cidade (vazio nas bolsas)
+    """
+
+    __tablename__ = "cotacao_historico"
+    __table_args__ = (UniqueConstraint("grupo", "item", "data", name="uq_cotacao_hist"),)
+
+    id = Column(Integer, primary_key=True)
+    grupo = Column(String(30), nullable=False, index=True)
+    item = Column(String(140), nullable=False)
+    cidade = Column(String(80), index=True)
+    data = Column(Date, nullable=False, index=True)
+    valor = Column(Float, nullable=False)
+    variacao = Column(Float)
+    tipo_variacao = Column(String(10))
+    atualizado_em = Column(DateTime, default=datetime.utcnow)
 
 
 class Configuracao(Base):

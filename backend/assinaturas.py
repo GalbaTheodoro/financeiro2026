@@ -70,6 +70,9 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
     "cep_cartao_postagem": ("", "Número do cartão de postagem usado na autenticação", False),
     "cotacoes_ativas": ("1", "Mostrar a faixa de cotações do café no rodapé: 1 sim, 0 não", True),
     "cotacoes_minutos": ("10", "De quantos em quantos minutos buscar as cotações de novo", False),
+    "mercado_minutos": ("30", "Painel Mercado do Café: de quantos em quantos minutos buscar histórico e preços por cidade", False),
+    "noticias_minutos": ("20", "Painel Mercado do Café: de quantos em quantos minutos buscar notícias", False),
+    "mercado_agnocafe": ("1", "Mostrar as cotações por cidade da AgnoCafé no painel: 1 sim, 0 não", False),
     "aviso_pagamento": (
         "Após o pagamento o acesso é liberado assim que confirmarmos o recebimento do Pix.",
         "Aviso exibido na tela de pagamento",

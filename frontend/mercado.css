@@ -1,0 +1,148 @@
+/* Painel "Mercado do Café" (/mercado) — usa as cores e tabelas de styles.css */
+body.mercado{background:#f3f5f2;padding-bottom:0;min-height:100%}
+.mercado .mc-largura{max-width:1240px;margin:0 auto;padding:0 20px}
+.mercado .card{background:#fff;border:1px solid var(--borda);border-radius:12px;box-shadow:var(--sombra);
+  padding:18px 20px;margin-bottom:18px;min-width:0}
+.mercado .btn-sm{padding:6px 11px;font-size:12.5px}
+.mercado h2{font-size:18px}
+.mercado h3{font-size:15px}
+.mc-sub{margin:3px 0 0;color:var(--cinza-500);font-size:12.5px}
+.mc-nota{color:var(--cinza-500);font-size:12.5px;margin:0 0 12px}
+.mc-fonte{color:var(--cinza-500);font-size:11.5px;margin:8px 0 0}
+
+/* ------------------------------------------------------------ topo */
+.mc-topo{background:#0e2b1c;color:#fff;border-bottom:3px solid #e76508;padding:10px 0}
+.mc-topo-interno{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:62px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+
+.mc-marca{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none}
+.mc-marca .logo-icone{height:36px}
+.mc-marca b{display:block;font-size:18px;line-height:1.1}
+.mc-marca small{display:block;color:#9fb8a9;font-size:11.5px}
+.mc-topo-acoes{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mc-atualizado{color:#9fb8a9;font-size:12px}
+.mc-btn-claro{background:transparent;color:#fff;border-color:#3b5d4a}
+.mc-btn-claro:hover{background:#163d29;border-color:#6b8f7a}
+.mc-btn-laranja{background:#e76508;border-color:#e76508;color:#fff;text-decoration:none}
+.mc-btn-laranja:hover{background:#c95604;border-color:#c95604}
+
+/* ------------------------------------------------------------ agora */
+.mc-agora{background:#12301f;color:#e2e8f0;padding:14px 0}
+.mc-agora .mc-largura{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mc-bloco{background:#0e2b1c;border:1px solid #214430;border-radius:10px;padding:10px 12px;min-width:0}
+.mc-bloco h4{font-size:12px;color:#fdba74;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;gap:6px}
+.mc-bloco h4 small{color:#9fb8a9;text-transform:none;letter-spacing:0;font-weight:500}
+.mc-bloco ul{list-style:none;margin:6px 0 0;padding:0}
+.mc-bloco li{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:2px 0;font-variant-numeric:tabular-nums}
+.mc-bloco li span:first-child{color:#9fb8a9}
+.mc-bloco li b{color:#fff;margin-left:auto}
+.mc-bloco .mc-ref{font-size:11px;color:#7f9a8a;margin-top:4px}
+.mc-vazio-escuro{color:#9fb8a9;font-size:13px}
+.sobe{color:#15803d}.desce{color:#b91c1c}.igual{color:var(--cinza-500)}
+.mc-agora .sobe{color:#4ade80}.mc-agora .desce{color:#f87171}.mc-agora .igual{color:#cbd5e1}
+.mc-var{font-weight:600;min-width:62px;text-align:right}
+
+/* ------------------------------------------------------------ abas e filtros */
+.mc-principal{padding-top:18px;padding-bottom:30px}
+.mc-abas{display:flex;gap:6px;border-bottom:1px solid var(--borda);margin-bottom:16px;overflow-x:auto}
+.mc-abas button{background:none;border:none;border-bottom:3px solid transparent;padding:10px 14px;font-size:14px;
+  font-weight:600;color:var(--cinza-500);cursor:pointer;white-space:nowrap;font-family:inherit}
+.mc-abas button[aria-selected="true"]{color:#0e2b1c;border-bottom-color:#e76508}
+.mc-abas button:hover{color:#0e2b1c}
+.mc-filtros{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin-bottom:14px}
+.mc-filtros label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--cinza-700)}
+.mc-filtros select,.mc-filtros input[type=date],.mc-filtros input[type=search],.mc-inline select{
+  padding:7px 9px;border:1px solid var(--cinza-300);border-radius:8px;font:inherit;font-weight:400;background:#fff;min-width:0;max-width:100%}
+.mc-filtros select{min-width:190px}
+.mc-busca{flex:1 1 240px}
+.mc-busca input{width:100%}
+.mc-check{flex-direction:row !important;align-items:center;gap:7px !important;font-weight:500 !important;padding-bottom:8px}
+.mc-inline{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--cinza-700)}
+.mc-periodos{display:flex;border:1px solid var(--cinza-300);border-radius:8px;overflow:hidden;background:#fff}
+.mc-periodos button{border:none;background:none;padding:7px 11px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--cinza-700)}
+.mc-periodos button+button{border-left:1px solid var(--cinza-200)}
+.mc-periodos button.ativo{background:#0e2b1c;color:#fff}
+
+/* ------------------------------------------------------------ bolsas */
+.mc-grade{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:18px}
+.mc-card-topo{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.mc-numeros{display:flex;gap:18px;flex-wrap:wrap}
+.mc-numeros div{text-align:right}
+.mc-numeros small{display:block;font-size:11px;color:var(--cinza-500);text-transform:uppercase;letter-spacing:.04em}
+.mc-numeros b{font-size:20px;font-variant-numeric:tabular-nums}
+.mc-numeros .mc-var{font-size:13px}
+.mc-grafico{position:relative;min-height:240px}
+.mc-grafico svg{display:block;width:100%;height:260px;overflow:visible}
+.mc-grafico .eixo{font-size:11px;fill:var(--cinza-500);font-variant-numeric:tabular-nums}
+.mc-grafico .grade{stroke:#e8ece9;stroke-width:1}
+.mc-grafico .linha{fill:none;stroke:#15774a;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.mc-grafico .area{fill:#15774a;opacity:.08}
+.mc-grafico .ponto{fill:#15774a;stroke:#fff;stroke-width:2}
+.mc-grafico .mira{stroke:var(--cinza-500);stroke-width:1;stroke-dasharray:3 3}
+.mc-dica{position:absolute;pointer-events:none;background:#0f172a;color:#fff;border-radius:8px;padding:7px 10px;
+  font-size:12px;white-space:nowrap;transform:translate(-50%,-110%);box-shadow:0 6px 18px rgba(2,6,23,.25);z-index:5}
+.mc-dica b{font-variant-numeric:tabular-nums}
+.mc-vazio{display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--cinza-500);
+  text-align:center;padding:20px;font-size:13px;border:1px dashed var(--cinza-300);border-radius:10px}
+.mc-card-ultimo table td{padding:7px 8px}
+.mc-card-ultimo tr{cursor:pointer}
+.mc-card-ultimo tr.sel td{background:#e8f4ee;font-weight:600}
+
+/* ------------------------------------------------------------ cidades */
+.mc-cidades{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:18px}
+.mc-cidade{background:#fff;border:1px solid var(--borda);border-radius:12px;box-shadow:var(--sombra);overflow:hidden;min-width:0;
+  display:flex;flex-direction:column}
+.mc-cidade.foco{border-color:#f6b27c}
+.mc-cidade header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;background:#0e2b1c;color:#fff}
+.mc-cidade.foco header{background:#e76508}
+.mc-cidade header h3{font-size:15px}
+.mc-cidade header small{font-size:11px;opacity:.85}
+.mc-cidade table{font-size:12.5px}
+.mc-cidade td{padding:6px 12px}
+.mc-cidade td.tipo{color:var(--cinza-500);font-size:11px;text-transform:uppercase;letter-spacing:.03em;background:var(--cinza-50);padding-top:5px;padding-bottom:5px}
+.mc-cidade .mc-vazio{min-height:90px;margin:12px;border-style:dashed}
+.mc-cidade footer{margin-top:auto;padding:8px 12px;border-top:1px solid var(--cinza-100);display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mc-cidade footer small{color:var(--cinza-500);font-size:11px}
+
+/* ------------------------------------------------------------ notícias */
+.mc-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.mc-chips span.rotulo{font-size:12px;font-weight:600;color:var(--cinza-700);align-self:center;margin-right:4px}
+.mc-chip{border:1px solid var(--cinza-300);background:#fff;border-radius:999px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--cinza-700)}
+.mc-chip:hover{border-color:var(--cinza-500)}
+.mc-chip.ativo{background:#0e2b1c;border-color:#0e2b1c;color:#fff}
+.mc-chip.foco.ativo{background:#e76508;border-color:#e76508}
+.mc-noticias{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.mc-noticia{background:#fff;border:1px solid var(--borda);border-radius:12px;padding:13px 15px;display:flex;flex-direction:column;gap:6px;
+  text-decoration:none;color:inherit;box-shadow:var(--sombra);min-width:0}
+.mc-noticia:hover{border-color:#15774a}
+.mc-noticia.foco{border-left:4px solid #e76508}
+.mc-noticia h3{font-size:14.5px;line-height:1.35;color:var(--cinza-900)}
+.mc-noticia p{margin:0;font-size:12.5px;color:var(--cinza-700);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mc-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11.5px;color:var(--cinza-500)}
+.mc-etq{background:var(--cinza-100);color:var(--cinza-700);border-radius:999px;padding:1px 8px;font-size:11px}
+.mc-etq.cafe{background:#fdf0e6;color:#9a3f00}
+.mc-etq.regiao{background:#e8f4ee;color:#0f5c39}
+.mc-rodape{margin-top:26px;color:var(--cinza-500);font-size:12px;border-top:1px solid var(--borda);padding-top:14px}
+
+@media (max-width:1000px){
+  .mc-agora .mc-largura{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mc-grade{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:640px){
+  .mercado .mc-largura{padding:0 14px}
+  .mc-agora{padding:10px 0}
+  .mc-agora .mc-largura{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;
+    scroll-snap-type:x mandatory;scroll-padding:0 14px;padding-bottom:4px}
+  .mc-bloco{scroll-snap-align:start}
+  .mc-filtros label.mc-busca{flex:1 1 100%}
+  .mc-filtros label{flex:1 1 calc(50% - 8px)}
+  .mc-filtros select{min-width:0;width:100%}
+  .mc-filtros input[type=date]{width:100%}
+  .mc-periodos{flex:1 1 100%;overflow-x:auto}
+  .mc-periodos button{flex:1}
+  .mc-noticias,.mc-cidades{grid-template-columns:minmax(0,1fr)}
+  .mc-topo-acoes{width:100%;justify-content:space-between}
+  .mc-grafico svg{height:220px}
+  .mercado .card{padding:14px}
+}
+.mc-dica .sobe{color:#4ade80}.mc-dica .desce{color:#fca5a5}.mc-dica .igual{color:#cbd5e1}
+.mc-rolagem{max-height:460px;overflow:auto}

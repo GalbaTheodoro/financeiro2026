@@ -145,6 +145,32 @@ teste sem internet: `python testes/teste_cotacoes.py`.
 > de disponibilidade. Para uso comercial com clientes pagantes, avalie contratar um
 > provedor de dados licenciado.
 
+#### Painel "Mercado do Café" (`/mercado`)
+
+Clicar na faixa (ou em **Painel completo ›**) abre `/mercado` numa nova aba, sem login:
+
+| Aba | O que mostra | Filtros | Fonte |
+|---|---|---|---|
+| **Bolsas e indicadores** | NY, Londres, B3, Cepea (arábica e conilon), Dólar Ptax/comercial, euro e DXY: gráfico, máxima, mínima, variação no período e tabela | série, contrato, 7/30/90 dias, 1 ano, tudo, de/até; **baixar CSV** | Notícias Agrícolas, Banco Central |
+| **Preços por cidade** | cartão por cidade (Patrocínio, Varginha, Araguari e Patos de Minas primeiro) com tipo 6/7, tipo 6 duro, cereja descascado, conilon e as cotações por cidade da AgnoCafé; histórico por cidade | tipo de café, cidade, data, só a região | Notícias Agrícolas (Expocaccer, Minasul, Coocacer, Cooxupé...) e agnocafe.com.br |
+| **Notícias** | café e demais culturas, marcadas por cultura e por região; as da região em destaque ficam com borda laranja | região (as 4 cidades, Sul de Minas, Triângulo/Alto Paranaíba), cultura, busca, período | RSS do Canal Rural e do g1 (Agronegócios, Sul de Minas, Triângulo) e Notícias Agrícolas |
+
+* O histórico fica na tabela `cotacao_historico`. As fontes mostram só ~10 pregões, mas o
+  painel guarda todos os que lê: o filtro de período alcança mais tempo a cada dia.
+* Notícias: guardadas por 60 dias em `cache_externo`; só título, resumo curto e link (a
+  matéria abre no site de quem publicou). Dos feeds regionais do g1 entram só as do agro.
+* Patos de Minas ainda não tem cotação publicada nas fontes gratuitas; o cartão avisa isso.
+* Config. do site: `mercado_minutos` (30), `noticias_minutos` (20) e `mercado_agnocafe`
+  (1/0, desliga as cotações da AgnoCafé). Desligar a faixa (`cotacoes_ativas`) desliga o painel.
+* Código: `backend/mercado.py`, rotas `/api/publico/mercado/*` em `backend/routers/publico.py`,
+  `frontend/mercado.html`, `frontend/mercado.css`, `frontend/js/mercado.js`.
+  Teste sem internet: `python testes/teste_mercado.py`.
+
+> Os preços por cidade da AgnoCafé e as páginas do Notícias Agrícolas são lidos do site deles
+> (não há API pública). Antes de vender o painel como recurso pago, peça autorização a esses
+> sites ou contrate um provedor de dados; se a página deles mudar, o painel mostra o último
+> valor guardado até o leitor ser ajustado.
+
 ### Cadastros
 
 Tudo num único menu **Cadastros**, com abas — não há mais itens de cadastro espalhados

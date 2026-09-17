@@ -1,9 +1,12 @@
 """Área pública: informações do site, planos e cadastro de novos assinantes."""
-from fastapi import APIRouter, Depends, HTTPException, Response
+from datetime import date, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from .. import assinaturas as regras
 from .. import cotacoes as fontes_cotacoes
+from .. import mercado
 from ..database import get_db
 from ..deps import situacao_da_conta
 from ..models import Empresa, Usuario
@@ -51,6 +54,88 @@ def cotacoes(resposta: Response, db: Session = Depends(get_db)):
     # o navegador pode reaproveitar por 1 minuto; o servidor guarda por mais tempo
     resposta.headers["Cache-Control"] = "public, max-age=60"
     return {"ativo": True, **dados}
+
+
+def _minutos(db: Session, chave: str, padrao: int) -> int:
+    try:
+        return int(float(regras.config(db, chave, str(padrao))))
+    except ValueError:
+        return padrao
+
+
+def _painel_ligado(db: Session) -> None:
+    if regras.config(db, "cotacoes_ativas", "1").strip() in ("0", "nao", "não", "false"):
+        raise HTTPException(404, "O painel de mercado está desligado.")
+
+
+def _data(texto: str | None, campo: str) -> date | None:
+    if not texto:
+        return None
+    try:
+        return date.fromisoformat(texto)
+    except ValueError as erro:
+        raise HTTPException(422, f"Data inválida em '{campo}': use AAAA-MM-DD.") from erro
+
+
+@router.get("/mercado/resumo")
+def mercado_resumo(resposta: Response, db: Session = Depends(get_db)):
+    """Último fechamento de cada série (bolsas, Cepea, Ptax, preços por cidade)."""
+    _painel_ligado(db)
+    agnocafe = regras.config(db, "mercado_agnocafe", "1").strip() not in ("0", "nao", "não", "false")
+    meta = mercado.garantir_atualizado(db, _minutos(db, "mercado_minutos", 30), agnocafe)
+    dados = mercado.resumo(db, meta)
+    if not agnocafe:
+        dados["grupos"] = [g for g in dados["grupos"] if g["chave"] != "agnocafe"]
+    resposta.headers["Cache-Control"] = "public, max-age=120"
+    return dados
+
+
+@router.get("/mercado/historico")
+def mercado_historico(
+    resposta: Response,
+    grupo: str | None = Query(None, max_length=30),
+    item: str | None = Query(None, max_length=140),
+    cidade: str | None = Query(None, max_length=80),
+    de: str | None = None,
+    ate: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Histórico diário filtrado por série, item/contrato, cidade e período."""
+    _painel_ligado(db)
+    inicio, fim = _data(de, "de"), _data(ate, "ate")
+    if not (grupo or item or cidade):
+        raise HTTPException(422, "Escolha uma série ou uma cidade.")
+    if grupo == "agnocafe" and regras.config(db, "mercado_agnocafe", "1").strip() in ("0", "nao", "não", "false"):
+        return {"linhas": []}
+    if not inicio and not fim:
+        inicio = mercado.hoje_brasil() - timedelta(days=90)
+    linhas = mercado.historico(db, grupo, item, cidade, inicio, fim)
+    if regras.config(db, "mercado_agnocafe", "1").strip() in ("0", "nao", "não", "false"):
+        linhas = [linha for linha in linhas if linha["grupo"] != "agnocafe"]
+    resposta.headers["Cache-Control"] = "public, max-age=120"
+    return {"linhas": linhas}
+
+
+@router.get("/mercado/noticias")
+def mercado_noticias(
+    resposta: Response,
+    cultura: str = Query("", max_length=40),
+    regiao: str = Query("", max_length=60),
+    busca: str = Query("", max_length=80),
+    de: str | None = None,
+    ate: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Notícias do café e do agro, com filtro por cultura, região, texto e período."""
+    _painel_ligado(db)
+    dados = mercado.obter_noticias(db, _minutos(db, "noticias_minutos", 20))
+    todas = dados.get("itens", [])
+    itens = mercado.filtrar_noticias(todas, cultura, regiao, busca, _data(de, "de"), _data(ate, "ate"))
+    resposta.headers["Cache-Control"] = "public, max-age=120"
+    return {"atualizado_em": dados.get("atualizado_em"), "fontes": dados.get("fontes", {}),
+            "total": len(todas), "itens": itens[:200],
+            "culturas": [c for c, _ in mercado.CULTURAS] + ["Geral"],
+            "regioes": [r for r, _ in mercado.REGIOES]}
 
 
 @router.post("/cadastro")

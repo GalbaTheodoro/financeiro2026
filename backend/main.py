@@ -158,11 +158,10 @@ def versao_arquivos() -> str:
 if FRONTEND_DIR.exists():
     app.mount("/static", EstaticosSemCache(directory=FRONTEND_DIR), name="static")
 
-    @app.get("/", response_class=HTMLResponse)
-    def index():
-        """Entrega o index.html com a versão colada em cada arquivo estático."""
+    def _pagina(nome: str) -> HTMLResponse:
+        """Entrega a página com a versão colada em cada arquivo estático."""
         versao = versao_arquivos()
-        html = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+        html = (FRONTEND_DIR / nome).read_text(encoding="utf-8")
         html = re.sub(
             r'(src|href)="(/static/[^"?]+)"',
             lambda m: f'{m.group(1)}="{m.group(2)}?v={versao}"',
@@ -171,3 +170,12 @@ if FRONTEND_DIR.exists():
         return HTMLResponse(
             html, headers={"Cache-Control": "no-store"}
         )
+
+    @app.get("/", response_class=HTMLResponse)
+    def index():
+        return _pagina("index.html")
+
+    @app.get("/mercado", response_class=HTMLResponse)
+    def pagina_mercado():
+        """Painel Mercado do Café (abre ao clicar na faixa de cotações)."""
+        return _pagina("mercado.html")

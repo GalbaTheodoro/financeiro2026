@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resNFe xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.01">
+  <chNFe>31260911223344000186550010000067890123456789</chNFe>
+  <CNPJ>11223344000186</CNPJ>
+  <xNome>TRANSPORTES CERRADO MINEIRO LTDA</xNome>
+  <IE>0033445566002</IE>
+  <dhEmi>2026-09-12T16:40:00-03:00</dhEmi>
+  <tpNF>1</tpNF>
+  <vNF>4850.00</vNF>
+  <digVal>Zz98Yy76Xx54Ww32Vv10Uu=</digVal>
+  <dhRecbto>2026-09-12T16:41:03-03:00</dhRecbto>
+  <nProt>131260099887788</nProt>
+  <cSitNFe>1</cSitNFe>
+</resNFe>

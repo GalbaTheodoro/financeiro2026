@@ -113,6 +113,17 @@ class Parceiro(Base):
     email = Column(String(160))
     contato = Column(String(120))
     observacao = Column(Text)
+
+    # ---- dados fiscais (NF-e) ----
+    # 1 = contribuinte de ICMS, 2 = isento inscrito, 9 = não contribuinte
+    indicador_ie = Column(String(1), default="9")
+    inscricao_municipal = Column(String(30))
+    inscricao_suframa = Column(String(20))
+    codigo_municipio = Column(String(7))     # código do IBGE do município
+    codigo_pais = Column(String(4), default="1058")
+    pais = Column(String(60), default="BRASIL")
+    regime_tributario = Column(String(40))   # SIMPLES NACIONAL, LUCRO PRESUMIDO...
+
     ativo = Column(Boolean, nullable=False, default=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
@@ -501,7 +512,12 @@ class ModalidadeContrato(Base):
 
 
 class Produto(Base):
-    """Mercadoria negociada nos contratos."""
+    """Mercadoria negociada nos contratos.
+
+    Os campos fiscais são os que a nota fiscal eletrônica exige de cada item.
+    Ficam em branco enquanto o produto for usado só em contrato; ao importar o
+    XML de uma nota, o sistema oferece preencher o cadastro com o que veio nela.
+    """
 
     __tablename__ = "produtos"
     __table_args__ = (UniqueConstraint("empresa_id", "codigo", name="uq_produto_codigo"),)
@@ -513,6 +529,31 @@ class Produto(Base):
     unidade_id = Column(Integer, ForeignKey("unidades.id"))
     embalagem = Column(String(40))
     descricao = Column(String(200))
+
+    # ---- dados fiscais (NF-e) ----
+    ncm = Column(String(10))                 # classificação fiscal, 8 dígitos
+    cest = Column(String(9))                 # substituição tributária
+    ex_tipi = Column(String(3))
+    cfop_padrao = Column(String(5))          # CFOP sugerido na emissão
+    origem = Column(String(1), default="0")  # 0 nacional, 1 importação direta...
+    unidade_comercial = Column(String(6))    # uCom: SC, KG, TON
+    unidade_tributavel = Column(String(6))   # uTrib (normalmente igual à comercial)
+    gtin = Column(String(14))                # código de barras (antigo EAN)
+    gtin_tributavel = Column(String(14))
+    cst_icms = Column(String(3))             # CST (normal) ou CSOSN (Simples)
+    aliquota_icms = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    reducao_base_icms = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_ipi = Column(String(2))
+    aliquota_ipi = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_pis = Column(String(2))
+    aliquota_pis = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_cofins = Column(String(2))
+    aliquota_cofins = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    peso_liquido = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    peso_bruto = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    codigo_beneficio = Column(String(10))    # cBenef (MG e outros estados)
+    observacao_fiscal = Column(String(300))
+
     ativo = Column(Boolean, nullable=False, default=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
@@ -643,6 +684,168 @@ class Contrato(Base):
     conta_contabil = relationship("ContaContabil")
     centro_custo = relationship("CentroCusto")
     operacao = relationship("Operacao")
+
+
+# --------------------------------------------------------------------------- #
+# DF-e — documentos fiscais eletrônicos emitidos contra o CNPJ da empresa
+# --------------------------------------------------------------------------- #
+class CertificadoDigital(Base):
+    """Certificado digital A1 (arquivo .pfx) usado para falar com a SEFAZ.
+
+    O arquivo e a senha ficam **cifrados** no banco (AES-GCM com chave derivada
+    de FIN_SECRET_KEY — ver backend/dfe.py). Nenhuma rota devolve o conteúdo
+    nem a senha: a tela mostra só o titular, o CNPJ e a validade.
+    """
+
+    __tablename__ = "certificados_digitais"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, unique=True, index=True)
+    arquivo_nome = Column(String(160))
+    conteudo = Column(Text, nullable=False)   # .pfx cifrado (base64)
+    senha = Column(Text, nullable=False)      # senha cifrada (base64)
+    titular = Column(String(200))
+    cnpj = Column(String(20))
+    valido_de = Column(DateTime)
+    valido_ate = Column(DateTime)
+    ambiente = Column(String(1), nullable=False, default="1")  # 1 produção | 2 homologação
+    uf_autor = Column(String(2))
+    # controle da distribuição: a SEFAZ entrega os documentos a partir do último
+    # NSU já recebido (número sequencial único, 15 dígitos)
+    ultimo_nsu = Column(String(15), nullable=False, default="000000000000000")
+    max_nsu = Column(String(15))
+    ultima_consulta = Column(DateTime)
+    ultima_mensagem = Column(String(300))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow)
+
+
+class Nota(Base):
+    """Documento fiscal baixado da SEFAZ (NF-e, resumo ou XML completo).
+
+    `resumo` = True quando a SEFAZ entregou só o resumo (resNFe). O XML completo
+    (procNFe) costuma chegar depois que o destinatário dá ciência da operação.
+    """
+
+    __tablename__ = "notas"
+    __table_args__ = (UniqueConstraint("empresa_id", "chave", name="uq_nota_chave"),)
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    chave = Column(String(44), nullable=False, index=True)
+    nsu = Column(String(15), index=True)
+    esquema = Column(String(40))              # resNFe_v1.01, procNFe_v4.00...
+    tipo = Column(String(10), nullable=False, default="NFE")  # NFE | EVENTO | OUTRO
+    resumo = Column(Boolean, nullable=False, default=True)
+
+    modelo = Column(String(2))
+    serie = Column(String(3))
+    numero = Column(String(9))
+    data_emissao = Column(DateTime, index=True)
+    natureza_operacao = Column(String(120))
+    # 0 = entrada (a empresa recebeu), 1 = saída (a empresa emitiu)
+    tipo_operacao = Column(String(1))
+    finalidade = Column(String(1))
+
+    emitente_cnpj = Column(String(20), index=True)
+    emitente_nome = Column(String(200))
+    emitente_ie = Column(String(30))
+    emitente_uf = Column(String(2))
+    destinatario_cnpj = Column(String(20))
+    destinatario_nome = Column(String(200))
+
+    valor_total = _dinheiro()
+    valor_produtos = _dinheiro()
+    valor_icms = _dinheiro()
+    valor_ipi = _dinheiro()
+    valor_frete = _dinheiro()
+    valor_desconto = _dinheiro()
+
+    protocolo = Column(String(20))
+    data_autorizacao = Column(DateTime)
+    # AUTORIZADA | CANCELADA | DENEGADA | DESCONHECIDA
+    situacao = Column(String(15), nullable=False, default="AUTORIZADA")
+
+    # manifestação do destinatário
+    # (vazio) | CIENCIA | CONFIRMADA | DESCONHECIDA | NAO_REALIZADA
+    manifestacao = Column(String(15))
+    manifestacao_em = Column(DateTime)
+    manifestacao_protocolo = Column(String(20))
+    manifestacao_justificativa = Column(String(255))
+
+    xml = Column(Text)
+    importada = Column(Boolean, nullable=False, default=False)
+    importada_em = Column(DateTime)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    lancamento_id = Column(Integer, ForeignKey("lancamentos.id"))
+    observacao = Column(Text)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    parceiro = relationship("Parceiro")
+    itens = relationship(
+        "NotaItem", back_populates="nota", cascade="all, delete-orphan",
+        order_by="NotaItem.numero",
+    )
+    pagamentos = relationship(
+        "NotaPagamento", back_populates="nota", cascade="all, delete-orphan",
+        order_by="NotaPagamento.id",
+    )
+
+
+class NotaItem(Base):
+    """Produto/serviço de uma nota (tag <det> do XML)."""
+
+    __tablename__ = "nota_itens"
+
+    id = Column(Integer, primary_key=True)
+    nota_id = Column(Integer, ForeignKey("notas.id", ondelete="CASCADE"), nullable=False, index=True)
+    numero = Column(Integer, nullable=False, default=1)
+    codigo = Column(String(60))
+    gtin = Column(String(14))
+    descricao = Column(String(200), nullable=False)
+    ncm = Column(String(10))
+    cest = Column(String(9))
+    cfop = Column(String(5))
+    unidade = Column(String(10))
+    quantidade = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    valor_unitario = Column(Numeric(15, 6, asdecimal=False), nullable=False, default=0)
+    valor_total = _dinheiro()
+    desconto = _dinheiro()
+    frete = _dinheiro()
+    icms_cst = Column(String(3))
+    icms_base = _dinheiro()
+    icms_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    icms_valor = _dinheiro()
+    ipi_valor = _dinheiro()
+    pis_valor = _dinheiro()
+    cofins_valor = _dinheiro()
+    # produto do cadastro ligado a este item (preenchido na importação)
+    produto_id = Column(Integer, ForeignKey("produtos.id"), index=True)
+
+    nota = relationship("Nota", back_populates="itens")
+    produto = relationship("Produto")
+
+
+class NotaPagamento(Base):
+    """Forma de pagamento (<detPag>) ou duplicata (<dup>) da nota."""
+
+    __tablename__ = "nota_pagamentos"
+
+    id = Column(Integer, primary_key=True)
+    nota_id = Column(Integer, ForeignKey("notas.id", ondelete="CASCADE"), nullable=False, index=True)
+    origem = Column(String(12), nullable=False, default="PAGAMENTO")  # PAGAMENTO | DUPLICATA
+    codigo = Column(String(2))            # tPag: 01 dinheiro, 03 cartão, 15 boleto, 17 Pix...
+    descricao = Column(String(80))
+    numero = Column(String(60))           # número da duplicata
+    vencimento = Column(Date, index=True)
+    valor = _dinheiro()
+    troco = _dinheiro()
+    bandeira = Column(String(30))
+    cnpj_credenciadora = Column(String(20))
+    autorizacao = Column(String(40))
+
+    nota = relationship("Nota", back_populates="pagamentos")
 
 
 # --------------------------------------------------------------------------- #

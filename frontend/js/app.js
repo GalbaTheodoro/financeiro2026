@@ -6,6 +6,7 @@ const App = {
     '/pagar': { titulo: 'Contas a Pagar', subtitulo: 'Títulos, pagamentos e baixas', acao: () => Lancamentos.contas('PAGAR') },
     '/caixa': { titulo: 'Caixa e Bancos', subtitulo: 'Saldos, extrato e movimentos', acao: () => Caixa.tela() },
     '/contratos': { titulo: 'Contratos', subtitulo: 'Corretagem, compra e venda de café — com contas a receber e a pagar', acao: () => Contratos.tela() },
+    '/dfe': { titulo: 'DF-e — Documentos fiscais', subtitulo: 'Notas emitidas contra o CNPJ da empresa: XML, DANFE, manifestação e importação', acao: (aba) => DFe.tela(aba) },
     '/relatorios': { titulo: 'Relatórios', subtitulo: 'DRE, balancete e relatórios gerenciais', acao: () => Relatorios.tela() },
     '/cadastros': { titulo: 'Cadastros', subtitulo: 'Todos os cadastros do sistema em um só lugar', acao: (aba) => Cadastros.hub(aba) },
     '/assinatura': { titulo: 'Minha Assinatura', subtitulo: 'Plano, pagamento por Pix e situação da conta', acao: () => Assinaturas.minha() },
@@ -22,6 +23,7 @@ const App = {
       { rota: '/pagar', icone: '↑', rotulo: 'Contas a Pagar' },
       { rota: '/caixa', icone: '▤', rotulo: 'Caixa e Bancos' },
       { rota: '/contratos', icone: '§', rotulo: 'Contratos' },
+      { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (notas fiscais)' },
       { grupo: 'Análise' },
       { rota: '/relatorios', icone: '▦', rotulo: 'Relatórios' },
       { grupo: 'Cadastros' },
@@ -75,6 +77,9 @@ const App = {
     if (caminho.startsWith('/cadastros')) {
       aba = caminho.split('/')[2] || null;
       caminho = '/cadastros';
+    } else if (caminho.startsWith('/dfe')) {
+      aba = caminho.split('/')[2] || null;
+      caminho = '/dfe';
     }
     const rota = App.rotas[caminho] || App.rotas['/painel'];
     if (rota.master && !Api.ehMaster()) return App.irPara('/painel');

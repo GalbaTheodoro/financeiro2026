@@ -101,6 +101,14 @@ class ParceiroIn(BaseModel):
     email: str | None = None
     contato: str | None = None
     observacao: str | None = None
+    # dados fiscais (NF-e)
+    indicador_ie: str | None = "9"       # 1 contribuinte | 2 isento inscrito | 9 não contribuinte
+    inscricao_municipal: str | None = None
+    inscricao_suframa: str | None = None
+    codigo_municipio: str | None = None   # código do IBGE
+    codigo_pais: str | None = "1058"
+    pais: str | None = "BRASIL"
+    regime_tributario: str | None = None
     ativo: bool = True
 
 
@@ -263,6 +271,29 @@ class ProdutoIn(BaseModel):
     unidade_id: int | None = None
     embalagem: str | None = None
     descricao: str | None = None
+    # dados fiscais (NF-e) — ficam em branco enquanto o produto for só de contrato
+    ncm: str | None = None
+    cest: str | None = None
+    ex_tipi: str | None = None
+    cfop_padrao: str | None = None
+    origem: str | None = "0"
+    unidade_comercial: str | None = None
+    unidade_tributavel: str | None = None
+    gtin: str | None = None
+    gtin_tributavel: str | None = None
+    cst_icms: str | None = None
+    aliquota_icms: float = 0
+    reducao_base_icms: float = 0
+    cst_ipi: str | None = None
+    aliquota_ipi: float = 0
+    cst_pis: str | None = None
+    aliquota_pis: float = 0
+    cst_cofins: str | None = None
+    aliquota_cofins: float = 0
+    peso_liquido: float = 0
+    peso_bruto: float = 0
+    codigo_beneficio: str | None = None
+    observacao_fiscal: str | None = None
     ativo: bool = True
 
 
@@ -401,3 +432,38 @@ class LimiteUsuariosIn(BaseModel):
 class AcessoUsuarioIn(BaseModel):
     ativo: bool = True
     acesso_ate: date | None = None
+
+
+# --------------------------------------------------------------------------- #
+# DF-e — documentos fiscais eletrônicos
+# --------------------------------------------------------------------------- #
+class BuscarDFeIn(BaseModel):
+    """Consulta na SEFAZ. `paginas` = quantas rodadas de até 50 documentos."""
+
+    empresa_id: int
+    paginas: int = 5
+    # recomeça do zero (NSU 0): traz tudo o que a SEFAZ ainda guarda (90 dias)
+    desde_o_inicio: bool = False
+
+
+class ManifestarIn(BaseModel):
+    """CIENCIA | CONFIRMADA | DESCONHECIDA | NAO_REALIZADA."""
+
+    empresa_id: int | None = None
+    tipo: str
+    justificativa: str | None = None
+    sequencia: int = 1
+
+
+class ImportarNotaIn(BaseModel):
+    """Grava itens e pagamentos do XML e completa os cadastros."""
+
+    empresa_id: int | None = None
+    criar_parceiro: bool = True
+    atualizar_produtos: bool = True
+    gerar_titulo: bool = False
+    tipo_titulo: str | None = None        # PAGAR | RECEBER (padrão: pelo sentido da nota)
+    conta_contabil_id: int | None = None
+    centro_custo_id: int | None = None
+    operacao_id: int | None = None
+    vencimento: date | None = None        # usado quando a nota não traz duplicatas

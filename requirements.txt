@@ -4,6 +4,9 @@ SQLAlchemy>=2.0
 pydantic>=2.5
 python-multipart>=0.0.9
 qrcode>=7.4
+# certificado digital A1 (.pfx) do módulo DF-e: abrir o arquivo e assinar o
+# evento de manifestação enviado à SEFAZ
+cryptography>=42.0
 # driver do PostgreSQL (banco na nuvem). No PC, sem FIN_DATABASE_URL,
 # o sistema continua usando o arquivo dados/financeiro.db e nem carrega isto.
 psycopg[binary]>=3.1

@@ -104,6 +104,10 @@ const Cadastros = {
         const estilo = campo.largura === 2 ? 'style="grid-column:span 2"' : '';
         let controle;
         switch (campo.tipo) {
+          /* separador: um título que atravessa a linha inteira do formulário */
+          case 'secao':
+            return `<div class="secao-campos"><b>${UI.escapar(campo.rotulo)}</b>${
+              campo.dica ? `<span class="mini"> — ${UI.escapar(campo.dica)}</span>` : ''}</div>`;
           case 'select':
             controle = UI.select(campo.nome, campo.opcoes(), valor ?? '', {
               obrigatorio: campo.obrigatorio, vazio: campo.vazio,
@@ -518,6 +522,26 @@ const Cadastros = {
         { nome: 'telefone', rotulo: 'Telefone' },
         { nome: 'celular', rotulo: 'Celular' },
         { nome: 'email', rotulo: 'E-mail', tipo: 'email' },
+        { tipo: 'secao', rotulo: 'Dados fiscais (nota fiscal eletrônica)',
+          dica: 'preenchidos sozinhos ao importar o XML de uma nota deste emitente' },
+        { nome: 'indicador_ie', rotulo: 'Indicador de IE', tipo: 'select', vazio: false, padrao: '9',
+          opcoes: () => [
+            { valor: '1', rotulo: '1 - Contribuinte de ICMS' },
+            { valor: '2', rotulo: '2 - Isento, mas inscrito' },
+            { valor: '9', rotulo: '9 - Não contribuinte' },
+          ] },
+        { nome: 'codigo_municipio', rotulo: 'Código do município (IBGE)', dica: '7 números — ex.: 3148004' },
+        { nome: 'inscricao_municipal', rotulo: 'Inscrição municipal' },
+        { nome: 'regime_tributario', rotulo: 'Regime tributário', tipo: 'select', vazio: 'Não informado',
+          opcoes: () => [
+            { valor: 'SIMPLES NACIONAL', rotulo: 'Simples Nacional' },
+            { valor: 'SIMPLES NACIONAL - EXCESSO', rotulo: 'Simples Nacional — excesso de receita' },
+            { valor: 'REGIME NORMAL', rotulo: 'Regime normal (presumido/real)' },
+            { valor: 'MEI', rotulo: 'MEI' },
+          ] },
+        { nome: 'inscricao_suframa', rotulo: 'Inscrição Suframa' },
+        { nome: 'codigo_pais', rotulo: 'Código do país', padrao: '1058' },
+        { nome: 'pais', rotulo: 'País', padrao: 'BRASIL' },
         { nome: 'observacao', rotulo: 'Observações', tipo: 'textarea', largura: 2 },
         { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Cadastro ativo' },
       ],
@@ -762,7 +786,10 @@ const Cadastros = {
         { titulo: 'Produto', valor: (r) => UI.escapar(r.nome) },
         { titulo: 'Unidade', valor: (r) => UI.escapar(r.unidade_nome || '-') },
         { titulo: 'Embalagem', valor: (r) => UI.escapar(r.embalagem || '-') },
-        { titulo: 'Descrição', valor: (r) => UI.escapar(r.descricao || '-') },
+        { titulo: 'Fiscal', valor: (r) => (r.ncm
+          ? `NCM ${UI.escapar(r.ncm)}<div class="mini">${UI.escapar(r.cfop_padrao || '')} ${
+            r.cst_icms ? `· CST ${UI.escapar(r.cst_icms)}` : ''}</div>`
+          : '<span class="mini">sem dados fiscais</span>') },
         { titulo: 'Situação', classe: 'centro', valor: (r) => (r.ativo ? '<span class="tag tag-pago">Ativo</span>' : '<span class="tag tag-cancelado">Inativo</span>') },
       ],
       campos: [
@@ -773,6 +800,41 @@ const Cadastros = {
             .map((u) => ({ valor: u.id, rotulo: `${u.codigo} — ${u.nome}` })) },
         { nome: 'embalagem', rotulo: 'Embalagem', dica: 'a granel, sacaria...' },
         { nome: 'descricao', rotulo: 'Descrição', largura: 2 },
+        { tipo: 'secao', rotulo: 'Dados fiscais (nota fiscal eletrônica)',
+          dica: 'preenchidos sozinhos ao importar o XML de uma nota com este produto' },
+        { nome: 'ncm', rotulo: 'NCM', dica: 'classificação fiscal, 8 números' },
+        { nome: 'cest', rotulo: 'CEST', dica: 'só para substituição tributária' },
+        { nome: 'cfop_padrao', rotulo: 'CFOP padrão', dica: 'ex.: 5102, 5101' },
+        { nome: 'origem', rotulo: 'Origem da mercadoria', tipo: 'select', vazio: false, padrao: '0',
+          opcoes: () => [
+            { valor: '0', rotulo: '0 - Nacional' },
+            { valor: '1', rotulo: '1 - Estrangeira, importação direta' },
+            { valor: '2', rotulo: '2 - Estrangeira, comprada no mercado interno' },
+            { valor: '3', rotulo: '3 - Nacional com mais de 40% de conteúdo importado' },
+            { valor: '4', rotulo: '4 - Nacional, processos produtivos básicos' },
+            { valor: '5', rotulo: '5 - Nacional com até 40% de conteúdo importado' },
+            { valor: '6', rotulo: '6 - Estrangeira, sem similar nacional (lista CAMEX)' },
+            { valor: '7', rotulo: '7 - Estrangeira no mercado interno, sem similar nacional' },
+            { valor: '8', rotulo: '8 - Nacional com mais de 70% de conteúdo importado' },
+          ] },
+        { nome: 'unidade_comercial', rotulo: 'Unidade comercial (uCom)', dica: 'SC, KG, TON, UN' },
+        { nome: 'unidade_tributavel', rotulo: 'Unidade tributável (uTrib)', dica: 'quase sempre igual à comercial' },
+        { nome: 'gtin', rotulo: 'GTIN / código de barras', dica: 'em branco = SEM GTIN' },
+        { nome: 'gtin_tributavel', rotulo: 'GTIN da unidade tributável' },
+        { nome: 'cst_icms', rotulo: 'CST / CSOSN do ICMS', dica: 'CST no regime normal, CSOSN no Simples' },
+        { nome: 'aliquota_icms', rotulo: '% de ICMS', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'reducao_base_icms', rotulo: '% de redução da base', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'codigo_beneficio', rotulo: 'Código de benefício (cBenef)', dica: 'exigido em MG e em alguns estados' },
+        { nome: 'cst_ipi', rotulo: 'CST do IPI' },
+        { nome: 'aliquota_ipi', rotulo: '% de IPI', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'cst_pis', rotulo: 'CST do PIS' },
+        { nome: 'aliquota_pis', rotulo: '% de PIS', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'cst_cofins', rotulo: 'CST da COFINS' },
+        { nome: 'aliquota_cofins', rotulo: '% de COFINS', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'peso_liquido', rotulo: 'Peso líquido (kg)', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'peso_bruto', rotulo: 'Peso bruto (kg)', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'ex_tipi', rotulo: 'EX da TIPI' },
+        { nome: 'observacao_fiscal', rotulo: 'Observação fiscal', largura: 2 },
         { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Produto ativo' },
       ],
     });

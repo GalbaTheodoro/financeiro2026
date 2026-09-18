@@ -26,6 +26,8 @@ TELAS = [
     ("pagar", "Contas a Pagar"),
     ("caixa", "Caixa e Bancos"),
     ("contratos", "Contratos"),
+    ("dfe", "DF-e"),
+    ("dfe/certificado", "DF-e"),
     ("relatorios", "Relatórios"),
     ("cadastros/parceiros", "Cadastros"),
     ("cadastros/produtos", "Cadastros"),

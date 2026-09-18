@@ -297,6 +297,52 @@ impressa. O contrato guarda percentual e valor — mudar a tabela depois só afe
 quando ele for editado. Código: `backend/icms.py`, `backend/routers/icms.py`;
 teste: `python testes/teste_icms.py` (com o servidor no ar).
 
+### DF-e — notas fiscais eletrônicas emitidas contra o CNPJ
+
+Em **Movimento → DF-e (notas fiscais)** o sistema busca na SEFAZ, sozinho, todo documento
+fiscal emitido contra o CNPJ da empresa — sem depender do contador nem do e-mail do
+fornecedor.
+
+**Como fala com a SEFAZ.** Na aba **Certificado digital** a empresa envia o **certificado
+A1** (arquivo `.pfx` ou `.p12`) e a senha. O arquivo é conferido na hora (senha, validade e
+CNPJ igual ao da empresa) e guardado **cifrado com AES-GCM**, com chave derivada de
+`FIN_SECRET_KEY`; nenhuma rota devolve o arquivo nem a senha. Certificado A3 (cartão/token)
+não serve — precisa do dispositivo plugado na máquina. Só administradores cadastram ou
+removem o certificado.
+
+**Busca.** O botão **Buscar na SEFAZ** chama o webservice nacional **NFeDistribuiçãoDFe**
+(`https://www1.nfe.fazenda.gov.br/NFeDistribuicaoDFe`) usando o certificado como identidade
+TLS. A SEFAZ entrega até 50 documentos por consulta, em ordem de **NSU**; o sistema guarda o
+último NSU recebido e continua dali na próxima vez. Chegam resumos (`resNFe`), notas
+completas (`nfeProc`) e eventos (`resEvento`/`procEventoNFe`) — o evento de cancelamento
+marca a nota como cancelada sozinho. Quem recebe o XML por e-mail usa **Enviar XML**.
+
+**Manifestação do destinatário.** Ciência da operação (210210), Confirmação (210200),
+Desconhecimento (210220) e Operação não realizada (210240, com justificativa). O evento é
+montado já na forma canônica e assinado com o A1 (XMLDSig, SHA-1 + C14N 1.0) — sem
+biblioteca de canonicalização: o mesmo texto assinado é o que vai no envelope. A ciência é o
+que faz a SEFAZ passar a entregar o **XML completo** da nota.
+
+**DANFE.** `GET /api/dfe/notas/{id}/danfe` devolve a folha da nota pronta para imprimir
+(A4, com código de barras Code 128-C da chave desenhado em SVG) — o navegador salva em PDF,
+igual à impressão do contrato.
+
+**Importação.** Um clique grava os itens na tabela de itens da nota e as formas de pagamento
+e duplicatas na tabela de pagamentos, completa o cadastro do **cliente/fornecedor** do
+emitente (IE, endereço, código do município do IBGE) e o dos **produtos** (NCM, CEST, CFOP,
+unidade, CST e alíquota) e, se pedido, gera a **conta a pagar** já classificada e
+contabilizada, com **uma parcela por duplicata** da nota. Nada é sobrescrito: só o que
+estiver em branco é preenchido. Quando o emitente é o próprio CNPJ da empresa, a nota é de
+saída e o título gerado é a receber.
+
+Tabelas novas: `certificados_digitais`, `notas`, `nota_itens`, `nota_pagamentos`; campos
+fiscais novos em `produtos` e `parceiros`. Código: `backend/dfe.py` (certificado, SEFAZ,
+leitura do XML e assinatura), `backend/danfe.py` (folha impressa) e
+`backend/routers/dfe.py`; tela em `frontend/js/dfe.js`.
+Teste: `python testes/teste_dfe.py` — a parte do motor roda com os XML gravados em
+`testes/dados_dfe/` (sem internet e sem SEFAZ).
+
+
 ### Onde pagar cada cliente/fornecedor
 
 Um mesmo parceiro costuma ter mais de uma forma de receber. Na lista de
@@ -477,6 +523,8 @@ sistema-financeiro/
 │   ├── consulta_cnpj.py         Consulta de CNPJ na API do governo
 │   ├── consulta_cep.py          Consulta de CEP nos Correios
 │   ├── externo.py               Chamadas HTTP às APIs externas
+│   ├── dfe.py                   Certificado A1, NFeDistribuiçãoDFe e manifestação
+│   ├── danfe.py                 Folha da nota fiscal (DANFE) pronta para imprimir
 │   ├── migracao.py              Atualização automática do banco
 │   ├── diagnostico.py           Página que explica por que o sistema não ligou
 │   ├── seed.py                  Dados iniciais
@@ -486,6 +534,7 @@ sistema-financeiro/
 │       ├── assinatura.py        Pagamento, confirmação e administração das contas
 │       ├── consulta.py          Buscas de CNPJ e CEP usadas pelos cadastros
 │       ├── contratos.py         Contratos de intermediação e geração de recebíveis
+│       ├── dfe.py               DF-e: certificado, busca na SEFAZ, DANFE e importação
 │       ├── cadastros.py         Todos os cadastros
 │       ├── lancamentos.py       Títulos, parcelas e baixas
 │       ├── caixa.py             Extrato, movimentos e transferências
@@ -495,7 +544,7 @@ sistema-financeiro/
 │   ├── styles.css
 │   ├── img/                     logotipo do AgroDock, ícone e favicon
 │   └── js/                      api, ui, site, cadastros, lancamentos, caixa, impressao,
-│                                relatorios, assinaturas, app
+│                                contratos, dfe, mercado, relatorios, assinaturas, app
 ├── deploy/                      publicação: nuvem (Neon + Vercel) e servidor Ubuntu
 │   ├── migrar_para_postgres.py  Leva os dados do PC para a nuvem — e traz de volta
 │   ├── subir-para-nuvem.bat     Atalho do Windows para a primeira carga
@@ -512,6 +561,7 @@ sistema-financeiro/
     ├── teste_formas_pagamento.py Teste das contas/chaves Pix por cliente/fornecedor
     ├── teste_contratos.py       Teste do contrato de corretagem e dos recebíveis gerados
     ├── teste_cadastros.py       Teste dos cadastros, numeração automática e limite de usuários
+    ├── teste_dfe.py             Teste do DF-e (XML gravados, sem internet) e da importação
     ├── teste_impressao.py       Teste da folha do contrato e geração do PDF
     ├── teste_status_contrato.py Teste do ciclo Aberto → Recebido Total e do relatório
     ├── teste_postgres.py        Teste do sistema rodando com o banco na nuvem
@@ -536,6 +586,7 @@ python testes/teste_formas_pagamento.py   # contas e chaves Pix por parceiro e u
 python testes/teste_contratos.py    # contrato de corretagem, comissões e contas a receber
 python testes/teste_compra_venda.py # compra e venda de café, agente e títulos gerados
 python testes/teste_icms.py         # tabela de ICMS e o ICMS calculado no contrato
+python testes/teste_dfe.py          # DF-e: certificado, XML, DANFE, manifestação e importação
 python testes/teste_cadastros.py    # unidades, modalidades, produtos, nº automático e usuários
 python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/capturas/contrato.pdf)
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos

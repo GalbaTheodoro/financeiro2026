@@ -378,6 +378,37 @@ outro formato sozinho, sem pedir nada a quem está emitindo. Antes de sair, a no
 CFOP, cliente sem código do município do IBGE, contribuinte sem inscrição estadual e empresa
 sem IE ou sem código do município — com a mensagem dizendo o que corrigir e onde.
 
+#### De onde vem o imposto de cada item: as regras fiscais
+
+O mesmo café não tem a mesma tributação para todo mundo: para indústria dentro de Minas é
+diferido; para fora do estado é 7% ou 12%; para exportação é imune. Guardar isso no cadastro
+do produto obrigaria a criar um produto por situação — por isso existe a **tabela de regras
+fiscais**, na mesma ideia da tabela de ICMS dos contratos (que cruza UF de origem com UF de
+destino), só que com mais dimensões.
+
+Cada **cliente** e cada **produto** recebem um **tipo fiscal** (aba *Cadastros → Tipos
+fiscais*): o cliente ganha algo como *Indústria*, *Produtor rural*, *Não contribuinte* ou
+*Exportação*; o produto ganha *Café cru em grão*, *Café industrializado*, *Serviço*… O botão
+**Criar os tipos sugeridos** já deixa a lista pronta.
+
+A aba *Cadastros → Regras fiscais* cruza os dois e diz o que aplicar: CFOP, origem,
+CST/CSOSN e alíquota do ICMS (com redução de base), CST e alíquota de PIS, COFINS e IPI, e
+CST, `cClassTrib` e alíquotas de IBS/CBS. Cada regra pode ainda exigir **UF de saída**,
+**UF de destino** e **operação** (saída ou entrada).
+
+Campo em branco quer dizer *qualquer um*. Quando mais de uma regra serve, ganha a **mais
+específica**, pelo peso de cada campo: tipo de cliente 16, tipo de item 8, UF de destino 4,
+UF de origem 2, operação 1 — e no empate, a de maior `prioridade`. O botão **Testar uma
+situação** mostra qual linha venceria para um cliente e um produto de verdade, sem precisar
+montar nota.
+
+Na hora de montar o item da nota, a ordem de quem manda é: **o que foi digitado na tela →
+a regra fiscal → o cadastro do produto → zero**. O item mostra qual regra foi usada e tem o
+botão *Refazer os impostos por esta regra*, que descarta o que foi digitado e volta à tabela.
+
+Código: `backend/fiscal.py` (o casamento) e `backend/routers/fiscal.py`.
+Teste: `python testes/teste_regras_fiscais.py`.
+
 #### Impostos item a item
 
 Cada item da nota abre um bloco **Impostos** com tudo à vista e editável:
@@ -611,6 +642,7 @@ sistema-financeiro/
 │   ├── notas.py                 Regras das notas: importar o XML, faturar e desfaturar
 │   ├── emissao.py               NF-e 4.00: chave, XML, assinatura e webservices por UF
 │   ├── rejeicoes.py             Recusas da SEFAZ explicadas e com o lugar do conserto
+│   ├── fiscal.py                Regras fiscais: cruza tipo de cliente x tipo de item
 │   ├── migracao.py              Atualização automática do banco
 │   ├── diagnostico.py           Página que explica por que o sistema não ligou
 │   ├── seed.py                  Dados iniciais
@@ -657,6 +689,7 @@ sistema-financeiro/
     ├── teste_postgres.py        Teste do sistema rodando com o banco na nuvem
     ├── teste_celular.py         Teste da interface no celular (390x844)
     ├── teste_edicao.py          Teste do aviso de "não salvo" e do Salvar em cada etapa
+    ├── teste_regras_fiscais.py  Teste do cruzamento cliente x item e do imposto escolhido
     └── teste_interface.py       Teste do site e das telas (Playwright)
 ```
 
@@ -685,6 +718,7 @@ python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/cap
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos
 python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões e contrato por etapas
 python testes/teste_edicao.py       # janela não fecha sozinha e Salvar em qualquer etapa
+python testes/teste_regras_fiscais.py   # tipos fiscais, tabela de regras e o imposto do item
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:
 python testes/teste_empresas_acesso.py  # administrador, liberar/bloquear por data e limites

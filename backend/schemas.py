@@ -116,6 +116,7 @@ class ParceiroIn(BaseModel):
     codigo_pais: str | None = "1058"
     pais: str | None = "BRASIL"
     regime_tributario: str | None = None
+    tipo_fiscal_id: int | None = None    # classificação usada nas regras fiscais
     ativo: bool = True
 
 
@@ -301,6 +302,7 @@ class ProdutoIn(BaseModel):
     peso_bruto: float = 0
     codigo_beneficio: str | None = None
     observacao_fiscal: str | None = None
+    tipo_fiscal_id: int | None = None    # classificação usada nas regras fiscais
     ativo: bool = True
 
 
@@ -525,6 +527,48 @@ class SerieNotaIn(BaseModel):
     ativo: bool = True
 
 
+class TipoFiscalIn(BaseModel):
+    """Classificação fiscal de cliente ou de item."""
+
+    empresa_id: int
+    aplicacao: str = "ITEM"        # CLIENTE | ITEM
+    codigo: str
+    nome: str
+    descricao: str | None = None
+    ativo: bool = True
+
+
+class RegraFiscalIn(BaseModel):
+    """Linha da tabela que cruza tipo de cliente x tipo de item."""
+
+    empresa_id: int
+    nome: str | None = None
+    tipo_cliente_id: int | None = None
+    tipo_item_id: int | None = None
+    uf_origem: str | None = None
+    uf_destino: str | None = None
+    operacao: str | None = None    # SAIDA | ENTRADA | vazio = as duas
+    cfop: str | None = None
+    icms_origem: str | None = None
+    icms_cst: str | None = None
+    icms_reducao: float = 0
+    icms_aliquota: float = 0
+    cst_pis: str | None = None
+    aliquota_pis: float = 0
+    cst_cofins: str | None = None
+    aliquota_cofins: float = 0
+    cst_ipi: str | None = None
+    aliquota_ipi: float = 0
+    ibs_cbs_cst: str | None = None
+    ibs_cbs_classe: str | None = None
+    ibs_uf_aliquota: float = 0
+    ibs_mun_aliquota: float = 0
+    cbs_aliquota: float = 0
+    prioridade: int = 0
+    observacao: str | None = None
+    ativo: bool = True
+
+
 class ItemNotaIn(BaseModel):
     """Item da nota que a empresa emite. O que ficar vazio vem do cadastro do produto."""
 
@@ -540,6 +584,8 @@ class ItemNotaIn(BaseModel):
     valor_unitario: float = 0
     desconto: float = 0
     frete: float = 0
+    # True = ignore o que veio na tela e refaça os impostos pela regra fiscal
+    usar_regra: bool = False
     origem_mercadoria: str | None = None
     icms_cst: str | None = None          # CST (regime normal) ou CSOSN (Simples)
     icms_base: float | None = None

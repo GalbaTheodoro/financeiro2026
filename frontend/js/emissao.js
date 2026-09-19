@@ -499,6 +499,18 @@ const Emissao = {
           <b>Impostos do item</b>
           <span class="mini" data-resumo-imposto="${i}"></span>
         </summary>
+        ${Emissao._itens[i].regra_nome ? `<div class="cartao"
+          style="margin-top:10px;border-left:4px solid var(--verde)">
+          <div class="cartao-corpo">
+            <b class="mini">Regra fiscal: ${UI.escapar(Emissao._itens[i].regra_nome)}</b>
+            <div class="mini">${UI.escapar(Emissao._itens[i].regra_resumo || '')}</div>
+            <button type="button" class="btn btn-mini" data-regra="${i}"
+              style="margin-top:8px">Refazer os impostos por esta regra</button>
+          </div></div>`
+          : `<div class="mini" style="margin-top:10px">Nenhuma regra fiscal casou com este
+             cliente e este item — os impostos vieram do cadastro do produto.
+             <button type="button" class="btn btn-mini" data-regra="${i}">Procurar regra</button>
+             </div>`}
         <h5 class="titulo-bloco" style="margin:10px 0 0">ICMS</h5>
         <div class="linha-campos">
           ${Emissao.selecaoImposto(i, 'origem_mercadoria', 'Origem', Emissao.ORIGENS)}
@@ -651,6 +663,9 @@ const Emissao = {
         Emissao.desenharItens();
       };
     });
+    alvo.querySelectorAll('[data-regra]').forEach((botao) => {
+      botao.onclick = () => Emissao.aplicarRegra(Number(botao.dataset.regra));
+    });
     alvo.querySelectorAll('[data-remover]').forEach((botao) => {
       botao.onclick = () => {
         Emissao.lerItensDaTela();
@@ -660,6 +675,43 @@ const Emissao = {
       };
     });
     Emissao.atualizarTotais();
+  },
+
+  /** Busca a regra fiscal do par (cliente x item) e refaz os impostos do item.
+      Apaga as marcas de "digitado à mão": a regra passa a mandar de novo. */
+  async aplicarRegra(indice) {
+    Emissao.lerItensDaTela();
+    const item = Emissao._itens[indice];
+    const area = document.getElementById('modal-corpo');
+    const parceiroId = area?.querySelector('[name=parceiro_id]')?.value || null;
+    if (!parceiroId) return UI.erro('Escolha o cliente na etapa Nota antes de buscar a regra.');
+    try {
+      const r = await Api.post('/api/fiscal/simular', {
+        empresa_id: Estado.empresaId,
+        parceiro_id: parceiroId,
+        produto_id: item.produto_id || null,
+        operacao: 'SAIDA',
+      });
+      if (!r.regra) {
+        item.regra_nome = null;
+        item.regra_resumo = null;
+        Emissao.desenharItens();
+        return UI.erro('Nenhuma regra fiscal serve para este cliente e este item. '
+          + 'Cadastre em Cadastros > Regras fiscais.');
+      }
+      item._mao = {};
+      Object.assign(item, r.regra.valores || {});
+      if (r.regra.valores && r.regra.valores.icms_origem) {
+        item.origem_mercadoria = r.regra.valores.icms_origem;
+      }
+      item.regra_nome = r.regra.nome;
+      item.regra_resumo = r.regra.resumo;
+      Emissao.recalcularImpostos(item);
+      Emissao.desenharItens();
+      UI.sucesso(`Impostos refeitos pela regra "${r.regra.nome}".`);
+    } catch (e) {
+      UI.erro(e.message);
+    }
   },
 
   /** Número para mostrar no campo: em branco quando é zero, para não atrapalhar. */

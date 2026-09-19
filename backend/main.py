@@ -21,6 +21,7 @@ from .routers import (
     contratos,
     dfe,
     emissao,
+    fiscal,
     icms,
     lancamentos,
     notas,
@@ -98,6 +99,7 @@ app.include_router(cadastros.router)
 app.include_router(consulta.router)
 app.include_router(contratos.router)
 app.include_router(icms.router)
+app.include_router(fiscal.router)
 app.include_router(dfe.router)
 app.include_router(notas.router)
 app.include_router(emissao.router)

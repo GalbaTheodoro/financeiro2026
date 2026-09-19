@@ -12,6 +12,8 @@ const Cadastros = {
     { id: 'unidades', rotulo: 'Unidades', acao: () => Cadastros.unidades() },
     { id: 'modalidades', rotulo: 'Modalidades', acao: () => Cadastros.modalidades() },
     { id: 'icms', rotulo: 'ICMS', acao: () => Cadastros.icms() },
+    { id: 'tipos-fiscais', rotulo: 'Tipos fiscais', acao: () => Cadastros.tiposFiscais() },
+    { id: 'regras-fiscais', rotulo: 'Regras fiscais', acao: () => Cadastros.regrasFiscais() },
     { id: 'bancos', rotulo: 'Bancos', acao: () => Cadastros.bancos() },
     { id: 'centros-custo', rotulo: 'Centros de Custo', acao: () => Cadastros.centrosCusto() },
     { id: 'operacoes', rotulo: 'Operações', acao: () => Cadastros.operacoes() },
@@ -512,7 +514,11 @@ const Cadastros = {
         Cadastros.buscaCnpj(area);
         Cadastros.buscaCep(area);
       },
-      listar: () => Api.get('/api/parceiros', { empresa_id: Estado.empresaId }),
+      listar: async () => {
+        Cadastros._tiposFiscais = await Api.get('/api/fiscal/tipos',
+          { empresa_id: Estado.empresaId });
+        return Api.get('/api/parceiros', { empresa_id: Estado.empresaId });
+      },
       colunas: [
         { titulo: 'Nome / Razão social', valor: (r) => UI.escapar(r.nome) },
         { titulo: 'Tipo', valor: (r) => ({ CLIENTE: 'Cliente', FORNECEDOR: 'Fornecedor', AMBOS: 'Cliente e Fornecedor' }[r.tipo]) },
@@ -566,6 +572,12 @@ const Cadastros = {
         { nome: 'email', rotulo: 'E-mail', tipo: 'email' },
         { tipo: 'secao', rotulo: 'Dados fiscais (nota fiscal eletrônica)',
           dica: 'preenchidos sozinhos ao importar o XML de uma nota deste emitente' },
+        { nome: 'tipo_fiscal_id', rotulo: 'Tipo fiscal', tipo: 'select',
+          vazio: 'Sem classificação', largura: 2,
+          opcoes: () => (Cadastros._tiposFiscais || [])
+            .filter((t) => t.aplicacao === 'CLIENTE' && t.ativo)
+            .map((t) => ({ valor: t.id, rotulo: `${t.codigo} — ${t.nome}` })),
+          dica: 'é por ele que as Regras fiscais acham o imposto certo' },
         { nome: 'indicador_ie', rotulo: 'Indicador de IE', tipo: 'select', vazio: false, padrao: '9',
           opcoes: () => [
             { valor: '1', rotulo: '1 - Contribuinte de ICMS' },
@@ -881,7 +893,11 @@ const Cadastros = {
       titulo: 'Produtos',
       endpoint: '/api/produtos',
       ajuda: 'mercadorias negociadas nos contratos, com a unidade padrão de cada uma',
-      listar: () => Api.get('/api/produtos', { empresa_id: Estado.empresaId }),
+      listar: async () => {
+        Cadastros._tiposFiscais = await Api.get('/api/fiscal/tipos',
+          { empresa_id: Estado.empresaId });
+        return Api.get('/api/produtos', { empresa_id: Estado.empresaId });
+      },
       colunas: [
         { titulo: 'Código', valor: (r) => `<span class="forte">${UI.escapar(r.codigo)}</span>` },
         { titulo: 'Produto', valor: (r) => UI.escapar(r.nome) },
@@ -903,6 +919,12 @@ const Cadastros = {
         { nome: 'descricao', rotulo: 'Descrição', largura: 2 },
         { tipo: 'secao', rotulo: 'Dados fiscais (nota fiscal eletrônica)',
           dica: 'preenchidos sozinhos ao importar o XML de uma nota com este produto' },
+        { nome: 'tipo_fiscal_id', rotulo: 'Tipo fiscal', tipo: 'select',
+          vazio: 'Sem classificação', largura: 2,
+          opcoes: () => (Cadastros._tiposFiscais || [])
+            .filter((t) => t.aplicacao === 'ITEM' && t.ativo)
+            .map((t) => ({ valor: t.id, rotulo: `${t.codigo} — ${t.nome}` })),
+          dica: 'é por ele que as Regras fiscais acham o imposto certo' },
         { nome: 'ncm', rotulo: 'NCM', dica: 'classificação fiscal, 8 números' },
         { nome: 'cest', rotulo: 'CEST', dica: 'só para substituição tributária' },
         { nome: 'cfop_padrao', rotulo: 'CFOP padrão', dica: 'ex.: 5102, 5101' },
@@ -948,6 +970,216 @@ const Cadastros = {
 
   opcoesUf() {
     return Cadastros.UFS.map((uf) => ({ valor: uf, rotulo: uf }));
+  },
+
+  /* ------------------------------------------------- tipos e regras fiscais */
+  /** Tipos fiscais: a classificação que o cliente e o item recebem para as
+      regras conseguirem cruzar os dois e achar o imposto certo. */
+  tiposFiscais() {
+    return Cadastros.tela({
+      titulo: 'Tipos fiscais de cliente e de item',
+      endpoint: '/api/fiscal/tipos',
+      ajuda: 'o cliente ganha um tipo (indústria, produtor, exportação...) e o produto ganha '
+        + 'outro (café cru, café industrializado, serviço...); a aba Regras fiscais cruza os dois',
+      listar: () => Api.get('/api/fiscal/tipos', { empresa_id: Estado.empresaId }),
+      acoesExtras: [{
+        rotulo: 'Criar os tipos sugeridos',
+        acao: async () => {
+          try {
+            const r = await Api.post(
+              `/api/fiscal/tipos/padrao?empresa_id=${Estado.empresaId}`, {});
+            UI.sucesso(r.criados ? `${r.criados} tipo(s) criado(s).` : 'Já estavam todos criados.');
+            Cadastros.tiposFiscais();
+          } catch (e) { UI.erro(e.message); }
+        },
+      }],
+      colunas: [
+        { titulo: 'Para', classe: 'centro',
+          valor: (r) => (r.aplicacao === 'CLIENTE'
+            ? '<span class="tag tag-aberto">Cliente</span>'
+            : '<span class="tag tag-parcial">Item</span>') },
+        { titulo: 'Código', valor: (r) => `<span class="forte">${UI.escapar(r.codigo)}</span>` },
+        { titulo: 'Nome', valor: (r) => UI.escapar(r.nome) },
+        { titulo: 'Descrição', valor: (r) => UI.escapar(r.descricao || '-') },
+        { titulo: 'Situação', classe: 'centro',
+          valor: (r) => (r.ativo ? '<span class="tag tag-pago">Ativo</span>'
+            : '<span class="tag tag-cancelado">Inativo</span>') },
+      ],
+      campos: [
+        { nome: 'aplicacao', rotulo: 'Este tipo é de', tipo: 'select', vazio: false,
+          padrao: 'ITEM', obrigatorio: true,
+          opcoes: () => [{ valor: 'CLIENTE', rotulo: 'Cliente' }, { valor: 'ITEM', rotulo: 'Item' }],
+          dica: 'de quem é a classificação' },
+        { nome: 'codigo', rotulo: 'Código', obrigatorio: true, dica: 'curto, ex.: CAFECRU' },
+        { nome: 'nome', rotulo: 'Nome', obrigatorio: true, largura: 2 },
+        { nome: 'descricao', rotulo: 'Descrição', largura: 2,
+          dica: 'quando usar este tipo' },
+        { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Tipo ativo' },
+      ],
+    });
+  },
+
+  /** Regras fiscais: a tabela que cruza tipo de cliente x tipo de item (e, se
+      quiser, os estados e a operação) e diz qual imposto usar. */
+  regrasFiscais() {
+    const tipos = (aplicacao) => (Cadastros._tiposFiscais || [])
+      .filter((t) => t.aplicacao === aplicacao && t.ativo)
+      .map((t) => ({ valor: t.id, rotulo: `${t.codigo} — ${t.nome}` }));
+    const ufs = ['', 'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS',
+      'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO']
+      .filter(Boolean).map((u) => ({ valor: u, rotulo: u }));
+
+    return Cadastros.tela({
+      titulo: 'Regras fiscais da nota',
+      endpoint: '/api/fiscal/regras',
+      ajuda: 'campo em branco vale para qualquer um; quando mais de uma regra serve, ganha a '
+        + 'mais específica (mais campos preenchidos) e, no empate, a de maior prioridade',
+      listar: async () => {
+        Cadastros._tiposFiscais = await Api.get('/api/fiscal/tipos',
+          { empresa_id: Estado.empresaId });
+        return Api.get('/api/fiscal/regras', { empresa_id: Estado.empresaId });
+      },
+      acoesExtras: [{ rotulo: 'Testar uma situação', acao: () => Cadastros.simularRegra() }],
+      colunas: [
+        { titulo: 'Regra', valor: (r) => `<span class="forte">${UI.escapar(r.nome || '-')}</span>
+            <div class="mini">${UI.escapar(r.observacao || '')}</div>` },
+        { titulo: 'Tipo de cliente', valor: (r) => UI.escapar(r.tipo_cliente_nome) },
+        { titulo: 'Tipo de item', valor: (r) => UI.escapar(r.tipo_item_nome) },
+        { titulo: 'Estados', classe: 'centro', valor: (r) => UI.escapar(r.rota) },
+        { titulo: 'ICMS', classe: 'num',
+          valor: (r) => `${UI.escapar(r.icms_cst || '-')} · ${UI.numero(r.icms_aliquota, 2)}%` },
+        { titulo: 'PIS/COFINS', classe: 'num',
+          valor: (r) => `${UI.numero(r.aliquota_pis, 2)}% / ${UI.numero(r.aliquota_cofins, 2)}%` },
+        { titulo: 'IBS/CBS', classe: 'num',
+          valor: (r) => `${UI.numero(Number(r.ibs_uf_aliquota) + Number(r.ibs_mun_aliquota), 2)}%`
+            + ` / ${UI.numero(r.cbs_aliquota, 2)}%` },
+        { titulo: 'Situação', classe: 'centro',
+          valor: (r) => (r.ativo ? '<span class="tag tag-pago">Ativa</span>'
+            : '<span class="tag tag-cancelado">Inativa</span>') },
+      ],
+      campos: [
+        { nome: 'secao_quando', rotulo: 'Quando esta regra vale', tipo: 'secao',
+          dica: 'deixe em branco o que valer para qualquer um' },
+        { nome: 'nome', rotulo: 'Nome da regra', largura: 2,
+          dica: 'ex.: Café cru para indústria fora do estado' },
+        { nome: 'tipo_cliente_id', rotulo: 'Tipo de cliente', tipo: 'select',
+          vazio: 'Qualquer cliente', opcoes: () => tipos('CLIENTE') },
+        { nome: 'tipo_item_id', rotulo: 'Tipo de item', tipo: 'select',
+          vazio: 'Qualquer item', opcoes: () => tipos('ITEM') },
+        { nome: 'uf_origem', rotulo: 'UF de saída', tipo: 'select',
+          vazio: 'Qualquer', opcoes: () => ufs },
+        { nome: 'uf_destino', rotulo: 'UF de destino', tipo: 'select',
+          vazio: 'Qualquer', opcoes: () => ufs },
+        { nome: 'operacao', rotulo: 'Operação', tipo: 'select', vazio: 'Saída e entrada',
+          opcoes: () => [{ valor: 'SAIDA', rotulo: 'Saída' },
+            { valor: 'ENTRADA', rotulo: 'Entrada' }] },
+        { nome: 'prioridade', rotulo: 'Prioridade', tipo: 'numero', padrao: 0,
+          dica: 'desempata regras igualmente específicas' },
+
+        { nome: 'secao_icms', rotulo: 'ICMS', tipo: 'secao' },
+        { nome: 'cfop', rotulo: 'CFOP', dica: 'ex.: 5102 no estado, 6102 fora' },
+        { nome: 'icms_origem', rotulo: 'Origem da mercadoria',
+          dica: '0 nacional, 1 importada...' },
+        { nome: 'icms_cst', rotulo: 'CST ou CSOSN', dica: 'ex.: 51 diferimento, 102 Simples' },
+        { nome: 'icms_reducao', rotulo: 'Redução da base (%)', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'icms_aliquota', rotulo: 'Alíquota do ICMS (%)', tipo: 'dinheiro', padrao: 0 },
+
+        { nome: 'secao_pis', rotulo: 'PIS, COFINS e IPI', tipo: 'secao' },
+        { nome: 'cst_pis', rotulo: 'CST do PIS' },
+        { nome: 'aliquota_pis', rotulo: 'Alíquota do PIS (%)', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'cst_cofins', rotulo: 'CST da COFINS' },
+        { nome: 'aliquota_cofins', rotulo: 'Alíquota da COFINS (%)', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'cst_ipi', rotulo: 'CST do IPI' },
+        { nome: 'aliquota_ipi', rotulo: 'Alíquota do IPI (%)', tipo: 'dinheiro', padrao: 0 },
+
+        { nome: 'secao_ibs', rotulo: 'IBS e CBS (reforma tributária)', tipo: 'secao',
+          dica: '2026 é ano de teste: IBS 0,1% e CBS 0,9%' },
+        { nome: 'ibs_cbs_cst', rotulo: 'CST do IBS/CBS' },
+        { nome: 'ibs_cbs_classe', rotulo: 'cClassTrib', dica: 'tabela da NT 2025.002' },
+        { nome: 'ibs_uf_aliquota', rotulo: 'IBS estadual (%)', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'ibs_mun_aliquota', rotulo: 'IBS municipal (%)', tipo: 'dinheiro', padrao: 0 },
+        { nome: 'cbs_aliquota', rotulo: 'CBS (%)', tipo: 'dinheiro', padrao: 0 },
+
+        { nome: 'secao_fim', rotulo: 'Anotações', tipo: 'secao' },
+        { nome: 'observacao', rotulo: 'Observação', largura: 2,
+          dica: 'a base legal, para consultar depois' },
+        { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Regra ativa' },
+      ],
+    });
+  },
+
+  /** Testa a tabela sem precisar montar uma nota: escolhe cliente e produto e
+      mostra qual regra ganharia. */
+  async simularRegra() {
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <p class="mini" style="margin-top:0">Escolha um cliente e um produto de verdade:
+      o sistema mostra qual linha da tabela venceria e quais impostos sairiam.</p>
+      <div class="linha-campos">
+        ${UI.campo('Cliente', UI.select('parceiro_id', UI.opcoesParceiros(), '', {}))}
+        ${UI.campo('Produto', UI.select('produto_id',
+          Api.produtosAtivos().map((p) => ({ valor: p.id, rotulo: `${p.codigo} — ${p.nome}` })),
+          '', {}))}
+        ${UI.campo('Operação', UI.select('operacao', [
+          { valor: 'SAIDA', rotulo: 'Saída (venda)' },
+          { valor: 'ENTRADA', rotulo: 'Entrada (compra)' },
+        ], 'SAIDA', { vazio: false }))}
+      </div>
+      <div id="resultado-simulacao"></div>`;
+
+    const rodar = async () => {
+      const dados = UI.lerFormulario(corpo);
+      const alvo = corpo.querySelector('#resultado-simulacao');
+      try {
+        const r = await Api.post('/api/fiscal/simular', {
+          empresa_id: Estado.empresaId,
+          parceiro_id: dados.parceiro_id || null,
+          produto_id: dados.produto_id || null,
+          operacao: dados.operacao || 'SAIDA',
+        });
+        if (!r.regra) {
+          alvo.innerHTML = `<div class="cartao" style="margin-top:12px;border-left:4px solid var(--ambar)">
+            <div class="cartao-corpo"><b>Nenhuma regra serve para esta situação.</b>
+            <div class="mini">Os impostos vão sair do cadastro do produto. Para controlar por
+            aqui, crie uma regra com esse tipo de cliente e de item.</div></div></div>`;
+          return;
+        }
+        const v = r.regra.valores || {};
+        const linha = (rotulo, valor) => (valor === undefined || valor === null || valor === ''
+          ? '' : `<div class="mini">${UI.escapar(rotulo)}: <b>${UI.escapar(String(valor))}</b></div>`);
+        alvo.innerHTML = `
+          <div class="cartao" style="margin-top:12px;border-left:4px solid var(--verde)">
+            <div class="cartao-corpo">
+              <b>${UI.escapar(r.regra.nome)}</b>
+              <div class="mini">${UI.escapar(r.regra.resumo)}</div>
+              <div style="margin-top:8px">
+                ${linha('CFOP', v.cfop)}
+                ${linha('CST/CSOSN do ICMS', v.icms_cst)}
+                ${linha('Redução da base', v.icms_reducao && `${v.icms_reducao}%`)}
+                ${linha('Alíquota do ICMS', v.icms_aliquota && `${v.icms_aliquota}%`)}
+                ${linha('PIS', v.cst_pis || v.aliquota_pis
+                  ? `${v.cst_pis || ''} ${v.aliquota_pis ? `${v.aliquota_pis}%` : ''}`.trim() : '')}
+                ${linha('COFINS', v.cst_cofins || v.aliquota_cofins
+                  ? `${v.cst_cofins || ''} ${v.aliquota_cofins ? `${v.aliquota_cofins}%` : ''}`.trim() : '')}
+                ${linha('IBS/CBS', v.ibs_cbs_cst || v.cbs_aliquota
+                  ? `${v.ibs_cbs_cst || ''} ${v.ibs_cbs_classe || ''} CBS ${v.cbs_aliquota || 0}%`.trim() : '')}
+              </div>
+              ${r.regra.observacao ? `<div class="mini" style="margin-top:6px">
+                ${UI.escapar(r.regra.observacao)}</div>` : ''}
+            </div></div>`;
+      } catch (e) { UI.erro(e.message); }
+    };
+
+    UI.abrirModal({
+      titulo: 'Testar a tabela de regras',
+      corpo,
+      largo: true,
+      botoes: [
+        { rotulo: 'Fechar', acao: UI.fecharModal },
+        { rotulo: 'Ver qual regra ganha', classe: 'btn-primario', acao: rodar },
+      ],
+    });
+    corpo.querySelectorAll('select').forEach((campo) => { campo.onchange = rodar; });
   },
 
   icms() {

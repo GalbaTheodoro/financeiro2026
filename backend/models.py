@@ -134,6 +134,8 @@ class Parceiro(Base):
     codigo_pais = Column(String(4), default="1058")
     pais = Column(String(60), default="BRASIL")
     regime_tributario = Column(String(40))   # SIMPLES NACIONAL, LUCRO PRESUMIDO...
+    # classificação usada para achar a regra fiscal da nota (ver TipoFiscal)
+    tipo_fiscal_id = Column(Integer, ForeignKey("tipos_fiscais.id"), index=True)
 
     ativo = Column(Boolean, nullable=False, default=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
@@ -564,6 +566,8 @@ class Produto(Base):
     peso_bruto = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
     codigo_beneficio = Column(String(10))    # cBenef (MG e outros estados)
     observacao_fiscal = Column(String(300))
+    # classificação usada para achar a regra fiscal da nota (ver TipoFiscal)
+    tipo_fiscal_id = Column(Integer, ForeignKey("tipos_fiscais.id"), index=True)
 
     ativo = Column(Boolean, nullable=False, default=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
@@ -594,6 +598,78 @@ class AliquotaIcms(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     produto = relationship("Produto")
+
+
+# --------------------------------------------------------------------------- #
+# Regras fiscais da nota: tipo de cliente x tipo de item
+# --------------------------------------------------------------------------- #
+class TipoFiscal(Base):
+    """Classificação fiscal, usada dos dois lados do cruzamento.
+
+    `aplicacao` diz de quem é o tipo: **CLIENTE** (contribuinte de dentro do
+    estado, produtor rural, exportação, consumidor final...) ou **ITEM** (café
+    cru em grão, café torrado, serviço, uso e consumo...). É esse par que a
+    regra fiscal cruza para achar o imposto certo de cada item da nota.
+    """
+
+    __tablename__ = "tipos_fiscais"
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "aplicacao", "codigo", name="uq_tipo_fiscal"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    aplicacao = Column(String(8), nullable=False, default="ITEM")   # CLIENTE | ITEM
+    codigo = Column(String(20), nullable=False)
+    nome = Column(String(120), nullable=False)
+    descricao = Column(String(300))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
+class RegraFiscal(Base):
+    """Uma linha da tabela de impostos da nota.
+
+    Campo em branco quer dizer **qualquer um**: uma regra só com o tipo de item
+    preenchido vale para todo cliente. Quando mais de uma linha serve, ganha a
+    mais específica (a que tem mais campos preenchidos casando com a nota) e,
+    em caso de empate, a de maior `prioridade`.
+    """
+
+    __tablename__ = "regras_fiscais"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    nome = Column(String(120))
+    tipo_cliente_id = Column(Integer, ForeignKey("tipos_fiscais.id"), index=True)
+    tipo_item_id = Column(Integer, ForeignKey("tipos_fiscais.id"), index=True)
+    uf_origem = Column(String(2))        # em branco = qualquer estado de saída
+    uf_destino = Column(String(2))       # em branco = qualquer estado de destino
+    operacao = Column(String(7))         # SAIDA | ENTRADA | em branco = as duas
+    # o que a regra manda aplicar no item
+    cfop = Column(String(5))
+    icms_origem = Column(String(1))
+    icms_cst = Column(String(3))         # CST (regime normal) ou CSOSN (Simples)
+    icms_reducao = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    icms_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_pis = Column(String(2))
+    aliquota_pis = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_cofins = Column(String(2))
+    aliquota_cofins = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_ipi = Column(String(2))
+    aliquota_ipi = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    ibs_cbs_cst = Column(String(3))
+    ibs_cbs_classe = Column(String(6))   # cClassTrib
+    ibs_uf_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    ibs_mun_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cbs_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    prioridade = Column(Integer, nullable=False, default=0)
+    observacao = Column(String(300))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    tipo_cliente = relationship("TipoFiscal", foreign_keys=[tipo_cliente_id])
+    tipo_item = relationship("TipoFiscal", foreign_keys=[tipo_item_id])
 
 
 # --------------------------------------------------------------------------- #

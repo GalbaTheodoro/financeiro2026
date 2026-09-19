@@ -20,7 +20,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import danfe, dfe as motor, emissao as nfe, notas as regras, rejeicoes
+from .. import (danfe, dfe as motor, emissao as nfe, fiscal, notas as regras, rejeicoes)
 from ..database import get_db
 from ..deps import acesso_liberado, validar_empresa
 from ..models import (
@@ -173,13 +173,32 @@ def _item_do_produto(db: Session, empresa_id: int, produto_id: int | None) -> Pr
     return produto
 
 
-def _escolher(enviado, do_produto, padrao=0.0) -> float:
-    """O que foi digitado na tela manda; senão vem do cadastro; senão o padrão."""
+def _escolher(enviado, da_regra, do_produto, padrao=0.0) -> float:
+    """A ordem de quem manda no número.
+
+    1. o que foi digitado na tela;
+    2. a **regra fiscal** que casou (tipo de cliente x tipo de item);
+    3. o cadastro do produto;
+    4. o padrão.
+    """
     if enviado is not None:
         return float(enviado)
+    if da_regra is not None:
+        return float(da_regra or 0)
     if do_produto is not None:
         return float(do_produto or 0)
     return float(padrao)
+
+
+def _texto(enviado, da_regra, do_produto, padrao=None) -> str | None:
+    """Mesma ordem, para os campos de texto (CST, CFOP, cClassTrib)."""
+    for valor in (enviado, da_regra, do_produto, padrao):
+        if valor is None:
+            continue
+        texto = str(valor).strip()
+        if texto:
+            return texto
+    return None
 
 
 # ICMS que não destaca valor: isento, não tributado, diferido e já cobrado por ST
@@ -195,19 +214,36 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
     """
     nota.itens.clear()
     db.flush()
+    empresa = db.get(Empresa, nota.empresa_id)
+    parceiro = db.get(Parceiro, nota.parceiro_id) if nota.parceiro_id else None
+    operacao = "ENTRADA" if (nota.tipo_operacao or "1") == "0" else "SAIDA"
     for numero, entrada in enumerate(itens, start=1):
         produto = _item_do_produto(db, nota.empresa_id, entrada.produto_id)
+        # a regra fiscal do par (tipo do cliente x tipo do item) manda mais que o
+        # cadastro do produto, e menos que o que a pessoa digitou na tela
+        contexto = fiscal.montar_contexto(db, empresa, parceiro, produto, operacao)
+        regra = fiscal.escolher_regra(db, nota.empresa_id, contexto)
+        r = fiscal.valores_da_regra(regra)
+        if entrada.usar_regra:
+            # a tela pediu para refazer os impostos: o que estava nela é descartado
+            for campo in fiscal.CAMPOS_DA_REGRA + (
+                    "icms_base", "icms_valor", "pis_valor", "cofins_valor", "ipi_valor",
+                    "ibs_cbs_base", "ibs_uf_valor", "ibs_mun_valor", "cbs_valor",
+                    "origem_mercadoria"):
+                if hasattr(entrada, campo):
+                    setattr(entrada, campo, None)
         quantidade = float(entrada.quantidade or 0)
         unitario = float(entrada.valor_unitario or 0)
         total = round(quantidade * unitario - float(entrada.desconto or 0) + 1e-9, 2)
 
         # ---------------------------------------------------------------- ICMS
-        cst = (entrada.icms_cst or (produto.cst_icms if produto else None) or "").strip()
-        reducao = _escolher(entrada.icms_reducao,
+        cst = _texto(entrada.icms_cst, r.get("icms_cst"),
+                     produto.cst_icms if produto else None) or ""
+        reducao = _escolher(entrada.icms_reducao, r.get("icms_reducao"),
                             produto.reducao_base_icms if produto else None)
         base_cheia = float(entrada.icms_base) if entrada.icms_base is not None else total
         base = round(base_cheia * (1 - reducao / 100), 2) if reducao else base_cheia
-        aliquota = _escolher(entrada.icms_aliquota,
+        aliquota = _escolher(entrada.icms_aliquota, r.get("icms_aliquota"),
                              produto.aliquota_icms if produto else None)
         if entrada.icms_valor is not None:
             icms = float(entrada.icms_valor)
@@ -217,10 +253,12 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             icms = base * aliquota / 100
 
         # --------------------------------------------------- PIS, COFINS e IPI
-        aliq_pis = _escolher(entrada.aliquota_pis, produto.aliquota_pis if produto else None)
-        aliq_cofins = _escolher(entrada.aliquota_cofins,
+        aliq_pis = _escolher(entrada.aliquota_pis, r.get("aliquota_pis"),
+                             produto.aliquota_pis if produto else None)
+        aliq_cofins = _escolher(entrada.aliquota_cofins, r.get("aliquota_cofins"),
                                 produto.aliquota_cofins if produto else None)
-        aliq_ipi = _escolher(entrada.aliquota_ipi, produto.aliquota_ipi if produto else None)
+        aliq_ipi = _escolher(entrada.aliquota_ipi, r.get("aliquota_ipi"),
+                             produto.aliquota_ipi if produto else None)
         pis = float(entrada.pis_valor) if entrada.pis_valor is not None \
             else total * aliq_pis / 100
         cofins = float(entrada.cofins_valor) if entrada.cofins_valor is not None \
@@ -230,9 +268,12 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
 
         # ------------------------------------------------- IBS e CBS (reforma)
         base_ibs = float(entrada.ibs_cbs_base) if entrada.ibs_cbs_base is not None else total
-        aliq_ibs_uf = _escolher(entrada.ibs_uf_aliquota, None, nfe.IBS_UF_PADRAO)
-        aliq_ibs_mun = _escolher(entrada.ibs_mun_aliquota, None, nfe.IBS_MUN_PADRAO)
-        aliq_cbs = _escolher(entrada.cbs_aliquota, None, nfe.CBS_PADRAO)
+        aliq_ibs_uf = _escolher(entrada.ibs_uf_aliquota, r.get("ibs_uf_aliquota"),
+                                None, nfe.IBS_UF_PADRAO)
+        aliq_ibs_mun = _escolher(entrada.ibs_mun_aliquota, r.get("ibs_mun_aliquota"),
+                                 None, nfe.IBS_MUN_PADRAO)
+        aliq_cbs = _escolher(entrada.cbs_aliquota, r.get("cbs_aliquota"),
+                             None, nfe.CBS_PADRAO)
         ibs_uf = float(entrada.ibs_uf_valor) if entrada.ibs_uf_valor is not None \
             else base_ibs * aliq_ibs_uf / 100
         ibs_mun = float(entrada.ibs_mun_valor) if entrada.ibs_mun_valor is not None \
@@ -247,7 +288,8 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             descricao=(entrada.descricao or (produto.nome if produto else "") or "ITEM")[:200],
             ncm=(entrada.ncm or (produto.ncm if produto else "") or "")[:10],
             cest=(entrada.cest or (produto.cest if produto else "") or "")[:9],
-            cfop=(entrada.cfop or (produto.cfop_padrao if produto else "") or "")[:5],
+            cfop=(_texto(entrada.cfop, r.get("cfop"),
+                         produto.cfop_padrao if produto else None) or "")[:5],
             unidade=(entrada.unidade or (produto.unidade_comercial if produto else "")
                      or "UN")[:10],
             quantidade=quantidade,
@@ -260,20 +302,24 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             icms_aliquota=aliquota,
             icms_valor=dinheiro(icms),
             icms_reducao=reducao,
-            origem_mercadoria=(entrada.origem_mercadoria
-                               or (produto.origem if produto else None) or "0")[:1],
-            cst_pis=(entrada.cst_pis or (produto.cst_pis if produto else None) or "")[:2] or None,
+            origem_mercadoria=(_texto(entrada.origem_mercadoria, r.get("icms_origem"),
+                                      produto.origem if produto else None, "0"))[:1],
+            cst_pis=(_texto(entrada.cst_pis, r.get("cst_pis"),
+                            produto.cst_pis if produto else None) or "")[:2] or None,
             aliquota_pis=aliq_pis,
             pis_valor=dinheiro(pis),
-            cst_cofins=(entrada.cst_cofins
-                        or (produto.cst_cofins if produto else None) or "")[:2] or None,
+            cst_cofins=(_texto(entrada.cst_cofins, r.get("cst_cofins"),
+                               produto.cst_cofins if produto else None) or "")[:2] or None,
             aliquota_cofins=aliq_cofins,
             cofins_valor=dinheiro(cofins),
-            cst_ipi=(entrada.cst_ipi or (produto.cst_ipi if produto else None) or "")[:2] or None,
+            cst_ipi=(_texto(entrada.cst_ipi, r.get("cst_ipi"),
+                            produto.cst_ipi if produto else None) or "")[:2] or None,
             aliquota_ipi=aliq_ipi,
             ipi_valor=dinheiro(ipi),
-            ibs_cbs_cst=(entrada.ibs_cbs_cst or "")[:3] or None,
-            ibs_cbs_classe=(entrada.ibs_cbs_classe or "")[:6] or None,
+            ibs_cbs_cst=(_texto(entrada.ibs_cbs_cst, r.get("ibs_cbs_cst"), None) or "")[:3]
+            or None,
+            ibs_cbs_classe=(_texto(entrada.ibs_cbs_classe, r.get("ibs_cbs_classe"), None)
+                            or "")[:6] or None,
             ibs_cbs_base=dinheiro(base_ibs),
             ibs_uf_aliquota=aliq_ibs_uf,
             ibs_uf_valor=dinheiro(ibs_uf),
@@ -425,6 +471,19 @@ def excluir_rascunho(nota_id: int, db: Session = Depends(get_db),
     return {"ok": True}
 
 
+def _regra_do_item(db: Session, nota: Nota, empresa, item: NotaItem) -> dict:
+    """Qual regra fiscal vale para este item — a tela mostra o nome dela."""
+    parceiro = db.get(Parceiro, nota.parceiro_id) if nota.parceiro_id else None
+    produto = db.get(Produto, item.produto_id) if item.produto_id else None
+    operacao = "ENTRADA" if (nota.tipo_operacao or "1") == "0" else "SAIDA"
+    contexto = fiscal.montar_contexto(db, empresa, parceiro, produto, operacao)
+    explicada = fiscal.explicar(db, fiscal.escolher_regra(db, nota.empresa_id, contexto))
+    return {
+        "regra_nome": explicada["nome"] if explicada else None,
+        "regra_resumo": explicada["resumo"] if explicada else None,
+    }
+
+
 def _ficha(db: Session, nota: Nota) -> dict:
     empresa = db.get(Empresa, nota.empresa_id)
     return {
@@ -440,7 +499,8 @@ def _ficha(db: Session, nota: Nota) -> dict:
             "erro": rejeicoes.explicar(nota.codigo_sefaz, nota.mensagem_sefaz)
             if nota.mensagem_sefaz and nota.status_emissao != "AUTORIZADA" else None,
         }),
-        "itens": [serializar(i) for i in nota.itens],
+        "itens": [serializar(i, extras=_regra_do_item(db, nota, empresa, i))
+                  for i in nota.itens],
         "parcelas": [serializar(p) for p in nota.pagamentos if p.origem == "DUPLICATA"],
     }
 

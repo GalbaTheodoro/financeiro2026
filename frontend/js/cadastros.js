@@ -43,6 +43,7 @@ const Cadastros = {
     alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando...</div></div>';
     const registros = await cfg.listar();
     Cadastros._registros = registros;
+    Cadastros._configuracaoAtual = cfg;
 
     const cabecalho = `
       <div class="cartao-cabecalho">
@@ -280,6 +281,8 @@ const Cadastros = {
         Cadastros.preencherCampo(area, 'bairro', d.bairro);
         Cadastros.preencherCampo(area, 'cidade', d.cidade);
         Cadastros.preencherCampo(area, 'uf', d.uf);
+        // o código do IBGE é obrigatório na nota fiscal — vem junto com o CEP
+        if (d.ibge) Cadastros.preencherCampo(area, 'codigo_municipio', d.ibge);
         if (d.complemento) Cadastros.preencherCampo(area, 'complemento', d.complemento);
         const numero = area.querySelector('[name=numero]');
         if (numero && !numero.value) numero.focus();
@@ -307,8 +310,11 @@ const Cadastros = {
   },
 
   /* ------------------------------------------- busca do CNPJ na API do governo */
-  async buscaCnpj(area) {
-    const alvo = Cadastros.botaoNoCampo(area, 'cpf_cnpj');
+  async buscaCnpj(area, opcoes = {}) {
+    // o cadastro de parceiro usa "cpf_cnpj" e "nome"; o de empresa, "cnpj" e "razao_social"
+    const campoDocumento = opcoes.campo || (area.querySelector('[name=cpf_cnpj]') ? 'cpf_cnpj' : 'cnpj');
+    const campoNome = opcoes.nome || (campoDocumento === 'cpf_cnpj' ? 'nome' : 'razao_social');
+    const alvo = Cadastros.botaoNoCampo(area, campoDocumento);
     if (!alvo) return;
     const { campo, botao, rotulo } = alvo;
 
@@ -339,7 +345,7 @@ const Cadastros = {
       try {
         const d = await Api.get(`/api/consulta/cnpj/${cnpj}`);
         campo.value = d.cnpj || campo.value;
-        preencher('nome', d.razao_social);
+        preencher(campoNome, d.razao_social);
         preencher('nome_fantasia', d.nome_fantasia);
         preencher('logradouro', d.logradouro);
         preencher('numero', d.numero);
@@ -350,6 +356,8 @@ const Cadastros = {
         preencher('cep', d.cep);
         preencher('telefone', d.telefone);
         preencher('email', d.email);
+        // só números, que é o formato do CNAE na nota fiscal
+        if (d.cnae_principal) preencher('cnae', (d.cnae_principal.match(/\d+/) || [''])[0]);
         const pessoa = area.querySelector('[name=pessoa]');
         if (pessoa) pessoa.value = 'J';
 
@@ -413,15 +421,28 @@ const Cadastros = {
       titulo: 'Empresas',
       endpoint: '/api/empresas',
       incluiEmpresa: false,
-      ajuda: 'ao criar uma empresa o plano de contas padrão é gerado automaticamente',
-      aoMontarFormulario: (area) => Cadastros.buscaCep(area),
+      ajuda: 'os dados fiscais daqui são os que saem na nota fiscal que você emite',
+      aoMontarFormulario: (area) => {
+        Cadastros.buscaCnpj(area);
+        Cadastros.buscaCep(area);
+        Cadastros.ligarRegimeCrt(area);
+      },
+      acoesLinha: [
+        { rotulo: () => 'Conferir p/ NF-e', acao: (r) => Cadastros.conferirEmissao(r) },
+      ],
       listar: () => Api.get('/api/empresas'),
       colunas: [
         { titulo: 'Razão social', valor: (r) => UI.escapar(r.razao_social) },
         { titulo: 'Fantasia', valor: (r) => UI.escapar(r.nome_fantasia || '-') },
         { titulo: 'CNPJ', valor: (r) => UI.escapar(r.cnpj || '-') },
         { titulo: 'Cidade/UF', valor: (r) => `${UI.escapar(r.cidade || '-')}/${UI.escapar(r.uf || '')}` },
-        { titulo: 'Regime', valor: (r) => UI.escapar(r.regime_tributario || '-') },
+        { titulo: 'Regime', valor: (r) => `${UI.escapar(r.regime_tributario || '-')}
+            <div class="mini">CRT ${UI.escapar(r.crt || '1')}</div>` },
+        { titulo: 'Emissão de NF-e', classe: 'centro',
+          valor: (r) => (Cadastros.faltaParaEmitir(r).length
+            ? `<span class="tag tag-vencido">Falta cadastrar</span>
+               <div class="mini">${UI.escapar(Cadastros.faltaParaEmitir(r).join(', '))}</div>`
+            : '<span class="tag tag-pago">Dados completos</span>') },
         { titulo: 'Situação', classe: 'centro', valor: (r) => (r.ativo ? '<span class="tag tag-pago">Ativa</span>' : '<span class="tag tag-cancelado">Inativa</span>') },
       ],
       campos: [
@@ -446,6 +467,27 @@ const Cadastros = {
         { nome: 'telefone', rotulo: 'Telefone' },
         { nome: 'email', rotulo: 'E-mail', tipo: 'email' },
         { nome: 'site', rotulo: 'Site' },
+        { tipo: 'secao', rotulo: 'Dados fiscais (emissão de nota fiscal)',
+          dica: 'a SEFAZ exige todos estes para autorizar a NF-e' },
+        { nome: 'codigo_municipio', rotulo: 'Código do município (IBGE)',
+          dica: '7 números — preenchido sozinho ao buscar o CEP' },
+        { nome: 'crt', rotulo: 'Regime na nota (CRT)', tipo: 'select', vazio: false, padrao: '1',
+          opcoes: () => [
+            { valor: '1', rotulo: '1 - Simples Nacional' },
+            { valor: '2', rotulo: '2 - Simples Nacional, excesso de sublimite' },
+            { valor: '3', rotulo: '3 - Regime normal (presumido ou real)' },
+            { valor: '4', rotulo: '4 - MEI' },
+          ],
+          dica: 'define se o item sai com CSOSN (Simples) ou CST' },
+        { nome: 'cnae', rotulo: 'CNAE principal', dica: 'só números — opcional' },
+        { nome: 'codigo_pais', rotulo: 'Código do país', padrao: '1058' },
+        { nome: 'pais', rotulo: 'País', padrao: 'BRASIL' },
+        {
+          nome: 'texto_nota', rotulo: 'Texto fixo da nota fiscal', tipo: 'textarea',
+          largura: 2, linhas: 2,
+          dica: 'entra nas informações complementares de toda NF-e emitida',
+        },
+        { tipo: 'secao', rotulo: 'Impressão do contrato' },
         {
           nome: 'logo', rotulo: 'Logotipo', tipo: 'imagem', largura: 2,
           dica: 'aparece no cabeçalho do contrato impresso (PNG ou JPG até 400 KB)',
@@ -544,6 +586,65 @@ const Cadastros = {
         { nome: 'pais', rotulo: 'País', padrao: 'BRASIL' },
         { nome: 'observacao', rotulo: 'Observações', tipo: 'textarea', largura: 2 },
         { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Cadastro ativo' },
+      ],
+    });
+  },
+
+  /* -------------------------------------- empresa pronta para emitir nota? */
+  /** O que ainda falta no cadastro para a SEFAZ aceitar uma nota desta empresa. */
+  faltaParaEmitir(empresa) {
+    const falta = [];
+    if (!(empresa.cnpj || '').replace(/\D/g, '')) falta.push('CNPJ');
+    if (!(empresa.inscricao_estadual || '').trim()) falta.push('inscrição estadual');
+    if (!(empresa.codigo_municipio || '').trim()) falta.push('código do município');
+    if (!(empresa.uf || '').trim()) falta.push('UF');
+    if (!(empresa.logradouro || '').trim()) falta.push('endereço');
+    return falta;
+  },
+
+  /** Ajusta o CRT sozinho quando o regime tributário muda (dá para trocar à mão depois). */
+  ligarRegimeCrt(area) {
+    const regime = area.querySelector('[name=regime_tributario]');
+    const crt = area.querySelector('[name=crt]');
+    if (!regime || !crt) return;
+    regime.onchange = () => {
+      const mapa = {
+        'SIMPLES NACIONAL': '1', MEI: '4',
+        'LUCRO PRESUMIDO': '3', 'LUCRO REAL': '3', 'TERCEIRO SETOR': '3',
+      };
+      if (mapa[regime.value]) crt.value = mapa[regime.value];
+    };
+  },
+
+  /** Mostra o que falta (inclusive o certificado) para esta empresa emitir nota. */
+  async conferirEmissao(empresa) {
+    let preparo = { pronto: false, pendencias: ['não foi possível conferir agora'] };
+    try {
+      preparo = await Api.get('/api/nfe/preparo', { empresa_id: empresa.id });
+    } catch (e) {
+      UI.erro(e.message);
+    }
+    UI.abrirModal({
+      titulo: `Emissão de NF-e — ${empresa.razao_social}`,
+      corpo: preparo.pronto
+        ? `<div class="cartao" style="border-left:4px solid var(--verde)"><div class="cartao-corpo">
+             <b>Tudo pronto para emitir.</b>
+             <div class="mini">${UI.escapar(preparo.empresa.cnpj || '')} ·
+               ${UI.escapar(preparo.empresa.uf || '')} ·
+               ${UI.escapar(preparo.empresa.crt_nome || '')}</div>
+             <div class="mini" style="margin-top:6px">Comece emitindo em
+               <b>homologação</b> até a nota sair autorizada.</div>
+           </div></div>`
+        : `<div class="cartao" style="border-left:4px solid var(--ambar)"><div class="cartao-corpo">
+             <b>Falta isto para a SEFAZ aceitar a nota:</b>
+             <ul style="margin:8px 0 0">${preparo.pendencias
+               .map((p) => `<li>${UI.escapar(p)}</li>`).join('')}</ul>
+           </div></div>`,
+      botoes: [
+        { rotulo: 'Fechar', acao: UI.fecharModal },
+        { rotulo: 'Editar a empresa', classe: 'btn-primario',
+          acao: () => Cadastros.formulario(
+            Cadastros._configuracaoAtual, Cadastros._registros.find((e) => e.id === empresa.id)) },
       ],
     });
   },

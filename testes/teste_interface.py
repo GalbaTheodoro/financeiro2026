@@ -38,6 +38,7 @@ TELAS = [
     ("cadastros/operacoes", "Cadastros"),
     ("cadastros/plano-contas", "Cadastros"),
     ("cadastros/empresas", "Cadastros"),
+    ("notas", "Notas Fiscais"),
     ("cadastros/usuarios", "Cadastros"),
     ("cadastros/parametros", "Cadastros"),
 ]
@@ -93,6 +94,7 @@ CEP_TESTE = "13010100"
 ENDERECO_FALSO = {
     "cep": CEP_TESTE, "uf": "SP", "localidade": "Campinas", "bairro": "Centro",
     "logradouro": "Rua das Flores", "complemento": "de 200 a 400 - lado par",
+    "ibge": "3509502",   # código do município, exigido na nota fiscal
 }
 
 
@@ -592,15 +594,21 @@ with sync_playwright() as p:
         erros.append("botão de busca de CEP ausente")
     else:
         pagina.fill('input[name=cep]', CEP_TESTE)
-        pagina.click(".campo-com-botao button")
+        # o formulário tem dois botões Buscar (CNPJ e CEP): clica no do CEP
+        pagina.evaluate(
+            "document.querySelector('#modal-corpo [name=cep]')"
+            ".closest('.campo-com-botao').querySelector('button').click()")
         pagina.wait_for_timeout(1400)
         endereco = pagina.evaluate("""() => {
             const v = (n) => document.querySelector(`#modal-corpo [name=${n}]`)?.value || '';
             return {cep: v('cep'), logradouro: v('logradouro'), bairro: v('bairro'),
-                    cidade: v('cidade'), uf: v('uf')};
+                    cidade: v('cidade'), uf: v('uf'),
+                    codigo_municipio: v('codigo_municipio')};
         }""")
         esperado_cep = {"cep": "13010-100", "logradouro": "Rua das Flores",
-                        "bairro": "Centro", "cidade": "Campinas", "uf": "SP"}
+                        "bairro": "Centro", "cidade": "Campinas", "uf": "SP",
+                        # o código do IBGE vem junto e é obrigatório na nota fiscal
+                        "codigo_municipio": "3509502"}
         for campo, valor in esperado_cep.items():
             ok = endereco.get(campo) == valor
             print(f"  [{'OK  ' if ok else 'FALHA'}] CEP preencheu {campo} -> {endereco.get(campo)!r}")

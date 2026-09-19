@@ -110,6 +110,20 @@ CRT = {
 CSOSN_PADRAO = "102"   # tributada pelo Simples, sem permissão de crédito
 CST_PADRAO = "00"      # tributada integralmente
 
+# --------------------------------------------------------------------------- #
+# Reforma tributária — IBS e CBS (NT 2025.002)
+#
+# 2026 é ano de teste: as alíquotas são simbólicas e a apuração é informativa
+# (IBS 0,1% — dividido entre estado e município — e CBS 0,9%). Quem está no
+# regime regular destaca desde janeiro de 2026; o Simples Nacional só a partir
+# de 2027. Estes são apenas os valores que já vêm preenchidos na tela: cada
+# item pode ser alterado à mão, e quando as alíquotas mudarem é aqui que se
+# ajusta o padrão.
+# --------------------------------------------------------------------------- #
+IBS_UF_PADRAO = 0.1000     # pIBSUF
+IBS_MUN_PADRAO = 0.0000    # pIBSMun
+CBS_PADRAO = 0.9000        # pCBS
+
 FINALIDADES = {"1": "Normal", "2": "Complementar", "3": "Ajuste", "4": "Devolução"}
 MODALIDADES_FRETE = {
     "0": "Por conta do emitente", "1": "Por conta do destinatário",
@@ -584,13 +598,14 @@ def transmitir(chave_privada, certificado, cadeia, uf: str, ambiente: str,
                nfe_assinada: str, lote: int = 1) -> dict:
     """Envia a nota para a SEFAZ e traduz a resposta."""
     url = _endereco(AUTORIZACAO, uf, ambiente)
-    corpo = (
-        '<nfeAutorizacaoLote xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4">'
-        f"<nfeDadosMsg>{montar_lote(nfe_assinada, lote)}</nfeDadosMsg></nfeAutorizacaoLote>"
-    )
+    # o corpo padrão é o <nfeDadosMsg> solto; algumas SEFAZ pedem o invólucro
+    # com o nome da operação — o motor tenta as duas formas
+    corpos = motor.corpo_servico(
+        "http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4",
+        montar_lote(nfe_assinada, lote), "nfeAutorizacaoLote")
     try:
-        resposta = motor._enviar(
-            url, corpo,
+        resposta = motor._enviar_variantes(
+            url, corpos,
             "http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote",
             motor._contexto_ssl(chave_privada, certificado, cadeia),
         )
@@ -664,13 +679,12 @@ def cancelar(chave_privada, certificado, cadeia, uf: str, ambiente: str, chave_n
     )
     envelope = motor.montar_envelope_evento(
         inf, motor.assinar(inf, chave_privada, certificado))
-    corpo = (
-        '<nfeRecepcaoEventoNF xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">'
-        f"<nfeDadosMsg>{envelope}</nfeDadosMsg></nfeRecepcaoEventoNF>"
-    )
+    corpos = motor.corpo_servico(
+        "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4",
+        envelope, "nfeRecepcaoEventoNF")
     try:
-        resposta = motor._enviar(
-            _endereco(EVENTO, uf, ambiente), corpo,
+        resposta = motor._enviar_variantes(
+            _endereco(EVENTO, uf, ambiente), corpos,
             "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento",
             motor._contexto_ssl(chave_privada, certificado, cadeia),
         )

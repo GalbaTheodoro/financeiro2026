@@ -378,6 +378,30 @@ outro formato sozinho, sem pedir nada a quem está emitindo. Antes de sair, a no
 CFOP, cliente sem código do município do IBGE, contribuinte sem inscrição estadual e empresa
 sem IE ou sem código do município — com a mensagem dizendo o que corrigir e onde.
 
+#### Impostos item a item
+
+Cada item da nota abre um bloco **Impostos** com tudo à vista e editável:
+
+| Imposto | Campos |
+| --- | --- |
+| ICMS | origem, CST (regime normal) ou CSOSN (Simples), redução da base, base de cálculo, alíquota e valor |
+| PIS / COFINS | CST, alíquota e valor de cada um |
+| IPI | CST, alíquota e valor |
+| IBS / CBS | CST, `cClassTrib`, base, IBS estadual (%/valor), IBS municipal (%/valor) e CBS (%/valor) |
+
+Os valores são **calculados enquanto se digita** (base × alíquota), mas qualquer um pode
+ser escrito à mão — o que for digitado passa a mandar e não é mais sobrescrito; apagando o
+campo, ele volta a se calcular sozinho. O que vem em branco é buscado no cadastro do
+produto. CST sem destaque (40, 41, 50, 51, 60 e os CSOSN equivalentes) zera o valor do ICMS
+sozinho, e a redução de base entra antes da alíquota.
+
+As alíquotas de IBS e CBS nascem com os valores de **teste de 2026** (IBS 0,1% e CBS 0,9%,
+apuração informativa), definidos em `IBS_UF_PADRAO`, `IBS_MUN_PADRAO` e `CBS_PADRAO` no
+`backend/emissao.py`. Empresa no regime regular recebe aviso na etapa de conferência quando
+falta CST ou `cClassTrib` do IBS/CBS; no Simples Nacional o destaque só passa a valer em
+2027. **Esses campos ainda não vão no XML** — falta conferir o grupo `IBSCBS` contra a
+NT 2025.002 antes de mandar para a SEFAZ.
+
 > A tributação (CFOP, CST/CSOSN, alíquotas) é responsabilidade do contribuinte e do seu
 > contador: o sistema usa o que está nos cadastros e não decide tributação sozinho.
 > Comece sempre em homologação.

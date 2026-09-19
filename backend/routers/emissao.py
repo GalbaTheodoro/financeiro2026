@@ -173,8 +173,26 @@ def _item_do_produto(db: Session, empresa_id: int, produto_id: int | None) -> Pr
     return produto
 
 
+def _escolher(enviado, do_produto, padrao=0.0) -> float:
+    """O que foi digitado na tela manda; senão vem do cadastro; senão o padrão."""
+    if enviado is not None:
+        return float(enviado)
+    if do_produto is not None:
+        return float(do_produto or 0)
+    return float(padrao)
+
+
+# ICMS que não destaca valor: isento, não tributado, diferido e já cobrado por ST
+_ICMS_SEM_VALOR = ("40", "41", "50", "51", "60")
+
+
 def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
-    """Grava os itens do rascunho, puxando os dados fiscais do cadastro do produto."""
+    """Grava os itens do rascunho.
+
+    A regra é sempre a mesma: o que vem digitado na tela vale; o que vier em
+    branco é buscado no cadastro do produto; e o valor de cada imposto é
+    calculado a partir da base e da alíquota, a não ser que a tela mande o valor.
+    """
     nota.itens.clear()
     db.flush()
     for numero, entrada in enumerate(itens, start=1):
@@ -182,10 +200,46 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
         quantidade = float(entrada.quantidade or 0)
         unitario = float(entrada.valor_unitario or 0)
         total = round(quantidade * unitario - float(entrada.desconto or 0) + 1e-9, 2)
-        base = float(entrada.icms_base) if entrada.icms_base is not None else total
-        aliquota = float(entrada.icms_aliquota if entrada.icms_aliquota is not None
-                         else (produto.aliquota_icms if produto else 0) or 0)
+
+        # ---------------------------------------------------------------- ICMS
         cst = (entrada.icms_cst or (produto.cst_icms if produto else None) or "").strip()
+        reducao = _escolher(entrada.icms_reducao,
+                            produto.reducao_base_icms if produto else None)
+        base_cheia = float(entrada.icms_base) if entrada.icms_base is not None else total
+        base = round(base_cheia * (1 - reducao / 100), 2) if reducao else base_cheia
+        aliquota = _escolher(entrada.icms_aliquota,
+                             produto.aliquota_icms if produto else None)
+        if entrada.icms_valor is not None:
+            icms = float(entrada.icms_valor)
+        elif cst[:2] in _ICMS_SEM_VALOR or cst.zfill(3) in ("102", "103", "300", "400", "500"):
+            icms = 0.0
+        else:
+            icms = base * aliquota / 100
+
+        # --------------------------------------------------- PIS, COFINS e IPI
+        aliq_pis = _escolher(entrada.aliquota_pis, produto.aliquota_pis if produto else None)
+        aliq_cofins = _escolher(entrada.aliquota_cofins,
+                                produto.aliquota_cofins if produto else None)
+        aliq_ipi = _escolher(entrada.aliquota_ipi, produto.aliquota_ipi if produto else None)
+        pis = float(entrada.pis_valor) if entrada.pis_valor is not None \
+            else total * aliq_pis / 100
+        cofins = float(entrada.cofins_valor) if entrada.cofins_valor is not None \
+            else total * aliq_cofins / 100
+        ipi = float(entrada.ipi_valor) if entrada.ipi_valor is not None \
+            else total * aliq_ipi / 100
+
+        # ------------------------------------------------- IBS e CBS (reforma)
+        base_ibs = float(entrada.ibs_cbs_base) if entrada.ibs_cbs_base is not None else total
+        aliq_ibs_uf = _escolher(entrada.ibs_uf_aliquota, None, nfe.IBS_UF_PADRAO)
+        aliq_ibs_mun = _escolher(entrada.ibs_mun_aliquota, None, nfe.IBS_MUN_PADRAO)
+        aliq_cbs = _escolher(entrada.cbs_aliquota, None, nfe.CBS_PADRAO)
+        ibs_uf = float(entrada.ibs_uf_valor) if entrada.ibs_uf_valor is not None \
+            else base_ibs * aliq_ibs_uf / 100
+        ibs_mun = float(entrada.ibs_mun_valor) if entrada.ibs_mun_valor is not None \
+            else base_ibs * aliq_ibs_mun / 100
+        cbs = float(entrada.cbs_valor) if entrada.cbs_valor is not None \
+            else base_ibs * aliq_cbs / 100
+
         nota.itens.append(NotaItem(
             numero=numero,
             codigo=(entrada.codigo or (produto.codigo if produto else "") or str(numero))[:60],
@@ -204,20 +258,29 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             icms_cst=cst[:3],
             icms_base=dinheiro(base),
             icms_aliquota=aliquota,
-            icms_valor=dinheiro(base * aliquota / 100) if cst not in ("40", "41", "51", "60") else 0,
-            icms_reducao=float(produto.reducao_base_icms or 0) if produto else 0,
+            icms_valor=dinheiro(icms),
+            icms_reducao=reducao,
             origem_mercadoria=(entrada.origem_mercadoria
                                or (produto.origem if produto else None) or "0")[:1],
             cst_pis=(entrada.cst_pis or (produto.cst_pis if produto else None) or "")[:2] or None,
-            aliquota_pis=float(produto.aliquota_pis or 0) if produto else 0,
-            pis_valor=dinheiro(total * float(produto.aliquota_pis or 0) / 100) if produto else 0,
+            aliquota_pis=aliq_pis,
+            pis_valor=dinheiro(pis),
             cst_cofins=(entrada.cst_cofins
                         or (produto.cst_cofins if produto else None) or "")[:2] or None,
-            aliquota_cofins=float(produto.aliquota_cofins or 0) if produto else 0,
-            cofins_valor=(dinheiro(total * float(produto.aliquota_cofins or 0) / 100)
-                          if produto else 0),
-            cst_ipi=(produto.cst_ipi if produto else None),
-            aliquota_ipi=float(produto.aliquota_ipi or 0) if produto else 0,
+            aliquota_cofins=aliq_cofins,
+            cofins_valor=dinheiro(cofins),
+            cst_ipi=(entrada.cst_ipi or (produto.cst_ipi if produto else None) or "")[:2] or None,
+            aliquota_ipi=aliq_ipi,
+            ipi_valor=dinheiro(ipi),
+            ibs_cbs_cst=(entrada.ibs_cbs_cst or "")[:3] or None,
+            ibs_cbs_classe=(entrada.ibs_cbs_classe or "")[:6] or None,
+            ibs_cbs_base=dinheiro(base_ibs),
+            ibs_uf_aliquota=aliq_ibs_uf,
+            ibs_uf_valor=dinheiro(ibs_uf),
+            ibs_mun_aliquota=aliq_ibs_mun,
+            ibs_mun_valor=dinheiro(ibs_mun),
+            cbs_aliquota=aliq_cbs,
+            cbs_valor=dinheiro(cbs),
             produto_id=produto.id if produto else None,
         ))
     db.flush()

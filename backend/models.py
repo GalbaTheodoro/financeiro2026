@@ -905,6 +905,18 @@ class NotaItem(Base):
     aliquota_pis = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     cst_cofins = Column(String(2))
     aliquota_cofins = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    # Reforma tributária (NT 2025.002): IBS estadual, IBS municipal e CBS.
+    # Em 2026 as alíquotas são de teste (IBS 0,1% e CBS 0,9%) e o cálculo é
+    # informativo. Simples Nacional só passa a destacar em 2027.
+    ibs_cbs_cst = Column(String(3))
+    ibs_cbs_classe = Column(String(6))        # cClassTrib
+    ibs_cbs_base = _dinheiro()
+    ibs_uf_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    ibs_uf_valor = _dinheiro()
+    ibs_mun_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    ibs_mun_valor = _dinheiro()
+    cbs_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cbs_valor = _dinheiro()
     # produto do cadastro ligado a este item (preenchido na importação)
     produto_id = Column(Integer, ForeignKey("produtos.id"), index=True)
 

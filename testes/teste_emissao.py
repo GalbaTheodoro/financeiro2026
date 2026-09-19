@@ -522,6 +522,62 @@ checar("e volta para homologação quando é isso que se escolhe",
        and api("GET", f"/api/nfe/{nota['id']}", None, t)["nota"]["ambiente"] == "2",
        homologacao["nota"]["ambiente_nome"])
 
+print("\n--- impostos por item (ICMS, PIS, COFINS, IPI, IBS e CBS)")
+base_item = {"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1000,
+             "cfop": "6101"}
+cabeca = {"empresa_id": eid, "parceiro_id": cliente["id"], "serie": "1", "ambiente": "2"}
+
+
+def salvar_item(**extras):
+    resposta = api("PUT", f"/api/nfe/{nota['id']}",
+                   {**cabeca, "itens": [{**base_item, **extras}]}, t)
+    return resposta["itens"][0]
+
+calculado = salvar_item(icms_cst="00", icms_aliquota=12, aliquota_pis=1.65,
+                        aliquota_cofins=7.6)
+checar("ICMS sai da base vezes a alíquota",
+       abs(calculado["icms_base"] - 100000) < 0.01
+       and abs(calculado["icms_valor"] - 12000) < 0.01, str(calculado["icms_valor"]))
+checar("PIS e COFINS saem do total do item",
+       abs(calculado["pis_valor"] - 1650) < 0.01
+       and abs(calculado["cofins_valor"] - 7600) < 0.01,
+       f"{calculado['pis_valor']} / {calculado['cofins_valor']}")
+checar("IBS e CBS nascem com as alíquotas de teste de 2026",
+       abs(calculado["ibs_uf_valor"] - 100) < 0.01
+       and abs(calculado["cbs_valor"] - 900) < 0.01
+       and abs(calculado["ibs_uf_aliquota"] - nfe.IBS_UF_PADRAO) < 0.0001,
+       f"IBS {calculado['ibs_uf_valor']} / CBS {calculado['cbs_valor']}")
+
+reduzido = salvar_item(icms_cst="20", icms_reducao=30, icms_aliquota=12)
+checar("redução de base derruba a base e o valor do ICMS",
+       abs(reduzido["icms_base"] - 70000) < 0.01
+       and abs(reduzido["icms_valor"] - 8400) < 0.01,
+       f"base {reduzido['icms_base']} / icms {reduzido['icms_valor']}")
+
+diferido = salvar_item(icms_cst="51", icms_aliquota=12)
+checar("CST de diferimento não destaca valor de ICMS",
+       abs(diferido["icms_valor"]) < 0.01, str(diferido["icms_valor"]))
+
+mao = salvar_item(icms_cst="00", icms_aliquota=12, icms_valor=5000,
+                  pis_valor=10, ibs_cbs_cst="000", ibs_cbs_classe="000001",
+                  cbs_aliquota=1.5)
+checar("valor digitado à mão vence o cálculo",
+       abs(mao["icms_valor"] - 5000) < 0.01 and abs(mao["pis_valor"] - 10) < 0.01,
+       f"icms {mao['icms_valor']} / pis {mao['pis_valor']}")
+checar("CST e cClassTrib do IBS/CBS ficam gravados",
+       mao["ibs_cbs_cst"] == "000" and mao["ibs_cbs_classe"] == "000001")
+checar("alíquota de CBS trocada à mão recalcula o valor",
+       abs(mao["cbs_valor"] - 1500) < 0.01, str(mao["cbs_valor"]))
+
+guardado = api("GET", f"/api/nfe/{nota['id']}", None, t)["itens"][0]
+checar("os impostos voltam iguais quando a nota é reaberta",
+       abs(guardado["icms_valor"] - 5000) < 0.01
+       and guardado["ibs_cbs_classe"] == "000001"
+       and abs(guardado["cbs_valor"] - 1500) < 0.01)
+
+# volta ao estado que as próximas conferências esperam
+salvar_item(icms_cst="102", cfop="6101")
+
 previa = api("GET", f"/api/nfe/{nota['id']}/previa", None, t, bruto=True)
 checar("prévia da DANFE sai marcada como sem valor fiscal",
        "SEM VALOR FISCAL" in previa and "DANFE" in previa)

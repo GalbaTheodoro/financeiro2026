@@ -365,9 +365,186 @@ const Emissao = {
   },
 
   /* ================================================================== ITENS */
+  /* Tabelas curtas dos códigos fiscais — o rótulo explica o que cada um é,
+     para não precisar consultar manual a cada nota. */
+  CSOSN: [
+    { valor: '101', rotulo: '101 — tributada com crédito do Simples' },
+    { valor: '102', rotulo: '102 — tributada sem crédito' },
+    { valor: '103', rotulo: '103 — isenção do ICMS na faixa de receita' },
+    { valor: '300', rotulo: '300 — imune' },
+    { valor: '400', rotulo: '400 — não tributada pelo Simples' },
+    { valor: '500', rotulo: '500 — ICMS já cobrado por substituição' },
+    { valor: '900', rotulo: '900 — outros' },
+  ],
+  CST_ICMS: [
+    { valor: '00', rotulo: '00 — tributada integralmente' },
+    { valor: '20', rotulo: '20 — com redução de base' },
+    { valor: '40', rotulo: '40 — isenta' },
+    { valor: '41', rotulo: '41 — não tributada' },
+    { valor: '50', rotulo: '50 — suspensão' },
+    { valor: '51', rotulo: '51 — diferimento (café em MG)' },
+    { valor: '60', rotulo: '60 — ICMS já cobrado por substituição' },
+    { valor: '90', rotulo: '90 — outras' },
+  ],
+  ORIGENS: [
+    { valor: '0', rotulo: '0 — nacional' },
+    { valor: '1', rotulo: '1 — importação direta' },
+    { valor: '2', rotulo: '2 — adquirida no mercado interno, importada' },
+    { valor: '3', rotulo: '3 — nacional com mais de 40% de conteúdo importado' },
+    { valor: '4', rotulo: '4 — nacional por processo produtivo básico' },
+    { valor: '5', rotulo: '5 — nacional com até 40% de conteúdo importado' },
+    { valor: '6', rotulo: '6 — importação direta sem similar nacional' },
+    { valor: '7', rotulo: '7 — mercado interno sem similar nacional' },
+    { valor: '8', rotulo: '8 — nacional com mais de 70% de conteúdo importado' },
+  ],
+  CST_PISCOFINS: [
+    { valor: '01', rotulo: '01 — tributada, alíquota básica' },
+    { valor: '02', rotulo: '02 — tributada, alíquota diferenciada' },
+    { valor: '04', rotulo: '04 — monofásica, alíquota zero' },
+    { valor: '06', rotulo: '06 — alíquota zero' },
+    { valor: '07', rotulo: '07 — isenta' },
+    { valor: '08', rotulo: '08 — sem incidência' },
+    { valor: '09', rotulo: '09 — com suspensão' },
+    { valor: '49', rotulo: '49 — outras operações de saída (Simples)' },
+    { valor: '99', rotulo: '99 — outras operações' },
+  ],
+  CST_IBSCBS: [
+    { valor: '000', rotulo: '000 — tributação integral' },
+    { valor: '200', rotulo: '200 — alíquota zero' },
+    { valor: '400', rotulo: '400 — isenção' },
+    { valor: '410', rotulo: '410 — imunidade' },
+    { valor: '510', rotulo: '510 — diferimento' },
+    { valor: '550', rotulo: '550 — suspensão' },
+    { valor: '620', rotulo: '620 — tributação monofásica' },
+  ],
+
   itemVazio() {
     return { produto_id: '', descricao: '', unidade: '', quantidade: 0, valor_unitario: 0,
-             cfop: '', ncm: '', icms_cst: '', desconto: 0 };
+             cfop: '', ncm: '', icms_cst: '', desconto: 0, origem_mercadoria: '0',
+             icms_base: null, icms_aliquota: 0, icms_reducao: 0, icms_valor: 0,
+             cst_pis: '', aliquota_pis: 0, pis_valor: 0,
+             cst_cofins: '', aliquota_cofins: 0, cofins_valor: 0,
+             cst_ipi: '', aliquota_ipi: 0, ipi_valor: 0,
+             ibs_cbs_cst: '', ibs_cbs_classe: '', ibs_cbs_base: null,
+             ibs_uf_aliquota: Emissao.IBS_UF, ibs_mun_aliquota: Emissao.IBS_MUN,
+             cbs_aliquota: Emissao.CBS };
+  },
+
+  /* Alíquotas de teste de 2026 da reforma tributária (IBS 0,1% e CBS 0,9%).
+     Servem só de ponto de partida: cada item pode ser alterado à mão. */
+  IBS_UF: 0.1,
+  IBS_MUN: 0,
+  CBS: 0.9,
+
+  /** Campos de imposto que são número (para ler e gravar com vírgula). */
+  CAMPOS_NUMERO: ['quantidade', 'valor_unitario', 'desconto', 'icms_base', 'icms_aliquota',
+    'icms_reducao', 'icms_valor', 'aliquota_pis', 'pis_valor', 'aliquota_cofins',
+    'cofins_valor', 'aliquota_ipi', 'ipi_valor', 'ibs_cbs_base', 'ibs_uf_aliquota',
+    'ibs_uf_valor', 'ibs_mun_aliquota', 'ibs_mun_valor', 'cbs_aliquota', 'cbs_valor'],
+
+  /** Campos calculados: enquanto ninguém digita neles, seguem a base e a alíquota. */
+  CALCULADOS: ['icms_base', 'icms_valor', 'pis_valor', 'cofins_valor', 'ipi_valor',
+    'ibs_cbs_base', 'ibs_uf_valor', 'ibs_mun_valor', 'cbs_valor'],
+
+  /* ICMS que não destaca valor: isento, não tributado, diferido, ST. */
+  SEM_VALOR_ICMS: ['40', '41', '50', '51', '60', '102', '103', '300', '400', '500'],
+
+  /** Refaz os impostos do item a partir da base e das alíquotas. O que a pessoa
+      digitou à mão é respeitado (o campo fica marcado em `_mao`). */
+  recalcularImpostos(item) {
+    const mao = item._mao || {};
+    const total = Emissao.totalItem(item);
+    const reducao = Emissao.numero(item.icms_reducao);
+    if (!mao.icms_base) item.icms_base = Math.round(total * (1 - reducao / 100) * 100) / 100;
+    const base = Emissao.numero(item.icms_base);
+    const cst = String(item.icms_cst || '');
+    if (!mao.icms_valor) {
+      item.icms_valor = Emissao.SEM_VALOR_ICMS.includes(cst) || Emissao.SEM_VALOR_ICMS.includes(cst.padStart(3, '0'))
+        ? 0
+        : Math.round(base * Emissao.numero(item.icms_aliquota)) / 100;
+    }
+    if (!mao.pis_valor) item.pis_valor = Math.round(total * Emissao.numero(item.aliquota_pis)) / 100;
+    if (!mao.cofins_valor) item.cofins_valor = Math.round(total * Emissao.numero(item.aliquota_cofins)) / 100;
+    if (!mao.ipi_valor) item.ipi_valor = Math.round(total * Emissao.numero(item.aliquota_ipi)) / 100;
+    if (!mao.ibs_cbs_base) item.ibs_cbs_base = Math.round(total * 100) / 100;
+    const baseIbs = Emissao.numero(item.ibs_cbs_base);
+    if (!mao.ibs_uf_valor) item.ibs_uf_valor = Math.round(baseIbs * Emissao.numero(item.ibs_uf_aliquota)) / 100;
+    if (!mao.ibs_mun_valor) item.ibs_mun_valor = Math.round(baseIbs * Emissao.numero(item.ibs_mun_aliquota)) / 100;
+    if (!mao.cbs_valor) item.cbs_valor = Math.round(baseIbs * Emissao.numero(item.cbs_aliquota)) / 100;
+  },
+
+  /** Um campo de imposto dentro do cartão do item. */
+  campoImposto(i, nome, rotulo, casas, dica) {
+    const item = Emissao._itens[i];
+    return UI.campo(rotulo,
+      `<input data-campo="${nome}" data-linha="${i}" inputmode="decimal"
+         value="${UI.escapar(Emissao.mostrar(item[nome], casas))}">`, dica);
+  },
+
+  selecaoImposto(i, nome, rotulo, opcoes, dica) {
+    const item = Emissao._itens[i];
+    return UI.campo(rotulo,
+      UI.select(`${nome}__${i}`, opcoes, item[nome] || '', { vazio: 'Do cadastro' })
+        .replace('<select', `<select data-campo="${nome}" data-linha="${i}"`), dica);
+  },
+
+  /** Bloco de impostos do item — fechado por padrão para não atrapalhar quem
+      só quer lançar quantidade e preço. */
+  blocoImpostos(i) {
+    const simples = ['1', '4'].includes(String(Emissao._preparo?.empresa?.crt || '1'));
+    return `
+      <details class="impostos-item" ${Emissao._abertos?.[i] ? 'open' : ''} data-impostos="${i}">
+        <summary class="mini" style="cursor:pointer;margin-top:10px">
+          Impostos do item <span data-resumo-imposto="${i}"></span>
+        </summary>
+        <h5 class="titulo-bloco" style="margin:10px 0 0">ICMS</h5>
+        <div class="linha-campos">
+          ${Emissao.selecaoImposto(i, 'origem_mercadoria', 'Origem', Emissao.ORIGENS)}
+          ${Emissao.selecaoImposto(i, 'icms_cst', simples ? 'CSOSN' : 'CST do ICMS',
+            simples ? Emissao.CSOSN : Emissao.CST_ICMS,
+            simples ? 'Simples Nacional' : 'regime normal')}
+          ${Emissao.campoImposto(i, 'icms_reducao', 'Redução da base (%)', 4)}
+          ${Emissao.campoImposto(i, 'icms_base', 'Base de cálculo', 2, 'em branco = total do item')}
+          ${Emissao.campoImposto(i, 'icms_aliquota', 'Alíquota ICMS (%)', 4)}
+          ${Emissao.campoImposto(i, 'icms_valor', 'Valor do ICMS', 2, 'calculado')}
+        </div>
+        <h5 class="titulo-bloco" style="margin:12px 0 0">PIS e COFINS</h5>
+        <div class="linha-campos">
+          ${Emissao.selecaoImposto(i, 'cst_pis', 'CST do PIS', Emissao.CST_PISCOFINS)}
+          ${Emissao.campoImposto(i, 'aliquota_pis', 'Alíquota PIS (%)', 4)}
+          ${Emissao.campoImposto(i, 'pis_valor', 'Valor do PIS', 2, 'calculado')}
+          ${Emissao.selecaoImposto(i, 'cst_cofins', 'CST da COFINS', Emissao.CST_PISCOFINS)}
+          ${Emissao.campoImposto(i, 'aliquota_cofins', 'Alíquota COFINS (%)', 4)}
+          ${Emissao.campoImposto(i, 'cofins_valor', 'Valor da COFINS', 2, 'calculado')}
+        </div>
+        <h5 class="titulo-bloco" style="margin:12px 0 0">IPI</h5>
+        <div class="linha-campos">
+          ${UI.campo('CST do IPI',
+            `<input data-campo="cst_ipi" data-linha="${i}" inputmode="numeric"
+               value="${UI.escapar(Emissao._itens[i].cst_ipi || '')}" maxlength="2">`,
+            'em branco = sem IPI')}
+          ${Emissao.campoImposto(i, 'aliquota_ipi', 'Alíquota IPI (%)', 4)}
+          ${Emissao.campoImposto(i, 'ipi_valor', 'Valor do IPI', 2, 'calculado')}
+        </div>
+        <h5 class="titulo-bloco" style="margin:12px 0 0">IBS e CBS — reforma tributária</h5>
+        <p class="mini" style="margin:4px 0 0">2026 é ano de teste: as alíquotas são simbólicas
+        (IBS 0,1% e CBS 0,9%) e a apuração é só informativa.${simples
+          ? ' No Simples Nacional o destaque começa em 2027.' : ''}</p>
+        <div class="linha-campos">
+          ${Emissao.selecaoImposto(i, 'ibs_cbs_cst', 'CST do IBS/CBS', Emissao.CST_IBSCBS)}
+          ${UI.campo('Classificação (cClassTrib)',
+            `<input data-campo="ibs_cbs_classe" data-linha="${i}" inputmode="numeric"
+               value="${UI.escapar(Emissao._itens[i].ibs_cbs_classe || '')}" maxlength="6"
+               placeholder="000001">`, 'tabela da NT 2025.002')}
+          ${Emissao.campoImposto(i, 'ibs_cbs_base', 'Base do IBS/CBS', 2, 'em branco = total do item')}
+          ${Emissao.campoImposto(i, 'ibs_uf_aliquota', 'IBS estadual (%)', 4)}
+          ${Emissao.campoImposto(i, 'ibs_uf_valor', 'Valor IBS estadual', 2, 'calculado')}
+          ${Emissao.campoImposto(i, 'ibs_mun_aliquota', 'IBS municipal (%)', 4)}
+          ${Emissao.campoImposto(i, 'ibs_mun_valor', 'Valor IBS municipal', 2, 'calculado')}
+          ${Emissao.campoImposto(i, 'cbs_aliquota', 'CBS (%)', 4)}
+          ${Emissao.campoImposto(i, 'cbs_valor', 'Valor da CBS', 2, 'calculado')}
+        </div>
+      </details>`;
   },
 
   /** Cada item é um cartão: no celular os campos empilham sozinhos. */
@@ -376,6 +553,7 @@ const Emissao = {
     if (!alvo) return;
     const editavel = Emissao._editavel;
     const produtos = Api.produtosAtivos();
+    Emissao._itens.forEach((item) => Emissao.recalcularImpostos(item));
 
     alvo.innerHTML = Emissao._itens.map((item, i) => `
       <div class="cartao item-nota" data-item="${i}" style="margin-bottom:10px">
@@ -390,7 +568,7 @@ const Emissao = {
             ${UI.campo('Produto', UI.select(`produto_${i}`,
               produtos.map((p) => ({ valor: p.id, rotulo: `${p.codigo} — ${p.nome}` })),
               item.produto_id || '', { vazio: 'Digitar à mão' }),
-              'traz NCM, CFOP e CST do cadastro')}
+              'traz NCM, CFOP, CST e alíquotas do cadastro')}
             ${UI.campo('Descrição',
               `<input data-campo="descricao" data-linha="${i}" value="${UI.escapar(item.descricao || '')}">`)}
             ${UI.campo('Quantidade',
@@ -411,6 +589,7 @@ const Emissao = {
             ${UI.campo('NCM',
               `<input data-campo="ncm" data-linha="${i}" inputmode="numeric" value="${UI.escapar(item.ncm || '')}">`)}
           </div>
+          ${Emissao.blocoImpostos(i)}
           <div class="mini" style="margin-top:8px;text-align:right">
             Total do item: <b data-total-item="${i}">${UI.moeda(Emissao.totalItem(item))}</b>
           </div>
@@ -419,13 +598,28 @@ const Emissao = {
 
     // digitação livre: só recalcula os totais, sem redesenhar (o campo não perde o foco)
     alvo.querySelectorAll('[data-campo]').forEach((campo) => {
-      campo.oninput = () => {
+      const anotar = () => {
         const item = Emissao._itens[Number(campo.dataset.linha)];
         const nome = campo.dataset.campo;
-        item[nome] = ['quantidade', 'valor_unitario', 'desconto'].includes(nome)
-          ? Emissao.numero(campo.value)
-          : campo.value;
-        Emissao.atualizarTotais();
+        if (Emissao.CAMPOS_NUMERO.includes(nome)) {
+          // campo calculado que a pessoa apagou volta a ser calculado sozinho
+          item._mao = item._mao || {};
+          if (Emissao.CALCULADOS.includes(nome)) item._mao[nome] = campo.value.trim() !== '';
+          item[nome] = Emissao.numero(campo.value);
+        } else {
+          item[nome] = campo.value;
+        }
+        Emissao.recalcularImpostos(item);
+        Emissao.atualizarTotais(campo);
+      };
+      campo.oninput = anotar;
+      campo.onchange = anotar;
+    });
+    // lembrar quais blocos de imposto ficaram abertos entre um desenho e outro
+    alvo.querySelectorAll('[data-impostos]').forEach((bloco) => {
+      bloco.ontoggle = () => {
+        Emissao._abertos = Emissao._abertos || {};
+        Emissao._abertos[Number(bloco.dataset.impostos)] = bloco.open;
       };
     });
     alvo.querySelectorAll('select[name^=produto_]').forEach((select) => {
@@ -441,6 +635,15 @@ const Emissao = {
             cfop: produto.cfop_padrao || '',
             ncm: produto.ncm || '',
             icms_cst: produto.cst_icms || '',
+            origem_mercadoria: produto.origem || Emissao._itens[i].origem_mercadoria || '0',
+            icms_aliquota: Number(produto.aliquota_icms || 0),
+            icms_reducao: Number(produto.reducao_base_icms || 0),
+            cst_pis: produto.cst_pis || '',
+            aliquota_pis: Number(produto.aliquota_pis || 0),
+            cst_cofins: produto.cst_cofins || '',
+            aliquota_cofins: Number(produto.aliquota_cofins || 0),
+            cst_ipi: produto.cst_ipi || '',
+            aliquota_ipi: Number(produto.aliquota_ipi || 0),
           });
         }
         Emissao.desenharItens();
@@ -486,10 +689,11 @@ const Emissao = {
       const item = Emissao._itens[Number(campo.dataset.linha)];
       if (!item) return;
       const nome = campo.dataset.campo;
-      item[nome] = ['quantidade', 'valor_unitario', 'desconto'].includes(nome)
+      item[nome] = Emissao.CAMPOS_NUMERO.includes(nome)
         ? Emissao.numero(campo.value)
         : campo.value;
     });
+    Emissao._itens.forEach((item) => Emissao.recalcularImpostos(item));
   },
 
   lerParcelasDaTela() {
@@ -503,12 +707,31 @@ const Emissao = {
     });
   },
 
-  /** Só os textos de total mudam enquanto se digita — nada é redesenhado. */
-  atualizarTotais() {
+  /* Quantas casas cada campo calculado mostra. */
+  CASAS: { icms_base: 2, icms_valor: 2, pis_valor: 2, cofins_valor: 2, ipi_valor: 2,
+           ibs_cbs_base: 2, ibs_uf_valor: 2, ibs_mun_valor: 2, cbs_valor: 2 },
+
+  /** Só os textos de total e os valores calculados mudam enquanto se digita —
+      nada é redesenhado, então o campo em uso não perde o foco nem o cursor. */
+  atualizarTotais(campoAtivo) {
     const total = Emissao.total();
     Emissao._itens.forEach((item, i) => {
       const alvo = document.querySelector(`[data-total-item="${i}"]`);
       if (alvo) alvo.textContent = UI.moeda(Emissao.totalItem(item));
+      // valores de imposto que ninguém digitou à mão acompanham a base e a alíquota
+      Emissao.CALCULADOS.forEach((nome) => {
+        if (item._mao && item._mao[nome]) return;
+        const entrada = document.querySelector(
+          `[data-campo="${nome}"][data-linha="${i}"]`);
+        if (!entrada || entrada === campoAtivo) return;
+        entrada.value = Emissao.mostrar(item[nome], Emissao.CASAS[nome] || 2);
+      });
+      const selo = document.querySelector(`[data-resumo-imposto="${i}"]`);
+      if (selo) selo.textContent = `· ICMS ${UI.moeda(Emissao.numero(item.icms_valor))}`
+        + ` · PIS/COFINS ${UI.moeda(Emissao.numero(item.pis_valor)
+          + Emissao.numero(item.cofins_valor))}`
+        + ` · IBS/CBS ${UI.moeda(Emissao.numero(item.ibs_uf_valor)
+          + Emissao.numero(item.ibs_mun_valor) + Emissao.numero(item.cbs_valor))}`;
     });
     const resumo = document.getElementById('total-itens');
     if (resumo) {
@@ -602,6 +825,11 @@ const Emissao = {
     if (!itens.length) avisos.push('Nenhum item com quantidade e valor.');
     if (itens.some((i) => !i.cfop)) avisos.push('Tem item sem CFOP.');
     if (itens.some((i) => !i.ncm)) avisos.push('Tem item sem NCM.');
+    if (itens.some((i) => !i.icms_cst)) avisos.push('Tem item sem CST/CSOSN do ICMS.');
+    if (!['1', '4'].includes(String(Emissao._preparo?.empresa?.crt || '1'))
+        && itens.some((i) => !i.ibs_cbs_cst || !i.ibs_cbs_classe)) {
+      avisos.push('Regime regular: desde 2026 o IBS/CBS precisa de CST e cClassTrib no item.');
+    }
     if (cliente && !cliente.codigo_municipio) {
       avisos.push(`Falta o código do município no cadastro de ${cliente.nome}.`);
     }
@@ -635,6 +863,17 @@ const Emissao = {
           { titulo: 'Qtde', classe: 'num',
             valor: (i) => `${UI.numero(Emissao.numero(i.quantidade), 3)} ${UI.escapar(i.unidade || '')}` },
           { titulo: 'Unitário', classe: 'num', valor: (i) => UI.numero(Emissao.numero(i.valor_unitario), 4) },
+          { titulo: 'Impostos', valor: (i) => `
+              <div class="mini">ICMS ${UI.escapar(i.icms_cst || '-')} ·
+                base ${UI.moeda(Emissao.numero(i.icms_base))} ·
+                ${UI.numero(Emissao.numero(i.icms_aliquota), 2)}% =
+                <b>${UI.moeda(Emissao.numero(i.icms_valor))}</b></div>
+              <div class="mini">PIS ${UI.moeda(Emissao.numero(i.pis_valor))} ·
+                COFINS ${UI.moeda(Emissao.numero(i.cofins_valor))}
+                ${Emissao.numero(i.ipi_valor) ? `· IPI ${UI.moeda(Emissao.numero(i.ipi_valor))}` : ''}</div>
+              <div class="mini">IBS ${UI.moeda(Emissao.numero(i.ibs_uf_valor)
+                + Emissao.numero(i.ibs_mun_valor))} ·
+                CBS ${UI.moeda(Emissao.numero(i.cbs_valor))}</div>` },
           { titulo: 'Total', classe: 'num', valor: (i) => UI.moeda(Emissao.totalItem(i)) },
         ],
         linhas: itens,
@@ -696,7 +935,30 @@ const Emissao = {
         quantidade: Emissao.numero(i.quantidade),
         valor_unitario: Emissao.numero(i.valor_unitario),
         desconto: Emissao.numero(i.desconto),
+        origem_mercadoria: i.origem_mercadoria || null,
         icms_cst: i.icms_cst || null,
+        icms_reducao: Emissao.numero(i.icms_reducao),
+        icms_base: Emissao.numero(i.icms_base),
+        icms_aliquota: Emissao.numero(i.icms_aliquota),
+        icms_valor: Emissao.numero(i.icms_valor),
+        cst_pis: i.cst_pis || null,
+        aliquota_pis: Emissao.numero(i.aliquota_pis),
+        pis_valor: Emissao.numero(i.pis_valor),
+        cst_cofins: i.cst_cofins || null,
+        aliquota_cofins: Emissao.numero(i.aliquota_cofins),
+        cofins_valor: Emissao.numero(i.cofins_valor),
+        cst_ipi: i.cst_ipi || null,
+        aliquota_ipi: Emissao.numero(i.aliquota_ipi),
+        ipi_valor: Emissao.numero(i.ipi_valor),
+        ibs_cbs_cst: i.ibs_cbs_cst || null,
+        ibs_cbs_classe: i.ibs_cbs_classe || null,
+        ibs_cbs_base: Emissao.numero(i.ibs_cbs_base),
+        ibs_uf_aliquota: Emissao.numero(i.ibs_uf_aliquota),
+        ibs_uf_valor: Emissao.numero(i.ibs_uf_valor),
+        ibs_mun_aliquota: Emissao.numero(i.ibs_mun_aliquota),
+        ibs_mun_valor: Emissao.numero(i.ibs_mun_valor),
+        cbs_aliquota: Emissao.numero(i.cbs_aliquota),
+        cbs_valor: Emissao.numero(i.cbs_valor),
       })),
       parcelas: Emissao._parcelas
         .filter((p) => p.vencimento && Emissao.numero(p.valor) > 0)

@@ -544,8 +544,27 @@ class ItemNotaIn(BaseModel):
     icms_cst: str | None = None          # CST (regime normal) ou CSOSN (Simples)
     icms_base: float | None = None
     icms_aliquota: float | None = None
+    icms_reducao: float | None = None
+    icms_valor: float | None = None
     cst_pis: str | None = None
+    aliquota_pis: float | None = None
+    pis_valor: float | None = None
     cst_cofins: str | None = None
+    aliquota_cofins: float | None = None
+    cofins_valor: float | None = None
+    cst_ipi: str | None = None
+    aliquota_ipi: float | None = None
+    ipi_valor: float | None = None
+    # Reforma tributária (NT 2025.002): IBS estadual e municipal + CBS
+    ibs_cbs_cst: str | None = None
+    ibs_cbs_classe: str | None = None    # cClassTrib
+    ibs_cbs_base: float | None = None
+    ibs_uf_aliquota: float | None = None
+    ibs_uf_valor: float | None = None
+    ibs_mun_aliquota: float | None = None
+    ibs_mun_valor: float | None = None
+    cbs_aliquota: float | None = None
+    cbs_valor: float | None = None
 
 
 class ParcelaNotaIn(BaseModel):

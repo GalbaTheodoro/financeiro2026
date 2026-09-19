@@ -778,7 +778,15 @@ class Nota(Base):
     importada = Column(Boolean, nullable=False, default=False)
     importada_em = Column(DateTime)
     parceiro_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+
+    # faturamento: o título (conta a pagar ou a receber) gerado a partir da nota.
+    # Desfaturar apaga o título e limpa estes campos — só no AgroDock, a nota na
+    # SEFAZ não é tocada.
     lancamento_id = Column(Integer, ForeignKey("lancamentos.id"))
+    faturada_em = Column(DateTime)
+    faturada_por_id = Column(Integer, ForeignKey("usuarios.id"))
+    faturamento_observacao = Column(String(300))
+
     observacao = Column(Text)
     criado_em = Column(DateTime, default=datetime.utcnow)
 

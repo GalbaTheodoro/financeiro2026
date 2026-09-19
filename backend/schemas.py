@@ -467,3 +467,38 @@ class ImportarNotaIn(BaseModel):
     centro_custo_id: int | None = None
     operacao_id: int | None = None
     vencimento: date | None = None        # usado quando a nota não traz duplicatas
+
+
+# --------------------------------------------------------------------------- #
+# Notas fiscais: faturar e desfaturar
+# --------------------------------------------------------------------------- #
+class FaturarNotaIn(BaseModel):
+    """Gera a conta a pagar (nota de entrada) ou a receber (nota emitida pela empresa)."""
+
+    empresa_id: int | None = None
+    tipo_titulo: str | None = None        # PAGAR | RECEBER (padrão: pelo sentido da nota)
+    conta_contabil_id: int | None = None
+    centro_custo_id: int | None = None
+    operacao_id: int | None = None
+    parceiro_id: int | None = None        # troca o cliente/fornecedor na hora de faturar
+    valor: float | None = None            # diferente do valor da nota (raro)
+    # quando informado, gera uma parcela só neste vencimento em vez de usar as duplicatas
+    vencimento: date | None = None
+    observacao: str | None = None
+    criar_parceiro: bool = True
+    atualizar_produtos: bool = True
+
+
+class FaturarLoteIn(FaturarNotaIn):
+    """As mesmas opções, aplicadas a várias notas."""
+
+    empresa_id: int
+    notas: list[int] = []
+
+
+class AjustarNotaIn(BaseModel):
+    """Ajustes manuais na nota (só enquanto ela não está faturada)."""
+
+    empresa_id: int | None = None
+    parceiro_id: int | None = None
+    observacao: str | None = None

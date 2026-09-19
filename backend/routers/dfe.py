@@ -21,26 +21,12 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import contabil, danfe, dfe as motor
+from .. import danfe, dfe as motor, notas as regras
 from ..database import get_db
 from ..deps import acesso_liberado, validar_empresa
-from ..models import (
-    CertificadoDigital,
-    Empresa,
-    Lancamento,
-    LancamentoItem,
-    Nota,
-    NotaItem,
-    NotaPagamento,
-    Parcela,
-    Parceiro,
-    Produto,
-    Unidade,
-    Usuario,
-)
+from ..models import CertificadoDigital, Empresa, Nota, Usuario
 from ..schemas import BuscarDFeIn, ImportarNotaIn, ManifestarIn
 from ..utils import dinheiro, parse_data, serializar
-from .contratos import conta_padrao
 
 router = APIRouter(prefix="/api/dfe", tags=["dfe"])
 
@@ -349,31 +335,18 @@ async def enviar_xml(
 # --------------------------------------------------------------------------- #
 # Lista e ficha
 # --------------------------------------------------------------------------- #
-def _sentido(nota: Nota, cnpj_empresa: str) -> str:
-    """Entrada ou saída **do ponto de vista da empresa**.
-
-    A tag tpNF do XML é do ponto de vista de quem emitiu: uma venda do fornecedor
-    (tpNF = 1, saída) é uma entrada para quem recebe. No DF-e quase tudo é nota de
-    terceiro contra o nosso CNPJ, então o que vale é quem emitiu.
-    """
-    if cnpj_empresa and motor.so_numeros(nota.emitente_cnpj) == cnpj_empresa:
-        return "Saída"
-    return "Entrada"
-
-
 def _linha(nota: Nota, cnpj_empresa: str = "") -> dict:
     return serializar(nota, exclude={"xml"}, extras={
         "emitente_documento": motor.formatar_documento(nota.emitente_cnpj),
         "chave_formatada": motor.formatar_chave(nota.chave),
         "manifestacao_nome": motor.ROTULO_EVENTO.get(nota.manifestacao or "", ""),
-        "sentido": _sentido(nota, cnpj_empresa),
+        "sentido": regras.sentido(nota, cnpj_empresa),
         "tem_xml": bool(nota.xml) and not nota.resumo,
     })
 
 
 def _cnpj_da_empresa(db: Session, empresa_id: int) -> str:
-    empresa = db.get(Empresa, empresa_id)
-    return motor.so_numeros(empresa.cnpj) if empresa else ""
+    return regras.cnpj_da_empresa(db, empresa_id)
 
 
 @router.get("/notas")
@@ -575,213 +548,6 @@ def manifestar(nota_id: int, dados: ManifestarIn, db: Session = Depends(get_db),
 # --------------------------------------------------------------------------- #
 # Importação: XML -> itens, pagamentos, cadastros e título a pagar
 # --------------------------------------------------------------------------- #
-def _unidade_padrao(db: Session, empresa_id: int, sigla: str) -> int | None:
-    sigla = (sigla or "").strip().upper()[:20]
-    if not sigla:
-        return None
-    unidade = (
-        db.query(Unidade)
-        .filter(Unidade.empresa_id == empresa_id, func.upper(Unidade.codigo) == sigla)
-        .first()
-    )
-    if not unidade:
-        unidade = Unidade(empresa_id=empresa_id, codigo=sigla, nome=sigla,
-                          peso_conversao=60 if sigla in ("SC", "SACA") else 0)
-        db.add(unidade)
-        db.flush()
-    return unidade.id
-
-
-def _parceiro_do_emitente(db: Session, nota: Nota, dados: dict, criar: bool) -> Parceiro | None:
-    """Acha (ou cria) o cliente/fornecedor do emitente e completa os dados fiscais."""
-    documento = motor.so_numeros(nota.emitente_cnpj)
-    consulta = db.query(Parceiro).filter(Parceiro.empresa_id == nota.empresa_id)
-    parceiro = None
-    if documento:
-        parceiro = next(
-            (p for p in consulta.all() if motor.so_numeros(p.cpf_cnpj) == documento), None
-        )
-    if not parceiro and not criar:
-        return None
-
-    import xml.etree.ElementTree as ET
-
-    emit = None
-    try:
-        raiz = ET.fromstring(nota.xml or "")
-        emit = raiz.find(f".//{{{motor.NS}}}emit")
-    except Exception:  # noqa: BLE001
-        emit = None
-
-    def campo(*nomes):
-        if emit is None:
-            return ""
-        for nome in nomes:
-            achado = emit.find(f".//{{{motor.NS}}}{nome}")
-            if achado is not None and achado.text:
-                return achado.text.strip()
-        return ""
-
-    if not parceiro:
-        parceiro = Parceiro(
-            empresa_id=nota.empresa_id,
-            tipo="FORNECEDOR" if nota.tipo_operacao != "0" else "CLIENTE",
-            pessoa="J" if len(documento) == 14 else "F",
-            nome=(nota.emitente_nome or "SEM NOME")[:160],
-            cpf_cnpj=documento or None,
-        )
-        db.add(parceiro)
-
-    # completa só o que estiver em branco — não sobrescreve o que o usuário digitou
-    preencher = {
-        "nome_fantasia": campo("xFant"),
-        "rg_ie": nota.emitente_ie or campo("IE"),
-        "logradouro": campo("xLgr"),
-        "numero": campo("nro"),
-        "complemento": campo("xCpl"),
-        "bairro": campo("xBairro"),
-        "cidade": campo("xMun"),
-        "uf": nota.emitente_uf or campo("UF"),
-        "cep": campo("CEP"),
-        "telefone": campo("fone"),
-        "codigo_municipio": campo("cMun"),
-        "codigo_pais": campo("cPais") or "1058",
-        "pais": campo("xPais") or "BRASIL",
-    }
-    for nome, valor in preencher.items():
-        if valor and not getattr(parceiro, nome, None):
-            setattr(parceiro, nome, valor[:160])
-    if not parceiro.indicador_ie or parceiro.indicador_ie == "9":
-        parceiro.indicador_ie = "1" if (parceiro.rg_ie or "").strip() else "9"
-    if not parceiro.regime_tributario:
-        parceiro.regime_tributario = {
-            "1": "SIMPLES NACIONAL", "2": "SIMPLES NACIONAL - EXCESSO",
-            "3": "REGIME NORMAL",
-        }.get(campo("CRT"), None)
-    db.flush()
-    return parceiro
-
-
-# tamanho de cada campo fiscal do produto, para não estourar a coluna
-_TAMANHO_FISCAL = {
-    "ncm": 10, "cest": 9, "cfop_padrao": 5, "unidade_comercial": 6,
-    "unidade_tributavel": 6, "gtin": 14, "gtin_tributavel": 14, "cst_icms": 3,
-}
-
-
-def _produto_do_item(db: Session, empresa_id: int, item: dict,
-                     atualizar: bool) -> tuple[Produto | None, bool]:
-    """Acha o produto do cadastro pelo código/GTIN/nome; cria quando não existir.
-
-    Devolve (produto, criado agora?).
-    """
-    codigo = (item.get("codigo") or "").strip()[:20]
-    gtin = (item.get("gtin") or "").strip()
-    descricao = (item.get("descricao") or "").strip()
-    produtos = db.query(Produto).filter(Produto.empresa_id == empresa_id).all()
-
-    produto = next((p for p in produtos if codigo and (p.codigo or "").strip() == codigo), None)
-    if not produto and gtin:
-        produto = next((p for p in produtos if (p.gtin or "").strip() == gtin), None)
-    if not produto and descricao:
-        produto = next(
-            (p for p in produtos if (p.nome or "").strip().upper() == descricao.upper()), None)
-    criado = False
-    if not produto:
-        if not atualizar:
-            return None, False
-        base = codigo or (gtin[-14:] if gtin else f"NF{abs(hash(descricao)) % 99999:05d}")
-        existentes = {(p.codigo or "").upper() for p in produtos}
-        novo_codigo, sufixo = base.upper()[:20], 1
-        while novo_codigo in existentes:
-            sufixo += 1
-            novo_codigo = f"{base.upper()[:16]}-{sufixo}"
-        produto = Produto(empresa_id=empresa_id, codigo=novo_codigo,
-                          nome=(descricao or "PRODUTO")[:120])
-        db.add(produto)
-        criado = True
-    if not atualizar:
-        return produto, False
-
-    unidade = (item.get("unidade") or "").strip().upper()
-    fiscais = {
-        "ncm": item.get("ncm"), "cest": item.get("cest"), "cfop_padrao": item.get("cfop"),
-        "unidade_comercial": unidade, "unidade_tributavel": unidade,
-        "gtin": gtin, "gtin_tributavel": gtin, "cst_icms": item.get("icms_cst"),
-    }
-    for nome, valor in fiscais.items():
-        if valor and not getattr(produto, nome, None):
-            setattr(produto, nome, str(valor)[:_TAMANHO_FISCAL[nome]])
-    if not produto.aliquota_icms and item.get("icms_aliquota"):
-        produto.aliquota_icms = round(float(item["icms_aliquota"]), 4)
-    if not produto.origem:
-        produto.origem = "0"
-    if not produto.unidade_id and unidade:
-        produto.unidade_id = _unidade_padrao(db, empresa_id, unidade)
-    db.flush()
-    return produto, criado
-
-
-def _gerar_titulo(db: Session, nota: Nota, dados: ImportarNotaIn,
-                  usuario: Usuario) -> Lancamento | None:
-    """Conta a pagar (nota de entrada) ou a receber (nota de saída), com as parcelas do XML."""
-    valor = dinheiro(nota.valor_total)
-    if valor <= 0:
-        raise HTTPException(400, "A nota está sem valor total: não dá para gerar o título.")
-    if not nota.parceiro_id:
-        raise HTTPException(
-            400, "Para gerar o título é preciso ligar a nota a um cliente/fornecedor.")
-    entrada = _sentido(nota, _cnpj_da_empresa(db, nota.empresa_id)) == "Entrada"
-    tipo = (dados.tipo_titulo or ("PAGAR" if entrada else "RECEBER")).upper()
-    if tipo not in ("PAGAR", "RECEBER"):
-        raise HTTPException(400, "O título tem de ser a pagar ou a receber.")
-    conta_id = dados.conta_contabil_id or conta_padrao(
-        db, nota.empresa_id, "compra" if tipo == "PAGAR" else "venda")
-
-    emissao = (nota.data_emissao or datetime.utcnow()).date()
-    descricao = (
-        f"NF-e {nota.numero or ''}/{nota.serie or ''} - {nota.emitente_nome or ''}"
-    ).strip(" -/")
-    lancamento = Lancamento(
-        empresa_id=nota.empresa_id,
-        tipo=tipo,
-        modo="SIMPLES",
-        numero_documento=(nota.numero or "")[:40],
-        parceiro_id=nota.parceiro_id,
-        descricao=descricao[:200],
-        data_emissao=emissao,
-        data_competencia=emissao,
-        valor_total=valor,
-        operacao_id=dados.operacao_id,
-        observacao=f"Chave {motor.formatar_chave(nota.chave)}",
-        usuario_id=usuario.id,
-    )
-    db.add(lancamento)
-    db.flush()
-    db.add(LancamentoItem(
-        lancamento_id=lancamento.id, conta_contabil_id=conta_id,
-        centro_custo_id=dados.centro_custo_id, operacao_id=dados.operacao_id,
-        descricao=descricao[:200], valor=valor,
-    ))
-
-    duplicatas = [p for p in nota.pagamentos if p.origem == "DUPLICATA" and p.vencimento]
-    if duplicatas:
-        lancamento.modo = "MULTIPLO" if len(duplicatas) > 1 else "SIMPLES"
-        soma = 0.0
-        for numero, dup in enumerate(duplicatas, start=1):
-            parcela = dinheiro(dup.valor) if numero < len(duplicatas) else round(valor - soma, 2)
-            soma += parcela
-            db.add(Parcela(lancamento_id=lancamento.id, numero=numero,
-                           data_vencimento=dup.vencimento, valor=parcela))
-    else:
-        db.add(Parcela(lancamento_id=lancamento.id, numero=1,
-                       data_vencimento=dados.vencimento or emissao, valor=valor))
-    db.flush()
-    db.refresh(lancamento)
-    contabil.contabilizar_lancamento(db, lancamento)
-    return lancamento
-
-
 @router.post("/notas/{nota_id}/importar")
 def importar(nota_id: int, dados: ImportarNotaIn, db: Session = Depends(get_db),
              usuario: Usuario = Depends(acesso_liberado)):
@@ -792,98 +558,31 @@ def importar(nota_id: int, dados: ImportarNotaIn, db: Session = Depends(get_db),
       2. formas de pagamento e duplicatas -> pagamentos da nota (NOTA_PAGAMENTOS);
       3. emitente -> cliente/fornecedor, completando IE, endereço e código do município;
       4. cada item -> produto do cadastro, completando NCM, CEST, CFOP e unidade;
-      5. se pedido, gera a conta a pagar/receber com as parcelas das duplicatas.
+      5. se pedido, **fatura** a nota, gerando a conta a pagar/receber com as
+         parcelas das duplicatas (o mesmo que o botão Faturar da tela Notas Fiscais).
+
+    As regras ficam em ``backend/notas.py``, compartilhadas com a tela de gestão.
     """
     nota = _nota_da_conta(db, nota_id, usuario)
-    if nota.resumo or not nota.xml:
-        raise HTTPException(
-            400,
-            "Esta nota está no sistema apenas como resumo. Dê ciência da operação e busque "
-            "os documentos de novo para receber o XML completo.",
-        )
-    lido = motor.ler_documento(nota.xml, nota.esquema or "")
-    if not lido:
-        raise HTTPException(400, "Não foi possível ler o XML desta nota.")
-
-    nota.itens.clear()
-    nota.pagamentos.clear()
-    db.flush()
-
-    parceiro = _parceiro_do_emitente(db, nota, lido, dados.criar_parceiro)
-    if parceiro:
-        nota.parceiro_id = parceiro.id
-
-    produtos_criados = produtos_ligados = 0
-    for item in lido.get("itens", []):
-        produto, criado = _produto_do_item(db, nota.empresa_id, item, dados.atualizar_produtos)
-        if produto is not None:
-            produtos_ligados += 1
-            produtos_criados += 1 if criado else 0
-        db.add(NotaItem(
-            nota_id=nota.id,
-            numero=item.get("numero") or 1,
-            codigo=(item.get("codigo") or "")[:60],
-            gtin=(item.get("gtin") or "")[:14],
-            descricao=(item.get("descricao") or "-")[:200],
-            ncm=(item.get("ncm") or "")[:10],
-            cest=(item.get("cest") or "")[:9],
-            cfop=(item.get("cfop") or "")[:5],
-            unidade=(item.get("unidade") or "")[:10],
-            quantidade=item.get("quantidade") or 0,
-            valor_unitario=item.get("valor_unitario") or 0,
-            valor_total=dinheiro(item.get("valor_total")),
-            desconto=dinheiro(item.get("desconto")),
-            frete=dinheiro(item.get("frete")),
-            icms_cst=(item.get("icms_cst") or "")[:3],
-            icms_base=dinheiro(item.get("icms_base")),
-            icms_aliquota=item.get("icms_aliquota") or 0,
-            icms_valor=dinheiro(item.get("icms_valor")),
-            ipi_valor=dinheiro(item.get("ipi_valor")),
-            pis_valor=dinheiro(item.get("pis_valor")),
-            cofins_valor=dinheiro(item.get("cofins_valor")),
-            produto_id=produto.id if produto is not None else None,
-        ))
-
-    for pagamento in lido.get("pagamentos", []):
-        db.add(NotaPagamento(
-            nota_id=nota.id,
-            origem=pagamento.get("origem") or "PAGAMENTO",
-            codigo=(pagamento.get("codigo") or "")[:2],
-            descricao=(pagamento.get("descricao") or "")[:80],
-            numero=(pagamento.get("numero") or "")[:60],
-            vencimento=parse_data(pagamento.get("vencimento")),
-            valor=dinheiro(pagamento.get("valor")),
-            troco=dinheiro(pagamento.get("troco")),
-            bandeira=(pagamento.get("bandeira") or "")[:30],
-            cnpj_credenciadora=(pagamento.get("cnpj_credenciadora") or "")[:20],
-            autorizacao=(pagamento.get("autorizacao") or "")[:40],
-        ))
-
-    nota.importada = True
-    nota.importada_em = datetime.utcnow()
-    db.flush()
+    resultado = regras.importar_xml(db, nota, dados.criar_parceiro, dados.atualizar_produtos)
 
     lancamento = None
     if dados.gerar_titulo:
-        if nota.lancamento_id and db.get(Lancamento, nota.lancamento_id):
-            raise HTTPException(
-                400, "Esta nota já tem um título gerado. Exclua o título antes de gerar outro.")
-        db.refresh(nota)
-        lancamento = _gerar_titulo(db, nota, dados, usuario)
-        nota.lancamento_id = lancamento.id
+        lancamento = regras.faturar(db, nota, dados, usuario)
 
     db.commit()
     db.refresh(nota)
     partes = [
-        f"{len(nota.itens)} item(ns)",
-        f"{len(nota.pagamentos)} forma(s)/parcela(s) de pagamento",
+        f"{resultado['itens']} item(ns)",
+        f"{resultado['pagamentos']} forma(s)/parcela(s) de pagamento",
     ]
-    if parceiro:
-        partes.append(f"cliente/fornecedor {parceiro.nome}")
-    if produtos_ligados:
+    if resultado["parceiro"] is not None:
+        partes.append(f"cliente/fornecedor {resultado['parceiro'].nome}")
+    if resultado["produtos_ligados"]:
         partes.append(
-            f"{produtos_ligados} produto(s) do cadastro"
-            + (f" ({produtos_criados} novo(s))" if produtos_criados else "")
+            f"{resultado['produtos_ligados']} produto(s) do cadastro"
+            + (f" ({resultado['produtos_criados']} novo(s))"
+               if resultado["produtos_criados"] else "")
         )
     if lancamento:
         partes.append(

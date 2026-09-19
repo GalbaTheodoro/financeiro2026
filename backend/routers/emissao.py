@@ -242,6 +242,10 @@ def _cabecalho(nota: Nota, dados: NotaEmitidaIn, db: Session) -> None:
     if dados.parceiro_id and (not parceiro or parceiro.empresa_id != nota.empresa_id):
         raise HTTPException(400, "Cliente inválido.")
     nota.parceiro_id = dados.parceiro_id
+    # o ambiente é escolha do usuário na tela: homologação (2) ou produção (1).
+    # Sem isso, salvar o rascunho jogava a nota de volta para o ambiente do certificado.
+    if dados.ambiente:
+        nota.ambiente = "2" if str(dados.ambiente) == "2" else "1"
     nota.natureza_operacao = (dados.natureza_operacao or "VENDA DE MERCADORIA")[:120]
     nota.tipo_operacao = dados.tipo_operacao or "1"
     nota.finalidade = dados.finalidade or "1"

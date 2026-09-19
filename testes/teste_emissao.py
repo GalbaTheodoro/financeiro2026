@@ -468,6 +468,24 @@ checar("edição recalcula o total", editado["nota"]["valor_total"] == 130000.0
        and editado["nota"]["natureza_operacao"] == "VENDA DE CAFE",
        str(editado["nota"]["valor_total"]))
 
+# o ambiente é escolha de quem emite: salvar não pode trocar sozinho
+producao = api("PUT", f"/api/nfe/{nota['id']}", {
+    "empresa_id": eid, "parceiro_id": cliente["id"], "serie": "1", "ambiente": "1",
+    "itens": [{"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1300,
+               "cfop": "6101"}]}, t)
+checar("salvar guarda o ambiente escolhido (produção)",
+       producao["nota"]["ambiente"] == "1"
+       and api("GET", f"/api/nfe/{nota['id']}", None, t)["nota"]["ambiente"] == "1",
+       producao["nota"]["ambiente_nome"])
+homologacao = api("PUT", f"/api/nfe/{nota['id']}", {
+    "empresa_id": eid, "parceiro_id": cliente["id"], "serie": "1", "ambiente": "2",
+    "itens": [{"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1300,
+               "cfop": "6101"}]}, t)
+checar("e volta para homologação quando é isso que se escolhe",
+       homologacao["nota"]["ambiente"] == "2"
+       and api("GET", f"/api/nfe/{nota['id']}", None, t)["nota"]["ambiente"] == "2",
+       homologacao["nota"]["ambiente_nome"])
+
 previa = api("GET", f"/api/nfe/{nota['id']}/previa", None, t, bruto=True)
 checar("prévia da DANFE sai marcada como sem valor fiscal",
        "SEM VALOR FISCAL" in previa and "DANFE" in previa)

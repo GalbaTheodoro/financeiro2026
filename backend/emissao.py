@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 
 from . import dfe as motor
 
@@ -527,18 +527,35 @@ def _pagamento(pagamentos, total: float) -> str:
 # --------------------------------------------------------------------------- #
 # XML completo
 # --------------------------------------------------------------------------- #
+def _hora_de_emissao(emissao: datetime | None) -> datetime:
+    """A data/hora que vai em `dhEmi`, no fuso de Brasília.
+
+    Três armadilhas resolvidas aqui, e cada uma já causou rejeição:
+
+    * o servidor roda em **UTC**. Uma data/hora sem fuso é sempre UTC, e precisa
+      ser **convertida** para o horário de Brasília — não apenas etiquetada. Era
+      isso que jogava a nota três horas para a frente e trazia a rejeição 703
+      ("Data-Hora de Emissão posterior ao horário de recebimento");
+    * o schema não aceita fração de segundo (rejeição 225);
+    * nota emitida "no futuro" é recusada, então qualquer diferença de relógio
+      para a frente é puxada de volta para agora.
+    """
+    agora = datetime.now(motor.FUSO_BR).replace(microsecond=0)
+    if emissao is None:
+        return agora
+    if emissao.tzinfo is None:
+        emissao = emissao.replace(tzinfo=timezone.utc)   # o banco guarda em UTC
+    emissao = emissao.astimezone(motor.FUSO_BR).replace(microsecond=0)
+    return min(emissao, agora)
+
+
 def montar_nfe(empresa, nota: dict, itens, parceiro, transportadora,
                duplicatas, pagamentos, numero: int, serie: str,
                emissao: datetime | None = None) -> tuple[str, str, float]:
     """Monta o <NFe> sem assinatura. Devolve (xml, chave, valor total)."""
     if not itens:
         raise ErroEmissao("A nota está sem itens.")
-    emissao = emissao or datetime.now(motor.FUSO_BR)
-    if emissao.tzinfo is None:
-        emissao = emissao.replace(tzinfo=motor.FUSO_BR)
-    # o schema da NF-e não aceita fração de segundo em dhEmi: "2026-09-19T21:48:18-03:00".
-    # Sem isto a SEFAZ devolve a rejeição 225 (falha no schema do lote).
-    emissao = emissao.replace(microsecond=0)
+    emissao = _hora_de_emissao(emissao)
     ambiente = nota["ambiente"]
     crt = empresa.crt or "1"
 

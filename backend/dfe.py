@@ -611,9 +611,13 @@ def montar_inf_evento(chave_nfe: str, cnpj: str, tipo: str, ambiente: str,
         raise ErroDFe("A chave da nota precisa ter 44 números.")
     if exige_justificativa and len(justificativa.strip()) < 15:
         raise ErroDFe("Para 'Operação não realizada' escreva uma justificativa com 15 letras ou mais.")
-    momento = (quando or datetime.now(FUSO_BR)).replace(microsecond=0)
+    # mesma regra do dhEmi: sem fuso é UTC (o servidor roda em UTC e o banco
+    # guarda assim), então converte-se — etiquetar jogaria o evento 3h à frente
+    momento = quando or datetime.now(FUSO_BR)
     if momento.tzinfo is None:
-        momento = momento.replace(tzinfo=FUSO_BR)
+        momento = momento.replace(tzinfo=timezone.utc)
+    momento = min(momento.astimezone(FUSO_BR),
+                  datetime.now(FUSO_BR)).replace(microsecond=0)
     identificador = f"ID{codigo}{chave_nfe}{sequencia:02d}"
     detalhe = f"<descEvento>{descricao}</descEvento>"
     if exige_justificativa or (justificativa.strip() and tipo == "DESCONHECIDA"):

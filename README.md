@@ -452,7 +452,14 @@ NT 2025.002 antes de mandar para a SEFAZ.
 
 O schema oficial da NF-e 4.00 está em `testes/xsd/`, e `testes/teste_schema_nfe.py` valida
 contra ele a nota simples, a nota completa (transporte, duplicatas, texto livre), os CST de
-ICMS que o café usa (00, 20, 51 diferimento, 40 e 60), a nota **assinada** e o lote. Assim o
+ICMS que o café usa (00, 20, 51 diferimento, 40 e 60), a nota **assinada** e o lote.
+
+**Data e hora da nota.** O servidor roda em **UTC** e o banco guarda tudo em UTC; o `dhEmi`
+sai no fuso de Brasília, então a hora é *convertida* — nunca apenas etiquetada. Etiquetar
+jogava a nota três horas para a frente e trazia a rejeição **703 — Data-Hora de Emissão
+posterior ao horário de recebimento**. Por segurança, qualquer diferença de relógio para o
+futuro é puxada de volta para agora, e a mesma regra vale para o `dhEvento` da manifestação
+e do cancelamento. `backend/emissao.py: _hora_de_emissao()`. Assim o
 erro aparece aqui, com o nome do campo, em vez de virar uma *Rejeição 225 — Falha no Schema
 XML* que não diz qual campo está errado. Foi esse teste que mostrou o `dhEmi` saindo com
 fração de segundo (`...T21:48:18.609636-03:00`), que o schema não aceita. O sistema em si

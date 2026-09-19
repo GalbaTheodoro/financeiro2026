@@ -15,7 +15,7 @@ POST   /api/nfe/{id}/cancelar          evento de cancelamento
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -350,8 +350,16 @@ def _cabecalho(nota: Nota, dados: NotaEmitidaIn, db: Session) -> None:
     nota.tipo_operacao = dados.tipo_operacao or "1"
     nota.finalidade = dados.finalidade or "1"
     nota.serie = str(dados.serie or "1")[:3]
-    nota.data_emissao = (datetime.combine(dados.data_emissao, datetime.now().time())
-                         if dados.data_emissao else nota.data_emissao or datetime.utcnow())
+    # a data escolhida na tela vale com a hora de agora **em Brasília**; guardamos
+    # em UTC, como todo o resto do banco, e o XML converte de volta na emissão
+    if dados.data_emissao:
+        agora_br = datetime.now(motor.FUSO_BR)
+        nota.data_emissao = (
+            datetime.combine(dados.data_emissao, agora_br.timetz())
+            .astimezone(timezone.utc).replace(tzinfo=None)
+        )
+    else:
+        nota.data_emissao = nota.data_emissao or datetime.utcnow()
     nota.cfop = (dados.cfop or "")[:5] or None
     nota.frete_modalidade = (dados.frete_modalidade or "9")[:1]
     nota.transportadora_id = dados.transportadora_id

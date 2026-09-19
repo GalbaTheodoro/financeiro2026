@@ -147,6 +147,33 @@ quebrado = re.sub(r"(<dhEmi>[^<]+?)(-03:00)", r"\g<1>.123456\g<2>", com_data)
 checar("e com fração de segundo o schema reprovaria (é a rejeição 225)",
        any("dhEmi" in p for p in validar(quebrado)))
 
+# rejeição 703: o servidor roda em UTC e a nota saía 3 horas no futuro
+from datetime import datetime, timedelta, timezone   # noqa: E402
+from backend import dfe as motor                      # noqa: E402
+from backend.emissao import _hora_de_emissao          # noqa: E402
+
+agora_br = datetime.now(motor.FUSO_BR)
+for rotulo, valor in (
+        ("sem data informada", None),
+        ("data naive do banco (UTC)", datetime.utcnow()),
+        ("data já com fuso de Brasília", datetime.now(motor.FUSO_BR)),
+        ("data com fuso UTC", datetime.now(timezone.utc)),
+        ("relógio 5 minutos adiantado", datetime.utcnow() + timedelta(minutes=5)),
+        ("data de ontem", datetime.utcnow() - timedelta(days=1))):
+    momento_calculado = _hora_de_emissao(valor)
+    checar(f"dhEmi não fica no futuro: {rotulo}",
+           momento_calculado <= agora_br + timedelta(seconds=2)
+           and momento_calculado.microsecond == 0
+           and str(momento_calculado.utcoffset()) == "-1 day, 21:00:00",
+           momento_calculado.isoformat())
+
+do_xml = datetime.fromisoformat(re.search(r"<dhEmi>([^<]+)</dhEmi>", com_data).group(1))
+checar("e o dhEmi que sai no XML também não está no futuro",
+       do_xml <= datetime.now(motor.FUSO_BR) + timedelta(seconds=5),
+       do_xml.isoformat())
+checar("o dhEmi sai no horário de Brasília (-03:00)",
+       "-03:00" in re.search(r"<dhEmi>([^<]+)</dhEmi>", com_data).group(1))
+
 # nome comprido, acento e símbolo no texto livre
 longo = montar(natureza_operacao="VENDA DE CAFÉ ARÁBICA — SAFRA 2026/2027 & COMISSÃO",
                informacoes_complementares="Observação com acento, & e <sinais>. " * 20)

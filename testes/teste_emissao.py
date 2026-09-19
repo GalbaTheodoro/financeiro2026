@@ -487,9 +487,31 @@ checar("rascunho puxou cliente, produto e valores do contrato",
        nota["status_emissao"] == "RASCUNHO" and nota["parceiro_nome"].startswith("TORREFACAO")
        and rascunho["itens"][0]["quantidade"] == 330
        and nota["valor_total"] == 435600.0, str(nota["valor_total"]))
-checar("o item nasceu com os dados fiscais do produto",
-       rascunho["itens"][0]["ncm"] == "09011110" and rascunho["itens"][0]["cfop"] == "6101"
-       and rascunho["itens"][0]["icms_cst"] == "102")
+checar("o item pega NCM e CFOP do produto",
+       rascunho["itens"][0]["ncm"] == "09011110"
+       and rascunho["itens"][0]["cfop"] == "6101")
+checar("mas o CST não vem do produto: sem regra fiscal, nasce em branco",
+       not rascunho["itens"][0]["icms_cst"], str(rascunho["itens"][0]["icms_cst"]))
+
+# com uma regra fiscal cadastrada, o CST aparece
+api("POST", f"/api/fiscal/tipos/padrao?empresa_id={eid}", None, t)
+_tipos = api("GET", f"/api/fiscal/tipos?empresa_id={eid}", None, t)
+_item_cafe = next(x["id"] for x in _tipos
+                  if x["aplicacao"] == "ITEM" and x["codigo"] == "CAFECRU")
+api("PUT", f"/api/produtos/{cafe['id']}", {
+    **{k: v for k, v in cafe.items() if k in ("codigo", "nome", "unidade_id",
+                                              "embalagem", "descricao")},
+    "empresa_id": eid, "ncm": "09011110", "cfop_padrao": "6101",
+    "unidade_comercial": "SC", "origem": "0", "ativo": True,
+    "tipo_fiscal_id": _item_cafe}, t)
+api("POST", "/api/fiscal/regras", {
+    "empresa_id": eid, "nome": "Café cru — venda", "tipo_item_id": _item_cafe,
+    "icms_cst": "102", "cst_pis": "49", "cst_cofins": "49"}, t)
+com_regra = api("POST", "/api/nfe/rascunho", {
+    "empresa_id": eid, "contrato_id": contrato["id"], "ambiente": "2", "serie": "1"}, t)
+checar("com a regra fiscal cadastrada, o CST chega no item",
+       com_regra["itens"][0]["icms_cst"] == "102",
+       str(com_regra["itens"][0]["icms_cst"]))
 checar("as duas parcelas viraram duplicatas", len(rascunho["parcelas"]) == 2)
 checar("rascunho não gastou número da série",
        api("GET", f"/api/nfe/series?empresa_id={eid}", None, t)[0]["proximo_numero"] == 120)

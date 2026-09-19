@@ -627,7 +627,13 @@ const Emissao = {
         Emissao.atualizarTotais(campo);
       };
       campo.oninput = anotar;
-      campo.onchange = anotar;
+      campo.onchange = () => {
+        anotar();
+        // o CFOP faz parte do cruzamento: mudou o CFOP, a legislação pode ser outra
+        if (campo.dataset.campo === 'cfop') {
+          Emissao.aplicarRegra(Number(campo.dataset.linha), true);
+        }
+      };
     });
     // lembrar quais blocos de imposto ficaram abertos entre um desenho e outro
     alvo.querySelectorAll('[data-impostos]').forEach((bloco) => {
@@ -679,24 +685,28 @@ const Emissao = {
 
   /** Busca a regra fiscal do par (cliente x item) e refaz os impostos do item.
       Apaga as marcas de "digitado à mão": a regra passa a mandar de novo. */
-  async aplicarRegra(indice) {
+  async aplicarRegra(indice, silencioso) {
     Emissao.lerItensDaTela();
     const item = Emissao._itens[indice];
     const area = document.getElementById('modal-corpo');
     const parceiroId = area?.querySelector('[name=parceiro_id]')?.value || null;
-    if (!parceiroId) return UI.erro('Escolha o cliente na etapa Nota antes de buscar a regra.');
+    if (!parceiroId) {
+      if (silencioso) return;
+      return UI.erro('Escolha o cliente na etapa Nota antes de buscar a regra.');
+    }
     try {
       const r = await Api.post('/api/fiscal/simular', {
         empresa_id: Estado.empresaId,
         parceiro_id: parceiroId,
         produto_id: item.produto_id || null,
+        cfop: item.cfop || null,
         operacao: 'SAIDA',
       });
       if (!r.regra) {
         item.regra_nome = null;
         item.regra_resumo = null;
         Emissao.desenharItens();
-        return UI.erro('Nenhuma regra fiscal serve para este cliente e este item. '
+        return UI.erro('Nenhuma regra fiscal serve para este CFOP, este cliente e este item. '
           + 'Cadastre em Cadastros > Regras fiscais.');
       }
       item._mao = {};
@@ -710,7 +720,7 @@ const Emissao = {
       Emissao.desenharItens();
       UI.sucesso(`Impostos refeitos pela regra "${r.regra.nome}".`);
     } catch (e) {
-      UI.erro(e.message);
+      if (!silencioso) UI.erro(e.message);
     }
   },
 

@@ -6,7 +6,8 @@ passa a vir da tabela de regras, escolhendo sempre a linha mais específica:
   * café cru para indústria dentro de MG  -> diferimento (CST 51, sem destaque);
   * café cru para indústria em SP         -> 7% de ICMS;
   * café cru para qualquer outro cliente  -> regra geral do item;
-  * item sem regra nenhuma                -> cai no cadastro do produto.
+  * CFOP digitado no item                 -> escolhe a legislação daquele CFOP;
+  * item sem regra nenhuma                -> nasce sem CST (o produto não decide).
 
 Uso:  python testes/teste_regras_fiscais.py   (com o servidor no ar)
 """
@@ -88,9 +89,8 @@ cafe = produtos[0]
 api("PUT", f"/api/produtos/{cafe['id']}", {
     **{k: v for k, v in cafe.items() if k in ("codigo", "nome", "unidade_id",
                                               "embalagem", "descricao")},
-    "empresa_id": eid, "ncm": "09011110", "cfop_padrao": "6101", "cst_icms": "00",
+    "empresa_id": eid, "ncm": "09011110", "cfop_padrao": "5102",
     "unidade_comercial": "SC", "origem": "0", "ativo": True,
-    "aliquota_icms": 18, "aliquota_pis": 1.65, "aliquota_cofins": 7.6,
     "tipo_fiscal_id": cafe_cru}, t)
 conferido = api("GET", f"/api/produtos?empresa_id={eid}", None, t)[0]
 checar("o produto guarda o tipo fiscal", conferido["tipo_fiscal_id"] == cafe_cru)
@@ -147,10 +147,10 @@ checar("tipo de item no lugar de tipo de cliente é recusado", trocada.get("_sta
 
 # =========================================================================== #
 print("\n=== 3. Qual regra ganha (simulação) ===")
-def simular(parceiro_id, produto_id=None):
+def simular(parceiro_id, produto_id=None, cfop=None):
     return api("POST", "/api/fiscal/simular", {
         "empresa_id": eid, "parceiro_id": parceiro_id,
-        "produto_id": produto_id or cafe["id"], "operacao": "SAIDA"}, t)
+        "produto_id": produto_id or cafe["id"], "cfop": cfop, "operacao": "SAIDA"}, t)
 
 dentro = simular(torrefacao_mg["id"])
 checar("indústria dentro de MG cai na regra do diferimento",
@@ -160,7 +160,7 @@ checar("e a regra traz o CST 51 e o CFOP 5102",
        dentro["regra"]["valores"]["icms_cst"] == "51"
        and dentro["regra"]["valores"]["cfop"] == "5102")
 
-paulista = simular(torrefacao_sp["id"])
+paulista = simular(torrefacao_sp["id"], cfop="6102")
 checar("indústria em SP cai na regra de fora do estado",
        paulista["regra"]["nome"].endswith("fora de MG")
        and paulista["regra"]["valores"]["icms_aliquota"] == 7.0,
@@ -174,8 +174,7 @@ checar("cliente de outro tipo cai na regra geral do item",
 
 sem_tipo = api("POST", "/api/produtos", {
     "empresa_id": eid, "codigo": "SERV1", "nome": "CORRETAGEM",
-    "unidade_id": cafe["unidade_id"], "ncm": "00000000", "cfop_padrao": "5949",
-    "cst_icms": "41", "aliquota_icms": 0}, t)
+    "unidade_id": cafe["unidade_id"], "ncm": "00000000", "cfop_padrao": "5949"}, t)
 nenhuma = simular(torrefacao_mg["id"], sem_tipo["id"])
 checar("item sem tipo fiscal não casa com regra de item específico",
        nenhuma["regra"] is None or nenhuma["regra"]["nome"] != "Café cru — regra geral",
@@ -209,7 +208,10 @@ checar("o item diz qual regra foi usada",
        (item.get("regra_nome") or "").startswith("Café cru para indústria em MG"),
        str(item.get("regra_nome")))
 
-nota_sp = rascunho(torrefacao_sp["id"])
+nota_sp = api("POST", "/api/nfe/rascunho", {
+    "empresa_id": eid, "parceiro_id": torrefacao_sp["id"], "ambiente": "2", "serie": "1",
+    "itens": [{"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1000,
+               "cfop": "6102"}]}, t)
 item_sp = nota_sp["itens"][0]
 checar("o mesmo produto para SP sai com 7% e CFOP 6102",
        item_sp["icms_cst"] == "00" and item_sp["cfop"] == "6102"
@@ -222,10 +224,55 @@ checar("e para a padaria sai com os 18% da regra geral",
        str(nota_padaria["itens"][0]["icms_valor"]))
 
 nota_servico = rascunho(torrefacao_mg["id"], sem_tipo["id"])
-checar("produto sem regra continua usando o cadastro do produto",
-       nota_servico["itens"][0]["icms_cst"] == "41"
-       and nota_servico["itens"][0]["cfop"] == "5949",
-       nota_servico["itens"][0]["cfop"])
+checar("sem regra o item nasce sem CST — o produto não decide mais imposto",
+       not nota_servico["itens"][0]["icms_cst"]
+       and abs(nota_servico["itens"][0]["icms_valor"]) < 0.01,
+       str(nota_servico["itens"][0]["icms_cst"]))
+checar("mas o CFOP padrão do produto ainda serve de sugestão",
+       nota_servico["itens"][0]["cfop"] == "5949", nota_servico["itens"][0]["cfop"])
+
+# =========================================================================== #
+print("\n=== 4b. O CFOP faz parte do cruzamento ===")
+api("POST", "/api/fiscal/regras", {
+    "empresa_id": eid, "nome": "Café cru — devolução (CFOP 1202)",
+    "tipo_item_id": cafe_cru, "cfop": "1202",
+    "icms_cst": "00", "icms_aliquota": 4, "cst_pis": "01", "cst_cofins": "01"}, t)
+por_cfop = simular(torrefacao_mg["id"], cfop="1202")
+checar("com o CFOP 1202 ganha a regra daquele CFOP",
+       por_cfop["regra"]["nome"].endswith("(CFOP 1202)"), por_cfop["regra"]["nome"])
+checar("e o resumo da regra mostra o CFOP", "CFOP 1202" in por_cfop["regra"]["resumo"])
+sem_cfop = simular(torrefacao_mg["id"], cfop="5102")
+checar("com outro CFOP volta a regra do diferimento",
+       sem_cfop["regra"]["nome"].startswith("Café cru para indústria em MG"),
+       sem_cfop["regra"]["nome"])
+
+nota_cfop = api("POST", "/api/nfe/rascunho", {
+    "empresa_id": eid, "parceiro_id": torrefacao_mg["id"], "ambiente": "2", "serie": "1",
+    "itens": [{"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1000,
+               "cfop": "1202"}]}, t)
+checar("na nota, o CFOP digitado no item escolhe a legislação",
+       abs(nota_cfop["itens"][0]["icms_valor"] - 4000) < 0.01
+       and nota_cfop["itens"][0]["cfop"] == "1202",
+       str(nota_cfop["itens"][0]["icms_valor"]))
+
+print("\n=== 4c. Tabela de classificação tributária (cClassTrib) ===")
+tabela = api("GET", "/api/fiscal/cclasstrib", None, t)
+checar("a tabela vem com códigos e com a lista de CST",
+       len(tabela["linhas"]) > 20 and len(tabela["cst"]) >= 7,
+       f"{len(tabela['linhas'])} códigos")
+integral = [l for l in tabela["linhas"] if l["codigo"] == "000001"]
+checar("o código 000001 é a tributação integral",
+       integral and integral[0]["cst"] == "000"
+       and "integralmente" in integral[0]["descricao"].lower())
+busca = api("GET", "/api/fiscal/cclasstrib?busca=exporta", None, t)
+checar("procurar por palavra acha os códigos de exportação",
+       any(l["codigo"] == "410004" for l in busca["linhas"]),
+       f"{len(busca['linhas'])} achados")
+por_cst = api("GET", "/api/fiscal/cclasstrib?cst=410", None, t)
+checar("filtrar por CST devolve só aquele CST",
+       por_cst["linhas"] and all(l["cst"] == "410" for l in por_cst["linhas"]))
+acento = api("GET", "/api/fiscal/cclasstrib?busca=imunidade", None, t)
+checar("a busca ignora acento", isinstance(acento["linhas"], list))
 
 # =========================================================================== #
 print("\n=== 5. O que foi digitado à mão continua mandando ===")
@@ -263,7 +310,7 @@ api("DELETE", f"/api/fiscal/regras/{geral['id']}", None, t)
 restantes = api("GET", f"/api/fiscal/regras?empresa_id={eid}", None, t)
 checar("a regra apagada some da tabela",
        all(r["id"] != geral["id"] for r in restantes))
-depois = simular(consumidor["id"])
+depois = simular(consumidor["id"], cfop="5102")
 checar("sem a regra geral, a padaria fica sem regra",
        depois["regra"] is None, str((depois["regra"] or {}).get("nome")))
 

@@ -21,14 +21,20 @@ empate a de maior `prioridade`, depois a mais nova.
 
 Peso de cada campo (quanto mais específico, mais pesa):
 
-    tipo de cliente .... 16
-    tipo de item ....... 8
+    tipo de cliente .... 32
+    tipo de item ....... 16
+    CFOP ............... 8
     UF de destino ...... 4
     UF de origem ....... 2
     operação ........... 1
 
 Assim "café cru para indústria de fora do estado" vence "café cru para
 qualquer um", que por sua vez vence "qualquer item para qualquer cliente".
+
+O **CFOP** é o quinto elemento do cruzamento: é digitado no item da nota e a
+regra que exige um CFOP só serve quando ele bate. Regra sem CFOP preenchido
+continua valendo para qualquer CFOP — e, se o item ainda estiver sem CFOP, o da
+regra é usado como sugestão.
 
 A tributação continua sendo responsabilidade do contribuinte e do contador: o
 sistema só aplica a tabela que a empresa cadastrou.
@@ -60,8 +66,9 @@ CAMPOS_DA_REGRA = (
 )
 
 PESOS = {
-    "tipo_cliente_id": 16,
-    "tipo_item_id": 8,
+    "tipo_cliente_id": 32,
+    "tipo_item_id": 16,
+    "cfop": 8,
     "uf_destino": 4,
     "uf_origem": 2,
     "operacao": 1,
@@ -83,13 +90,16 @@ def pontuar(regra: RegraFiscal, contexto: dict) -> int | None:
     pontos = 0
     for campo, peso in PESOS.items():
         exigido = getattr(regra, campo, None)
-        if campo.startswith("uf") or campo == "operacao":
+        if isinstance(exigido, str):
             exigido = _texto(exigido)
         if exigido in (None, ""):
             continue                      # em branco na regra = serve para qualquer um
         atual = contexto.get(campo)
-        if campo.startswith("uf") or campo == "operacao":
+        if isinstance(atual, str):
             atual = _texto(atual)
+        if campo == "cfop" and atual in (None, ""):
+            # item ainda sem CFOP: a regra não é descartada, só não ganha o ponto
+            continue
         if atual is None or str(atual) != str(exigido):
             return None                   # a regra exige algo que esta nota não tem
         pontos += peso
@@ -117,12 +127,16 @@ def escolher_regra(db: Session, empresa_id: int, contexto: dict) -> RegraFiscal 
 def montar_contexto(db: Session, empresa, parceiro: Parceiro | None,
                     produto: Produto | None, operacao: str = "SAIDA",
                     tipo_cliente_id: int | None = None,
-                    tipo_item_id: int | None = None) -> dict:
-    """Junta o que define a situação: quem compra, o que é, de onde para onde."""
+                    tipo_item_id: int | None = None,
+                    cfop: str | None = None) -> dict:
+    """Junta o que define a situação: CFOP, quem compra, o que é, de onde para onde."""
     return {
         "tipo_cliente_id": tipo_cliente_id
         or (parceiro.tipo_fiscal_id if parceiro else None),
         "tipo_item_id": tipo_item_id or (produto.tipo_fiscal_id if produto else None),
+        # o CFOP do item; sem ele, o CFOP padrão do produto — que é o que o
+        # item vai levar mesmo, então o cruzamento fica igual ao da nota pronta
+        "cfop": _texto(cfop) or _texto(produto.cfop_padrao if produto else None),
         "uf_origem": _uf(empresa.uf if empresa else None),
         "uf_destino": _uf(parceiro.uf if parceiro else (empresa.uf if empresa else None)),
         "operacao": _texto(operacao) or "SAIDA",
@@ -164,6 +178,8 @@ def explicar(db: Session, regra: RegraFiscal | None) -> dict | None:
         partes.append(f"cliente {nomes['tipo_cliente_id']}")
     if nomes.get("tipo_item_id"):
         partes.append(f"item {nomes['tipo_item_id']}")
+    if regra.cfop:
+        partes.append(f"CFOP {regra.cfop}")
     if regra.uf_origem or regra.uf_destino:
         partes.append(f"{regra.uf_origem or 'qualquer UF'} → {regra.uf_destino or 'qualquer UF'}")
     if regra.operacao:

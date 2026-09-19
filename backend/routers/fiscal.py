@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import fiscal as motor
+from .. import cclasstrib, fiscal as motor
 from ..database import get_db
 from ..deps import acesso_liberado, validar_empresa
 from ..models import Empresa, Parceiro, Produto, RegraFiscal, TipoFiscal, Usuario
@@ -235,6 +235,7 @@ class SimularIn(BaseModel):
     produto_id: int | None = None
     tipo_cliente_id: int | None = None
     tipo_item_id: int | None = None
+    cfop: str | None = None
     operacao: str = "SAIDA"
 
 
@@ -251,9 +252,24 @@ def simular(dados: SimularIn, db: Session = Depends(get_db),
     if produto and produto.empresa_id != dados.empresa_id:
         raise HTTPException(400, "Produto de outra empresa.")
     contexto = motor.montar_contexto(db, empresa, parceiro, produto, dados.operacao,
-                                     dados.tipo_cliente_id, dados.tipo_item_id)
+                                     dados.tipo_cliente_id, dados.tipo_item_id,
+                                     cfop=dados.cfop)
     regra = motor.escolher_regra(db, dados.empresa_id, contexto)
     return {"contexto": contexto, "regra": motor.explicar(db, regra)}
+
+
+# --------------------------------------------------------------------------- #
+# Tabela de classificação tributária do IBS/CBS (cClassTrib)
+# --------------------------------------------------------------------------- #
+@router.get("/cclasstrib")
+def tabela_cclasstrib(busca: str = "", cst: str = "",
+                      usuario: Usuario = Depends(acesso_liberado)):
+    """Procura o código de classificação tributária por número, CST ou palavra."""
+    return {
+        "linhas": cclasstrib.buscar(busca, cst),
+        "cst": [{"codigo": c, "nome": n} for c, n in cclasstrib.CST_IBS_CBS.items()],
+        "parcial": True,   # a tabela oficial é maior; o campo aceita digitar à mão
+    }
 
 
 def _empresa_padrao(db: Session, empresa_id: int) -> Empresa | None:

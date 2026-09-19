@@ -173,26 +173,27 @@ def _item_do_produto(db: Session, empresa_id: int, produto_id: int | None) -> Pr
     return produto
 
 
-def _escolher(enviado, da_regra, do_produto, padrao=0.0) -> float:
-    """A ordem de quem manda no número.
+def _escolher(enviado, da_regra, padrao=0.0) -> float:
+    """A ordem de quem manda no número de um imposto.
 
-    1. o que foi digitado na tela;
-    2. a **regra fiscal** que casou (tipo de cliente x tipo de item);
-    3. o cadastro do produto;
-    4. o padrão.
+    1. o que foi digitado na tela do item;
+    2. a **regra fiscal** que casou (CFOP x UFs x tipo de cliente x tipo de item);
+    3. o padrão.
+
+    O cadastro do produto **não entra**: CST e alíquota saem só da tabela de
+    regras, porque a mesma mercadoria tem tributação diferente conforme para quem
+    e para onde ela vai.
     """
     if enviado is not None:
         return float(enviado)
     if da_regra is not None:
         return float(da_regra or 0)
-    if do_produto is not None:
-        return float(do_produto or 0)
     return float(padrao)
 
 
-def _texto(enviado, da_regra, do_produto, padrao=None) -> str | None:
+def _texto(enviado, da_regra, padrao=None) -> str | None:
     """Mesma ordem, para os campos de texto (CST, CFOP, cClassTrib)."""
-    for valor in (enviado, da_regra, do_produto, padrao):
+    for valor in (enviado, da_regra, padrao):
         if valor is None:
             continue
         texto = str(valor).strip()
@@ -221,7 +222,8 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
         produto = _item_do_produto(db, nota.empresa_id, entrada.produto_id)
         # a regra fiscal do par (tipo do cliente x tipo do item) manda mais que o
         # cadastro do produto, e menos que o que a pessoa digitou na tela
-        contexto = fiscal.montar_contexto(db, empresa, parceiro, produto, operacao)
+        contexto = fiscal.montar_contexto(db, empresa, parceiro, produto, operacao,
+                                          cfop=entrada.cfop)
         regra = fiscal.escolher_regra(db, nota.empresa_id, contexto)
         r = fiscal.valores_da_regra(regra)
         if entrada.usar_regra:
@@ -237,14 +239,11 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
         total = round(quantidade * unitario - float(entrada.desconto or 0) + 1e-9, 2)
 
         # ---------------------------------------------------------------- ICMS
-        cst = _texto(entrada.icms_cst, r.get("icms_cst"),
-                     produto.cst_icms if produto else None) or ""
-        reducao = _escolher(entrada.icms_reducao, r.get("icms_reducao"),
-                            produto.reducao_base_icms if produto else None)
+        cst = _texto(entrada.icms_cst, r.get("icms_cst")) or ""
+        reducao = _escolher(entrada.icms_reducao, r.get("icms_reducao"))
         base_cheia = float(entrada.icms_base) if entrada.icms_base is not None else total
         base = round(base_cheia * (1 - reducao / 100), 2) if reducao else base_cheia
-        aliquota = _escolher(entrada.icms_aliquota, r.get("icms_aliquota"),
-                             produto.aliquota_icms if produto else None)
+        aliquota = _escolher(entrada.icms_aliquota, r.get("icms_aliquota"))
         if entrada.icms_valor is not None:
             icms = float(entrada.icms_valor)
         elif cst[:2] in _ICMS_SEM_VALOR or cst.zfill(3) in ("102", "103", "300", "400", "500"):
@@ -253,12 +252,9 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             icms = base * aliquota / 100
 
         # --------------------------------------------------- PIS, COFINS e IPI
-        aliq_pis = _escolher(entrada.aliquota_pis, r.get("aliquota_pis"),
-                             produto.aliquota_pis if produto else None)
-        aliq_cofins = _escolher(entrada.aliquota_cofins, r.get("aliquota_cofins"),
-                                produto.aliquota_cofins if produto else None)
-        aliq_ipi = _escolher(entrada.aliquota_ipi, r.get("aliquota_ipi"),
-                             produto.aliquota_ipi if produto else None)
+        aliq_pis = _escolher(entrada.aliquota_pis, r.get("aliquota_pis"))
+        aliq_cofins = _escolher(entrada.aliquota_cofins, r.get("aliquota_cofins"))
+        aliq_ipi = _escolher(entrada.aliquota_ipi, r.get("aliquota_ipi"))
         pis = float(entrada.pis_valor) if entrada.pis_valor is not None \
             else total * aliq_pis / 100
         cofins = float(entrada.cofins_valor) if entrada.cofins_valor is not None \
@@ -269,11 +265,10 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
         # ------------------------------------------------- IBS e CBS (reforma)
         base_ibs = float(entrada.ibs_cbs_base) if entrada.ibs_cbs_base is not None else total
         aliq_ibs_uf = _escolher(entrada.ibs_uf_aliquota, r.get("ibs_uf_aliquota"),
-                                None, nfe.IBS_UF_PADRAO)
+                                nfe.IBS_UF_PADRAO)
         aliq_ibs_mun = _escolher(entrada.ibs_mun_aliquota, r.get("ibs_mun_aliquota"),
-                                 None, nfe.IBS_MUN_PADRAO)
-        aliq_cbs = _escolher(entrada.cbs_aliquota, r.get("cbs_aliquota"),
-                             None, nfe.CBS_PADRAO)
+                                 nfe.IBS_MUN_PADRAO)
+        aliq_cbs = _escolher(entrada.cbs_aliquota, r.get("cbs_aliquota"), nfe.CBS_PADRAO)
         ibs_uf = float(entrada.ibs_uf_valor) if entrada.ibs_uf_valor is not None \
             else base_ibs * aliq_ibs_uf / 100
         ibs_mun = float(entrada.ibs_mun_valor) if entrada.ibs_mun_valor is not None \
@@ -303,22 +298,18 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             icms_valor=dinheiro(icms),
             icms_reducao=reducao,
             origem_mercadoria=(_texto(entrada.origem_mercadoria, r.get("icms_origem"),
-                                      produto.origem if produto else None, "0"))[:1],
-            cst_pis=(_texto(entrada.cst_pis, r.get("cst_pis"),
-                            produto.cst_pis if produto else None) or "")[:2] or None,
+                                      (produto.origem if produto else None) or "0"))[:1],
+            cst_pis=(_texto(entrada.cst_pis, r.get("cst_pis")) or "")[:2] or None,
             aliquota_pis=aliq_pis,
             pis_valor=dinheiro(pis),
-            cst_cofins=(_texto(entrada.cst_cofins, r.get("cst_cofins"),
-                               produto.cst_cofins if produto else None) or "")[:2] or None,
+            cst_cofins=(_texto(entrada.cst_cofins, r.get("cst_cofins")) or "")[:2] or None,
             aliquota_cofins=aliq_cofins,
             cofins_valor=dinheiro(cofins),
-            cst_ipi=(_texto(entrada.cst_ipi, r.get("cst_ipi"),
-                            produto.cst_ipi if produto else None) or "")[:2] or None,
+            cst_ipi=(_texto(entrada.cst_ipi, r.get("cst_ipi")) or "")[:2] or None,
             aliquota_ipi=aliq_ipi,
             ipi_valor=dinheiro(ipi),
-            ibs_cbs_cst=(_texto(entrada.ibs_cbs_cst, r.get("ibs_cbs_cst"), None) or "")[:3]
-            or None,
-            ibs_cbs_classe=(_texto(entrada.ibs_cbs_classe, r.get("ibs_cbs_classe"), None)
+            ibs_cbs_cst=(_texto(entrada.ibs_cbs_cst, r.get("ibs_cbs_cst")) or "")[:3] or None,
+            ibs_cbs_classe=(_texto(entrada.ibs_cbs_classe, r.get("ibs_cbs_classe"))
                             or "")[:6] or None,
             ibs_cbs_base=dinheiro(base_ibs),
             ibs_uf_aliquota=aliq_ibs_uf,
@@ -476,7 +467,8 @@ def _regra_do_item(db: Session, nota: Nota, empresa, item: NotaItem) -> dict:
     parceiro = db.get(Parceiro, nota.parceiro_id) if nota.parceiro_id else None
     produto = db.get(Produto, item.produto_id) if item.produto_id else None
     operacao = "ENTRADA" if (nota.tipo_operacao or "1") == "0" else "SAIDA"
-    contexto = fiscal.montar_contexto(db, empresa, parceiro, produto, operacao)
+    contexto = fiscal.montar_contexto(db, empresa, parceiro, produto, operacao,
+                                      cfop=item.cfop)
     explicada = fiscal.explicar(db, fiscal.escolher_regra(db, nota.empresa_id, contexto))
     return {
         "regra_nome": explicada["nome"] if explicada else None,

@@ -391,20 +391,31 @@ fiscais*): o cliente ganha algo como *Indústria*, *Produtor rural*, *Não contr
 *Exportação*; o produto ganha *Café cru em grão*, *Café industrializado*, *Serviço*… O botão
 **Criar os tipos sugeridos** já deixa a lista pronta.
 
-A aba *Cadastros → Regras fiscais* cruza os dois e diz o que aplicar: CFOP, origem,
-CST/CSOSN e alíquota do ICMS (com redução de base), CST e alíquota de PIS, COFINS e IPI, e
-CST, `cClassTrib` e alíquotas de IBS/CBS. Cada regra pode ainda exigir **UF de saída**,
-**UF de destino** e **operação** (saída ou entrada).
+A aba *Cadastros → Regras fiscais* é onde mora **toda a tributação**. Cada linha diz
+*quando vale* — **CFOP**, **UF de saída**, **UF de destino**, **tipo de cliente**, **tipo de
+item** e operação — e *o que aplicar*: origem, CST/CSOSN e alíquota do ICMS (com redução de
+base), CST e alíquota de PIS, COFINS e IPI, e CST, `cClassTrib` e alíquotas de IBS/CBS.
+
+O **cadastro do produto não guarda mais CST nem alíquota**. Lá ficam só a identificação da
+mercadoria — NCM, CEST, origem, unidades, GTIN, pesos, cBenef — e o **tipo fiscal**. Quem
+decide imposto é a tabela de regras, porque a mesma mercadoria é tributada de um jeito para
+cada cliente e cada destino.
+
+O campo `cClassTrib` tem o botão **Procurar na tabela**, que abre os códigos do Informe
+Técnico 2025.002 com busca por número, por CST ou por palavra (tabela resumida em
+`backend/cclasstrib.py`; o campo continua aceitando qualquer código digitado).
 
 Campo em branco quer dizer *qualquer um*. Quando mais de uma regra serve, ganha a **mais
-específica**, pelo peso de cada campo: tipo de cliente 16, tipo de item 8, UF de destino 4,
-UF de origem 2, operação 1 — e no empate, a de maior `prioridade`. O botão **Testar uma
-situação** mostra qual linha venceria para um cliente e um produto de verdade, sem precisar
-montar nota.
+específica**, pelo peso de cada campo: tipo de cliente 32, tipo de item 16, CFOP 8, UF de
+destino 4, UF de origem 2, operação 1 — e no empate, a de maior `prioridade`. O botão
+**Testar uma situação** mostra qual linha venceria para um cliente, um produto e um CFOP de
+verdade, sem precisar montar nota.
 
-Na hora de montar o item da nota, a ordem de quem manda é: **o que foi digitado na tela →
-a regra fiscal → o cadastro do produto → zero**. O item mostra qual regra foi usada e tem o
-botão *Refazer os impostos por esta regra*, que descarta o que foi digitado e volta à tabela.
+No item da nota, **mudar o CFOP refaz a busca da regra na hora**: é o CFOP digitado, com as
+UFs e os dois tipos, que decide qual legislação vale para aquele item. A ordem de quem manda
+é **o que foi digitado à mão → a regra fiscal → zero**. O item mostra qual regra foi usada e
+tem o botão *Refazer os impostos por esta regra*. Item sem regra nenhuma nasce **sem CST** —
+o aviso na etapa de conferência mostra isso antes de transmitir.
 
 Código: `backend/fiscal.py` (o casamento) e `backend/routers/fiscal.py`.
 Teste: `python testes/teste_regras_fiscais.py`.
@@ -652,7 +663,8 @@ sistema-financeiro/
 │   ├── notas.py                 Regras das notas: importar o XML, faturar e desfaturar
 │   ├── emissao.py               NF-e 4.00: chave, XML, assinatura e webservices por UF
 │   ├── rejeicoes.py             Recusas da SEFAZ explicadas e com o lugar do conserto
-│   ├── fiscal.py                Regras fiscais: cruza tipo de cliente x tipo de item
+│   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
+│   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
 │   ├── diagnostico.py           Página que explica por que o sistema não ligou
 │   ├── seed.py                  Dados iniciais

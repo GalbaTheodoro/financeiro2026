@@ -904,9 +904,13 @@ const Cadastros = {
         { titulo: 'Unidade', valor: (r) => UI.escapar(r.unidade_nome || '-') },
         { titulo: 'Embalagem', valor: (r) => UI.escapar(r.embalagem || '-') },
         { titulo: 'Fiscal', valor: (r) => (r.ncm
-          ? `NCM ${UI.escapar(r.ncm)}<div class="mini">${UI.escapar(r.cfop_padrao || '')} ${
-            r.cst_icms ? `· CST ${UI.escapar(r.cst_icms)}` : ''}</div>`
-          : '<span class="mini">sem dados fiscais</span>') },
+          ? `NCM ${UI.escapar(r.ncm)}<div class="mini">${UI.escapar(r.cfop_padrao || '')}</div>`
+          : '<span class="mini">sem NCM</span>') },
+        { titulo: 'Tipo fiscal', valor: (r) => {
+          const tipo = (Cadastros._tiposFiscais || []).find((x) => x.id === r.tipo_fiscal_id);
+          return tipo ? UI.escapar(tipo.nome)
+            : '<span class="mini negativo">sem tipo — não acha regra</span>';
+        } },
         { titulo: 'Situação', classe: 'centro', valor: (r) => (r.ativo ? '<span class="tag tag-pago">Ativo</span>' : '<span class="tag tag-cancelado">Inativo</span>') },
       ],
       campos: [
@@ -917,8 +921,9 @@ const Cadastros = {
             .map((u) => ({ valor: u.id, rotulo: `${u.codigo} — ${u.nome}` })) },
         { nome: 'embalagem', rotulo: 'Embalagem', dica: 'a granel, sacaria...' },
         { nome: 'descricao', rotulo: 'Descrição', largura: 2 },
-        { tipo: 'secao', rotulo: 'Dados fiscais (nota fiscal eletrônica)',
-          dica: 'preenchidos sozinhos ao importar o XML de uma nota com este produto' },
+        { tipo: 'secao', rotulo: 'Identificação fiscal do produto',
+          dica: 'CST e alíquotas NÃO ficam aqui — elas saem da aba Regras fiscais, '
+            + 'que cruza CFOP, estados, tipo de cliente e tipo de item' },
         { nome: 'tipo_fiscal_id', rotulo: 'Tipo fiscal', tipo: 'select',
           vazio: 'Sem classificação', largura: 2,
           opcoes: () => (Cadastros._tiposFiscais || [])
@@ -944,16 +949,7 @@ const Cadastros = {
         { nome: 'unidade_tributavel', rotulo: 'Unidade tributável (uTrib)', dica: 'quase sempre igual à comercial' },
         { nome: 'gtin', rotulo: 'GTIN / código de barras', dica: 'em branco = SEM GTIN' },
         { nome: 'gtin_tributavel', rotulo: 'GTIN da unidade tributável' },
-        { nome: 'cst_icms', rotulo: 'CST / CSOSN do ICMS', dica: 'CST no regime normal, CSOSN no Simples' },
-        { nome: 'aliquota_icms', rotulo: '% de ICMS', tipo: 'dinheiro', padrao: 0 },
-        { nome: 'reducao_base_icms', rotulo: '% de redução da base', tipo: 'dinheiro', padrao: 0 },
         { nome: 'codigo_beneficio', rotulo: 'Código de benefício (cBenef)', dica: 'exigido em MG e em alguns estados' },
-        { nome: 'cst_ipi', rotulo: 'CST do IPI' },
-        { nome: 'aliquota_ipi', rotulo: '% de IPI', tipo: 'dinheiro', padrao: 0 },
-        { nome: 'cst_pis', rotulo: 'CST do PIS' },
-        { nome: 'aliquota_pis', rotulo: '% de PIS', tipo: 'dinheiro', padrao: 0 },
-        { nome: 'cst_cofins', rotulo: 'CST da COFINS' },
-        { nome: 'aliquota_cofins', rotulo: '% de COFINS', tipo: 'dinheiro', padrao: 0 },
         { nome: 'peso_liquido', rotulo: 'Peso líquido (kg)', tipo: 'dinheiro', padrao: 0 },
         { nome: 'peso_bruto', rotulo: 'Peso bruto (kg)', tipo: 'dinheiro', padrao: 0 },
         { nome: 'ex_tipi', rotulo: 'EX da TIPI' },
@@ -1039,12 +1035,18 @@ const Cadastros = {
           { empresa_id: Estado.empresaId });
         return Api.get('/api/fiscal/regras', { empresa_id: Estado.empresaId });
       },
-      acoesExtras: [{ rotulo: 'Testar uma situação', acao: () => Cadastros.simularRegra() }],
+      acoesExtras: [
+        { rotulo: 'Tabela cClassTrib', acao: () => Cadastros.tabelaClassTrib() },
+        { rotulo: 'Testar uma situação', acao: () => Cadastros.simularRegra() },
+      ],
+      aoMontarFormulario: (area) => Cadastros.ligarClassTrib(area),
       colunas: [
         { titulo: 'Regra', valor: (r) => `<span class="forte">${UI.escapar(r.nome || '-')}</span>
             <div class="mini">${UI.escapar(r.observacao || '')}</div>` },
         { titulo: 'Tipo de cliente', valor: (r) => UI.escapar(r.tipo_cliente_nome) },
         { titulo: 'Tipo de item', valor: (r) => UI.escapar(r.tipo_item_nome) },
+        { titulo: 'CFOP', classe: 'centro',
+          valor: (r) => (r.cfop ? `<b>${UI.escapar(r.cfop)}</b>` : '<span class="mini">qualquer</span>') },
         { titulo: 'Estados', classe: 'centro', valor: (r) => UI.escapar(r.rota) },
         { titulo: 'ICMS', classe: 'num',
           valor: (r) => `${UI.escapar(r.icms_cst || '-')} · ${UI.numero(r.icms_aliquota, 2)}%` },
@@ -1073,11 +1075,12 @@ const Cadastros = {
         { nome: 'operacao', rotulo: 'Operação', tipo: 'select', vazio: 'Saída e entrada',
           opcoes: () => [{ valor: 'SAIDA', rotulo: 'Saída' },
             { valor: 'ENTRADA', rotulo: 'Entrada' }] },
+        { nome: 'cfop', rotulo: 'CFOP',
+          dica: 'a regra só vale para este CFOP; em branco vale para qualquer um' },
         { nome: 'prioridade', rotulo: 'Prioridade', tipo: 'numero', padrao: 0,
           dica: 'desempata regras igualmente específicas' },
 
         { nome: 'secao_icms', rotulo: 'ICMS', tipo: 'secao' },
-        { nome: 'cfop', rotulo: 'CFOP', dica: 'ex.: 5102 no estado, 6102 fora' },
         { nome: 'icms_origem', rotulo: 'Origem da mercadoria',
           dica: '0 nacional, 1 importada...' },
         { nome: 'icms_cst', rotulo: 'CST ou CSOSN', dica: 'ex.: 51 diferimento, 102 Simples' },
@@ -1095,7 +1098,8 @@ const Cadastros = {
         { nome: 'secao_ibs', rotulo: 'IBS e CBS (reforma tributária)', tipo: 'secao',
           dica: '2026 é ano de teste: IBS 0,1% e CBS 0,9%' },
         { nome: 'ibs_cbs_cst', rotulo: 'CST do IBS/CBS' },
-        { nome: 'ibs_cbs_classe', rotulo: 'cClassTrib', dica: 'tabela da NT 2025.002' },
+        { nome: 'ibs_cbs_classe', rotulo: 'cClassTrib', largura: 2,
+          dica: 'clique em Procurar para abrir a tabela da NT 2025.002' },
         { nome: 'ibs_uf_aliquota', rotulo: 'IBS estadual (%)', tipo: 'dinheiro', padrao: 0 },
         { nome: 'ibs_mun_aliquota', rotulo: 'IBS municipal (%)', tipo: 'dinheiro', padrao: 0 },
         { nome: 'cbs_aliquota', rotulo: 'CBS (%)', tipo: 'dinheiro', padrao: 0 },
@@ -1106,6 +1110,85 @@ const Cadastros = {
         { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Regra ativa' },
       ],
     });
+  },
+
+  /** Põe o botão Procurar ao lado do campo cClassTrib do formulário da regra. */
+  ligarClassTrib(area) {
+    const campo = area.querySelector('[name=ibs_cbs_classe]');
+    if (!campo || campo.dataset.ligado) return;
+    campo.dataset.ligado = '1';
+    campo.placeholder = '000001';
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.className = 'btn btn-mini';
+    botao.textContent = 'Procurar na tabela';
+    botao.style.marginTop = '6px';
+    botao.onclick = () => Cadastros.tabelaClassTrib((escolhido) => {
+      campo.value = escolhido.codigo;
+      const cst = area.querySelector('[name=ibs_cbs_cst]');
+      if (cst && !cst.value) cst.value = escolhido.cst;
+    });
+    campo.parentElement.appendChild(botao);
+  },
+
+  /** Tabela de classificação tributária do IBS/CBS, com busca.
+      Chamada com `aoEscolher` preenche o campo; sem ela, é só consulta. */
+  async tabelaClassTrib(aoEscolher) {
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <p class="mini" style="margin-top:0">Códigos do Informe Técnico 2025.002. Procure por
+      número, por CST ou por palavra da descrição. <b>Esta é uma tabela resumida</b> — se o
+      código que você precisa não estiver aqui, digite-o direto no campo.</p>
+      <div class="linha-campos">
+        ${UI.campo('Procurar', '<input name="busca" placeholder="exportação, produtor, 000001...">')}
+        ${UI.campo('CST', UI.select('cst', [], '', { vazio: 'Todos' }))}
+      </div>
+      <div id="lista-classtrib"><div class="vazio">Carregando...</div></div>`;
+
+    const desenhar = async () => {
+      const dados = UI.lerFormulario(corpo);
+      const alvo = corpo.querySelector('#lista-classtrib');
+      try {
+        const r = await Api.get('/api/fiscal/cclasstrib',
+          { busca: dados.busca || '', cst: dados.cst || '' });
+        const seletor = corpo.querySelector('[name=cst]');
+        if (seletor && seletor.options.length <= 1) {
+          r.cst.forEach((c) => seletor.add(new Option(`${c.codigo} — ${c.nome}`, c.codigo)));
+        }
+        alvo.innerHTML = UI.tabela({
+          vazio: 'Nenhum código com esse texto. Você pode digitar o código à mão.',
+          colunas: [
+            { titulo: 'CST', classe: 'centro',
+              valor: (l) => `<b>${UI.escapar(l.cst)}</b><div class="mini">${UI.escapar(l.cst_nome)}</div>` },
+            { titulo: 'cClassTrib', classe: 'centro',
+              valor: (l) => `<span class="forte">${UI.escapar(l.codigo)}</span>` },
+            { titulo: 'O que é', valor: (l) => UI.escapar(l.descricao) },
+            ...(aoEscolher ? [{ titulo: '', classe: 'centro',
+              valor: (l, i) => `<button type="button" class="btn btn-mini btn-primario"
+                data-usar="${i}">Usar</button>` }] : []),
+          ],
+          linhas: r.linhas,
+        });
+        if (aoEscolher) {
+          alvo.querySelectorAll('[data-usar]').forEach((botao) => {
+            botao.onclick = () => {
+              aoEscolher(r.linhas[Number(botao.dataset.usar)]);
+              UI.fecharModal();
+            };
+          });
+        }
+      } catch (e) { UI.erro(e.message); }
+    };
+
+    UI.abrirModal({
+      titulo: 'Classificação tributária do IBS/CBS (cClassTrib)',
+      corpo,
+      largo: true,
+      botoes: [{ rotulo: 'Fechar', acao: UI.fecharModal }],
+    });
+    corpo.querySelector('[name=busca]').oninput = desenhar;
+    corpo.querySelector('[name=cst]').onchange = desenhar;
+    desenhar();
   },
 
   /** Testa a tabela sem precisar montar uma nota: escolhe cliente e produto e
@@ -1120,6 +1203,8 @@ const Cadastros = {
         ${UI.campo('Produto', UI.select('produto_id',
           Api.produtosAtivos().map((p) => ({ valor: p.id, rotulo: `${p.codigo} — ${p.nome}` })),
           '', {}))}
+        ${UI.campo('CFOP', '<input name="cfop" inputmode="numeric" placeholder="6102">',
+          'como você digitaria no item')}
         ${UI.campo('Operação', UI.select('operacao', [
           { valor: 'SAIDA', rotulo: 'Saída (venda)' },
           { valor: 'ENTRADA', rotulo: 'Entrada (compra)' },
@@ -1135,6 +1220,7 @@ const Cadastros = {
           empresa_id: Estado.empresaId,
           parceiro_id: dados.parceiro_id || null,
           produto_id: dados.produto_id || null,
+          cfop: dados.cfop || null,
           operacao: dados.operacao || 'SAIDA',
         });
         if (!r.regra) {
@@ -1180,6 +1266,7 @@ const Cadastros = {
       ],
     });
     corpo.querySelectorAll('select').forEach((campo) => { campo.onchange = rodar; });
+    corpo.querySelector('[name=cfop]').onchange = rodar;
   },
 
   icms() {

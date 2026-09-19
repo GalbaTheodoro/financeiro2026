@@ -343,6 +343,47 @@ Teste: `python testes/teste_dfe.py` — a parte do motor roda com os XML gravado
 `testes/dados_dfe/` (sem internet e sem SEFAZ).
 
 
+### Notas Fiscais: faturar, desfaturar e emitir
+
+**Movimento → Notas Fiscais** é a tela de gestão (o DF-e é só a caixa de entrada).
+
+**Faturar** transforma a nota em título: conta a **pagar** na nota de entrada, a **receber**
+na nota que a própria empresa emitiu. As parcelas saem das **duplicatas** da nota; sem
+duplicata, sai uma parcela só. O título nasce classificado e contabilizado.
+**Desfaturar** apaga esse título, estorna as partidas e libera a nota — só no AgroDock, a
+nota na SEFAZ não é tocada. Título com baixa não desfatura: primeiro estorne a baixa.
+Também dá para faturar **em lote**; o que falhar volta listado com o motivo.
+Código: `backend/notas.py` e `backend/routers/notas.py`; teste: `python testes/teste_faturamento.py`.
+
+**Emitir NF-e** (modelo 55) sai da mesma tela. O caminho é rascunho → prévia → transmitir:
+
+- o **rascunho** pode nascer de um contrato de venda (puxa cliente, produto, quantidade e
+  preço) ou do zero, e **não gasta numeração** — o número da série só é usado na transmissão,
+  e volta para a série se a SEFAZ rejeitar;
+- o XML é montado no **layout 4.00** com os dados dos cadastros (NCM, CFOP, CST/CSOSN e
+  alíquotas vêm do produto; o regime, CRT, vem da empresa), assinado com o mesmo certificado
+  A1 do DF-e e enviado em **lote síncrono** (`indSinc=1`), então a resposta já vem autorizada
+  ou rejeitada, sem consultar recibo;
+- em **homologação** o sistema troca o nome do destinatário e a descrição do primeiro item
+  pelo aviso exigido pela SEFAZ. O ambiente de produção exige confirmação explícita na tela;
+- autorizada, a nota guarda o `nfeProc` — é dele que saem a DANFE e o XML do contador, e é
+  por ele que a nota entra no faturamento como conta a receber;
+- **cancelar** é o evento 110111, com justificativa de 15 letras e dentro do prazo legal.
+
+Os webservices são resolvidos por UF (MG, SP, PR, RS, GO, MT, MS, BA, PE, CE e AM têm
+servidor próprio; o resto cai no SVRS). Antes de sair, a nota é barrada por item sem NCM ou
+CFOP, cliente sem código do município do IBGE, contribuinte sem inscrição estadual e empresa
+sem IE ou sem código do município — com a mensagem dizendo o que corrigir e onde.
+
+> A tributação (CFOP, CST/CSOSN, alíquotas) é responsabilidade do contribuinte e do seu
+> contador: o sistema usa o que está nos cadastros e não decide tributação sozinho.
+> Comece sempre em homologação.
+
+Código: `backend/emissao.py` (chave, XML, assinatura, transmissão e cancelamento) e
+`backend/routers/emissao.py`; tela em `frontend/js/emissao.js`.
+Teste: `python testes/teste_emissao.py` — monta e confere o XML inteiro **sem tocar na SEFAZ**.
+
+
 ### Onde pagar cada cliente/fornecedor
 
 Um mesmo parceiro costuma ter mais de uma forma de receber. Na lista de
@@ -525,6 +566,8 @@ sistema-financeiro/
 │   ├── externo.py               Chamadas HTTP às APIs externas
 │   ├── dfe.py                   Certificado A1, NFeDistribuiçãoDFe e manifestação
 │   ├── danfe.py                 Folha da nota fiscal (DANFE) pronta para imprimir
+│   ├── notas.py                 Regras das notas: importar o XML, faturar e desfaturar
+│   ├── emissao.py               NF-e 4.00: chave, XML, assinatura e webservices por UF
 │   ├── migracao.py              Atualização automática do banco
 │   ├── diagnostico.py           Página que explica por que o sistema não ligou
 │   ├── seed.py                  Dados iniciais
@@ -535,6 +578,8 @@ sistema-financeiro/
 │       ├── consulta.py          Buscas de CNPJ e CEP usadas pelos cadastros
 │       ├── contratos.py         Contratos de intermediação e geração de recebíveis
 │       ├── dfe.py               DF-e: certificado, busca na SEFAZ, DANFE e importação
+│       ├── notas.py             Notas fiscais: gestão, faturar e desfaturar
+│       ├── emissao.py           Emissão de NF-e: rascunho, transmissão e cancelamento
 │       ├── cadastros.py         Todos os cadastros
 │       ├── lancamentos.py       Títulos, parcelas e baixas
 │       ├── caixa.py             Extrato, movimentos e transferências
@@ -562,6 +607,8 @@ sistema-financeiro/
     ├── teste_contratos.py       Teste do contrato de corretagem e dos recebíveis gerados
     ├── teste_cadastros.py       Teste dos cadastros, numeração automática e limite de usuários
     ├── teste_dfe.py             Teste do DF-e (XML gravados, sem internet) e da importação
+    ├── teste_faturamento.py     Teste de faturar e desfaturar a nota
+    ├── teste_emissao.py         Teste da emissão de NF-e (sem tocar na SEFAZ)
     ├── teste_impressao.py       Teste da folha do contrato e geração do PDF
     ├── teste_status_contrato.py Teste do ciclo Aberto → Recebido Total e do relatório
     ├── teste_postgres.py        Teste do sistema rodando com o banco na nuvem
@@ -587,6 +634,8 @@ python testes/teste_contratos.py    # contrato de corretagem, comissões e conta
 python testes/teste_compra_venda.py # compra e venda de café, agente e títulos gerados
 python testes/teste_icms.py         # tabela de ICMS e o ICMS calculado no contrato
 python testes/teste_dfe.py          # DF-e: certificado, XML, DANFE, manifestação e importação
+python testes/teste_faturamento.py  # faturar e desfaturar a nota (título, parcelas, estorno)
+python testes/teste_emissao.py      # emissão de NF-e: chave, XML 4.00, assinatura e retornos
 python testes/teste_cadastros.py    # unidades, modalidades, produtos, nº automático e usuários
 python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/capturas/contrato.pdf)
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos

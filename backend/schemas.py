@@ -77,6 +77,13 @@ class EmpresaIn(BaseModel):
     site: str | None = None
     logo: str | None = None             # data URL do logotipo, para a impressão
     texto_contrato: str | None = None   # cláusulas fixas impressas no contrato
+    # dados exigidos para emitir nota fiscal
+    codigo_municipio: str | None = None  # código do IBGE da cidade
+    codigo_pais: str | None = "1058"
+    pais: str | None = "BRASIL"
+    crt: str | None = "1"                # 1 Simples | 2 Simples excesso | 3 Normal | 4 MEI
+    cnae: str | None = None
+    texto_nota: str | None = None        # entra nas informações complementares da NF-e
     ativo: bool = True
     criar_plano_padrao: bool = True
 
@@ -502,3 +509,85 @@ class AjustarNotaIn(BaseModel):
     empresa_id: int | None = None
     parceiro_id: int | None = None
     observacao: str | None = None
+
+
+# --------------------------------------------------------------------------- #
+# Emissão de NF-e
+# --------------------------------------------------------------------------- #
+class SerieNotaIn(BaseModel):
+    """Numeração das notas emitidas. Cada ambiente tem a sua sequência."""
+
+    empresa_id: int
+    serie: str = "1"
+    ambiente: str = "2"                  # 1 produção | 2 homologação
+    proximo_numero: int | None = None    # para continuar a numeração do sistema antigo
+    descricao: str | None = None
+    ativo: bool = True
+
+
+class ItemNotaIn(BaseModel):
+    """Item da nota que a empresa emite. O que ficar vazio vem do cadastro do produto."""
+
+    produto_id: int | None = None
+    codigo: str | None = None
+    descricao: str | None = None
+    gtin: str | None = None
+    ncm: str | None = None
+    cest: str | None = None
+    cfop: str | None = None
+    unidade: str | None = None
+    quantidade: float = 0
+    valor_unitario: float = 0
+    desconto: float = 0
+    frete: float = 0
+    origem_mercadoria: str | None = None
+    icms_cst: str | None = None          # CST (regime normal) ou CSOSN (Simples)
+    icms_base: float | None = None
+    icms_aliquota: float | None = None
+    cst_pis: str | None = None
+    cst_cofins: str | None = None
+
+
+class ParcelaNotaIn(BaseModel):
+    numero: str | None = None
+    vencimento: date
+    valor: float
+
+
+class NotaEmitidaIn(BaseModel):
+    """Rascunho da NF-e."""
+
+    empresa_id: int
+    parceiro_id: int | None = None       # o cliente
+    contrato_id: int | None = None       # quando a nota nasce de um contrato de venda
+    ambiente: str | None = None          # padrão: o do certificado
+    serie: str = "1"
+    data_emissao: date | None = None
+    natureza_operacao: str | None = "VENDA DE MERCADORIA"
+    tipo_operacao: str = "1"             # 0 entrada | 1 saída
+    finalidade: str = "1"                # 1 normal | 2 complementar | 3 ajuste | 4 devolução
+    cfop: str | None = None
+    # transporte
+    frete_modalidade: str = "9"
+    transportadora_id: int | None = None
+    placa_veiculo: str | None = None
+    uf_veiculo: str | None = None
+    volumes: int | None = None
+    especie_volume: str | None = None
+    peso_liquido: float = 0
+    peso_bruto: float = 0
+    informacoes_complementares: str | None = None
+    itens: list[ItemNotaIn] = []
+    parcelas: list[ParcelaNotaIn] = []
+
+
+class TransmitirNotaIn(BaseModel):
+    """Enviar para a SEFAZ. Em produção exige confirmação explícita."""
+
+    empresa_id: int | None = None
+    confirmo_producao: bool = False
+
+
+class CancelarNotaIn(BaseModel):
+    empresa_id: int | None = None
+    justificativa: str

@@ -98,6 +98,7 @@ def listar(
     situacao: str | None = None,
     faturamento: str | None = Query(None, description="faturadas | a-faturar"),
     sentido: str | None = Query(None, description="entrada | saida"),
+    origem: str | None = Query(None, description="DFE (recebidas) | EMITIDA"),
     parceiro_id: int | None = None,
     busca: str | None = None,
     limite: int = 400,
@@ -118,6 +119,8 @@ def listar(
         consulta = consulta.filter(Nota.lancamento_id.isnot(None))
     elif faturamento == "a-faturar":
         consulta = consulta.filter(Nota.lancamento_id.is_(None))
+    if origem in ("DFE", "EMITIDA"):
+        consulta = consulta.filter(Nota.origem == origem)
     if parceiro_id:
         consulta = consulta.filter(Nota.parceiro_id == parceiro_id)
     if busca:
@@ -142,7 +145,9 @@ def listar(
         alvo = "Entrada" if sentido == "entrada" else "Saída"
         linhas = [x for x in linhas if x["sentido"] == alvo]
 
-    validas = [x for x in linhas if x["situacao"] != "CANCELADA"]
+    # rascunho ainda não é documento: fica de fora dos totais
+    validas = [x for x in linhas
+               if x["situacao"] != "CANCELADA" and x.get("status_emissao") != "RASCUNHO"]
     return {
         "linhas": linhas,
         "totais": {
@@ -151,6 +156,8 @@ def listar(
             "faturadas": sum(1 for x in linhas if x["faturada"]),
             "valor_faturado": dinheiro(sum(x["valor_total"] for x in validas if x["faturada"])),
             "a_faturar": sum(1 for x in validas if not x["faturada"]),
+            "emitidas": sum(1 for x in linhas if x["origem"] == "EMITIDA"),
+            "rascunhos": sum(1 for x in linhas if x.get("status_emissao") == "RASCUNHO"),
             "valor_a_faturar": dinheiro(
                 sum(x["valor_total"] for x in validas if not x["faturada"])),
         },

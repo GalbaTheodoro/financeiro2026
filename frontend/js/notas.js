@@ -8,7 +8,7 @@
      Desfaturar -> apaga esse título e libera a nota de novo. Só no AgroDock:
                    a nota na SEFAZ não é tocada. */
 const Notas = {
-  filtros: { inicio: '', fim: '', situacao: '', faturamento: '', sentido: '', busca: '' },
+  filtros: { inicio: '', fim: '', situacao: '', faturamento: '', sentido: '', origem: '', busca: '' },
   selecionadas: new Set(),
 
   SITUACOES: [
@@ -24,6 +24,14 @@ const Notas = {
     { valor: 'entrada', rotulo: 'Entrada (recebi a nota)' },
     { valor: 'saida', rotulo: 'Saída (minha empresa emitiu)' },
   ],
+  ORIGENS: [
+    { valor: 'DFE', rotulo: 'Recebidas (vieram da SEFAZ)' },
+    { valor: 'EMITIDA', rotulo: 'Emitidas por mim' },
+  ],
+  TAG_EMISSAO: {
+    RASCUNHO: 'tag-aberto', ENVIADA: 'tag-parcial', AUTORIZADA: 'tag-pago',
+    REJEITADA: 'tag-vencido', CANCELADA: 'tag-cancelado',
+  },
   TAG_SITUACAO: { AUTORIZADA: 'tag-pago', CANCELADA: 'tag-cancelado', DENEGADA: 'tag-vencido' },
 
   /* ================================================================ LISTAGEM */
@@ -56,7 +64,9 @@ const Notas = {
           <div class="kpi-nota">viraram conta a pagar ou a receber</div></div>
         <div class="kpi destaque-ambar"><div class="kpi-rotulo">Na lista abaixo</div>
           <div class="kpi-valor">${UI.moeda(t.valor)}</div>
-          <div class="kpi-nota">${t.quantidade} nota(s) — ${UI.moeda(t.valor_a_faturar)} a faturar</div></div>
+          <div class="kpi-nota">${t.quantidade} nota(s)${
+            t.emitidas ? ` · ${t.emitidas} emitida(s) por mim` : ''}${
+            t.rascunhos ? ` · ${t.rascunhos} rascunho(s)` : ''}</div></div>
       </div>
 
       <div class="cartao">
@@ -66,6 +76,8 @@ const Notas = {
           <div class="espaco">
             <button class="btn" id="btn-exportar-notas">Exportar CSV</button>
             <button class="btn" id="btn-ir-dfe">Buscar na SEFAZ</button>
+            <button class="btn" id="btn-series">Numeração</button>
+            <button class="btn btn-verde" id="btn-emitir">+ Emitir NF-e</button>
             <button class="btn btn-primario oculto" id="btn-faturar-lote">Faturar selecionadas</button>
           </div>
         </div>
@@ -74,6 +86,7 @@ const Notas = {
           ${UI.campo('Emissão até', `<input type="date" name="fim" value="${f.fim}">`)}
           ${UI.campo('Faturamento', UI.select('faturamento', Notas.FATURAMENTO, f.faturamento, { vazio: 'Todas' }))}
           ${UI.campo('Entrada ou saída', UI.select('sentido', Notas.SENTIDOS, f.sentido, { vazio: 'Todas' }))}
+          ${UI.campo('Origem', UI.select('origem', Notas.ORIGENS, f.origem, { vazio: 'Todas' }))}
           ${UI.campo('Situação', UI.select('situacao', Notas.SITUACOES, f.situacao, { vazio: 'Todas' }))}
           ${UI.campo('Buscar', `<input name="busca" value="${UI.escapar(f.busca)}" placeholder="emitente, número, chave...">`)}
           <div class="acoes"><button class="btn btn-primario" id="btn-filtrar-notas">Filtrar</button></div>
@@ -87,6 +100,8 @@ const Notas = {
       Notas.tela();
     };
     alvo.querySelector('#btn-ir-dfe').onclick = () => App.irPara('/dfe');
+    alvo.querySelector('#btn-emitir').onclick = () => Emissao.abrir(null, null);
+    alvo.querySelector('#btn-series').onclick = () => Emissao.series();
     alvo.querySelector('#btn-exportar-notas').onclick = () =>
       UI.exportarTabela('notas-fiscais', '#lista-notas table');
     alvo.querySelector('#btn-faturar-lote').onclick = () => Notas.faturarLote();
@@ -96,7 +111,8 @@ const Notas = {
 
   desenharLista() {
     const linhas = Notas._linhas || [];
-    const podeFaturar = (n) => !n.faturada && n.situacao !== 'CANCELADA';
+    const podeFaturar = (n) => !n.faturada && n.situacao !== 'CANCELADA'
+      && n.status_emissao !== 'RASCUNHO' && n.status_emissao !== 'REJEITADA';
     document.getElementById('lista-notas').innerHTML = UI.tabela({
       vazio: 'Nenhuma nota por aqui. Vá em DF-e para buscar as notas na SEFAZ ou enviar um XML.',
       colunas: [
@@ -115,22 +131,32 @@ const Notas = {
           : '<span class="mini">não ligado ao cadastro</span>') },
         { titulo: 'Valor', classe: 'num', valor: (n) => UI.moeda(n.valor_total) },
         { titulo: 'Situação', classe: 'centro',
-          valor: (n) => `<span class="tag ${Notas.TAG_SITUACAO[n.situacao] || ''}">${
-            UI.escapar((n.situacao || '').charAt(0) + (n.situacao || '').slice(1).toLowerCase())}</span>` },
+          valor: (n) => (n.origem === 'EMITIDA'
+            ? `<span class="tag ${Notas.TAG_EMISSAO[n.status_emissao] || ''}">${
+                UI.escapar(((n.status_emissao || '').charAt(0)
+                  + (n.status_emissao || '').slice(1).toLowerCase()))}</span>
+               <div class="mini">emitida por mim</div>`
+            : `<span class="tag ${Notas.TAG_SITUACAO[n.situacao] || ''}">${
+                UI.escapar((n.situacao || '').charAt(0) + (n.situacao || '').slice(1).toLowerCase())}</span>`) },
         { titulo: 'Faturamento', classe: 'centro', valor: (n) => Notas.selo(n) },
         { titulo: 'Ações', classe: 'centro',
           valor: (n, i) => `<button class="btn btn-mini" data-ficha="${i}">Abrir</button>
             ${n.faturada
               ? `<button class="btn btn-mini btn-perigo" data-desfaturar="${i}">Desfaturar</button>`
-              : (n.situacao === 'CANCELADA' ? ''
-                : `<button class="btn btn-mini btn-verde" data-faturar="${i}">Faturar</button>`)}` },
+              : (podeFaturar(n)
+                ? `<button class="btn btn-mini btn-verde" data-faturar="${i}">Faturar</button>` : '')}` },
       ],
       linhas,
     });
 
     const alvo = document.getElementById('lista-notas');
     alvo.querySelectorAll('[data-ficha]').forEach((b) => {
-      b.onclick = () => Notas.ficha(linhas[Number(b.dataset.ficha)].id);
+      b.onclick = () => {
+        const nota = linhas[Number(b.dataset.ficha)];
+        // nota emitida pela empresa abre no formulário de emissão; recebida, na ficha
+        if (nota.origem === 'EMITIDA') return Emissao.abrir(nota.id);
+        return Notas.ficha(nota.id);
+      };
     });
     alvo.querySelectorAll('[data-faturar]').forEach((b) => {
       b.onclick = () => Notas.faturar(linhas[Number(b.dataset.faturar)]);
@@ -151,6 +177,7 @@ const Notas = {
 
   selo(n) {
     if (!n.faturada) {
+      if (n.status_emissao === 'RASCUNHO') return '<span class="mini">rascunho</span>';
       return n.situacao === 'CANCELADA'
         ? '<span class="mini">nota cancelada</span>'
         : '<span class="tag tag-aberto">A faturar</span>';

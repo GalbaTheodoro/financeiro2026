@@ -82,6 +82,17 @@ class Empresa(Base):
     logo = Column(Text)
     # Texto fixo impresso no rodapé do contrato (cláusulas gerais, foro...)
     texto_contrato = Column(Text)
+
+    # ---- dados exigidos para EMITIR nota fiscal ----
+    codigo_municipio = Column(String(7))     # código do IBGE da cidade da empresa
+    codigo_pais = Column(String(4), default="1058")
+    pais = Column(String(60), default="BRASIL")
+    # CRT: 1 Simples Nacional | 2 Simples com excesso | 3 Regime normal | 4 MEI
+    crt = Column(String(1), default="1")
+    cnae = Column(String(10))
+    # texto fixo que entra em "Informações complementares" de toda nota emitida
+    texto_nota = Column(Text)
+
     # Usuário assinante dono desta empresa (isolamento entre contas)
     dono_id = Column(Integer, index=True)
     ativo = Column(Boolean, nullable=False, default=True)
@@ -721,8 +732,36 @@ class CertificadoDigital(Base):
     atualizado_em = Column(DateTime, default=datetime.utcnow)
 
 
+class SerieNota(Base):
+    """Numeração das notas que a empresa emite.
+
+    Cada série tem sua própria sequência. O número só é gasto quando a nota é
+    transmitida — rascunho não consome numeração, para não abrir buraco na
+    sequência se o usuário desistir.
+    """
+
+    __tablename__ = "series_nota"
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "modelo", "serie", "ambiente", name="uq_serie_nota"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    modelo = Column(String(2), nullable=False, default="55")
+    serie = Column(String(3), nullable=False, default="1")
+    ambiente = Column(String(1), nullable=False, default="2")  # 1 produção | 2 homologação
+    proximo_numero = Column(Integer, nullable=False, default=1)
+    descricao = Column(String(80))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
 class Nota(Base):
-    """Documento fiscal baixado da SEFAZ (NF-e, resumo ou XML completo).
+    """Documento fiscal: o que a SEFAZ entregou **e** o que a empresa emite.
+
+    `origem` separa os dois mundos:
+      DFE     — veio da SEFAZ (ou de um XML recebido). Só leitura.
+      EMITIDA — a empresa está emitindo. Passa por RASCUNHO -> AUTORIZADA.
 
     `resumo` = True quando a SEFAZ entregou só o resumo (resNFe). O XML completo
     (procNFe) costuma chegar depois que o destinatário dá ciência da operação.
@@ -733,6 +772,7 @@ class Nota(Base):
 
     id = Column(Integer, primary_key=True)
     empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    # rascunho ainda não tem chave: fica um código provisório "RASCUNHO-<id>"
     chave = Column(String(44), nullable=False, index=True)
     nsu = Column(String(15), index=True)
     esquema = Column(String(40))              # resNFe_v1.01, procNFe_v4.00...
@@ -787,10 +827,38 @@ class Nota(Base):
     faturada_por_id = Column(Integer, ForeignKey("usuarios.id"))
     faturamento_observacao = Column(String(300))
 
+    # ---- emissão (só nas notas que a empresa emite) ----
+    origem = Column(String(8), nullable=False, default="DFE", index=True)  # DFE | EMITIDA
+    # RASCUNHO | ENVIADA | AUTORIZADA | REJEITADA | CANCELADA
+    status_emissao = Column(String(12), index=True)
+    ambiente = Column(String(1))              # 1 produção | 2 homologação
+    contrato_id = Column(Integer, ForeignKey("contratos.id"), index=True)
+    cfop = Column(String(5))
+    codigo_sefaz = Column(String(5))          # cStat do retorno
+    mensagem_sefaz = Column(String(300))      # xMotivo do retorno
+    recibo = Column(String(20))
+    enviada_em = Column(DateTime)
+    # transporte
+    frete_modalidade = Column(String(1), default="9")  # 0 emitente, 1 destinatário... 9 sem frete
+    transportadora_id = Column(Integer, ForeignKey("parceiros.id"))
+    placa_veiculo = Column(String(8))
+    uf_veiculo = Column(String(2))
+    volumes = Column(Integer)
+    especie_volume = Column(String(30))
+    peso_liquido = Column(Numeric(15, 3, asdecimal=False), nullable=False, default=0)
+    peso_bruto = Column(Numeric(15, 3, asdecimal=False), nullable=False, default=0)
+    informacoes_complementares = Column(Text)
+    # cancelamento
+    cancelamento_justificativa = Column(String(255))
+    cancelamento_protocolo = Column(String(20))
+    cancelada_em = Column(DateTime)
+
     observacao = Column(Text)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
-    parceiro = relationship("Parceiro")
+    parceiro = relationship("Parceiro", foreign_keys=[parceiro_id])
+    transportadora = relationship("Parceiro", foreign_keys=[transportadora_id])
+    contrato = relationship("Contrato")
     itens = relationship(
         "NotaItem", back_populates="nota", cascade="all, delete-orphan",
         order_by="NotaItem.numero",
@@ -828,6 +896,15 @@ class NotaItem(Base):
     ipi_valor = _dinheiro()
     pis_valor = _dinheiro()
     cofins_valor = _dinheiro()
+    # usados na emissão (na nota recebida ficam como vieram no XML)
+    origem_mercadoria = Column(String(1), default="0")
+    icms_reducao = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_ipi = Column(String(2))
+    aliquota_ipi = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_pis = Column(String(2))
+    aliquota_pis = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cst_cofins = Column(String(2))
+    aliquota_cofins = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     # produto do cadastro ligado a este item (preenchido na importação)
     produto_id = Column(Integer, ForeignKey("produtos.id"), index=True)
 

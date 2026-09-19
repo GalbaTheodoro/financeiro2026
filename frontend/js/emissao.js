@@ -271,6 +271,7 @@ const Emissao = {
     } else {
       corpo.querySelectorAll('input,select,textarea').forEach((c) => { c.disabled = true; });
     }
+    Emissao.ligarConserto(corpo, irPara);
     irPara(etapaInicial);
   },
 
@@ -281,6 +282,59 @@ const Emissao = {
       <div class="cartao-corpo"><b>Dá para montar a nota, mas ainda não dá para transmitir.</b>
         <div class="mini">Falta: ${preparo.pendencias.map((p) => UI.escapar(p)).join(' · ')}</div>
       </div></div>`;
+  },
+
+  /* Onde cada tipo de recusa se conserta — vira o botão de atalho do aviso. */
+  CONSERTO: {
+    empresa: { rotulo: 'Abrir cadastro da empresa', rota: '/cadastros/empresas' },
+    cliente: { rotulo: 'Abrir cadastro de clientes', rota: '/cadastros/parceiros' },
+    produto: { rotulo: 'Abrir cadastro de produtos', rota: '/cadastros/produtos' },
+    certificado: { rotulo: 'Abrir o certificado digital', rota: '/dfe/certificado' },
+    nota: { etapa: 0 },
+    itens: { etapa: 1 },
+    pagamento: { etapa: 2 },
+  },
+
+  /** O aviso que fica na tela: código, frase da SEFAZ, o que é e como arrumar. */
+  cartaoErro(erro) {
+    if (!erro) return '';
+    const conserto = Emissao.CONSERTO[erro.onde];
+    const atalho = conserto && conserto.rota
+      ? `<button type="button" class="btn btn-mini" data-conserto="${UI.escapar(erro.onde)}"
+           style="margin-top:10px">${UI.escapar(conserto.rotulo)}</button>`
+      : conserto && conserto.etapa !== undefined
+        ? `<button type="button" class="btn btn-mini" data-conserto="${UI.escapar(erro.onde)}"
+             style="margin-top:10px">Ir para a etapa do conserto</button>`
+        : '';
+    return `
+      <div class="cartao" style="margin-bottom:12px;border-left:4px solid var(--vermelho)">
+        <div class="cartao-corpo">
+          <b>${UI.escapar(erro.causa || 'A SEFAZ recusou a nota.')}</b>
+          <div style="margin-top:8px">${UI.escapar(erro.corrigir || '')}</div>
+          <div class="mini" style="margin-top:10px">
+            Resposta da SEFAZ${erro.codigo ? ` — código <b>${UI.escapar(erro.codigo)}</b>` : ''}:
+            <i>${UI.escapar(erro.mensagem || '')}</i>
+          </div>
+          ${erro.denegada ? `<div class="mini" style="margin-top:6px">
+            <b>Nota denegada:</b> o número foi consumido e essa nota não pode ser reaproveitada.
+            Depois de resolver a pendência, emita outra.</div>` : ''}
+          ${atalho}
+        </div></div>`;
+  },
+
+  /** Liga os botões de atalho do aviso de erro. */
+  ligarConserto(corpo, irPara) {
+    corpo.querySelectorAll('[data-conserto]').forEach((botao) => {
+      botao.onclick = () => {
+        const conserto = Emissao.CONSERTO[botao.dataset.conserto];
+        if (!conserto) return;
+        if (conserto.rota) {
+          UI.fecharModal();
+          return App.irPara(conserto.rota);
+        }
+        if (irPara) irPara(conserto.etapa);
+      };
+    });
   },
 
   faixaSituacao(n) {
@@ -300,9 +354,9 @@ const Emissao = {
       <div class="cartao-corpo">
         <b>${UI.escapar(textos[situacao] || situacao)}</b>
         ${n.ambiente === '2' ? '<div class="mini">Ambiente de <b>homologação</b>: a nota não tem valor fiscal.</div>' : ''}
-        ${n.mensagem_sefaz ? `<div class="mini">SEFAZ: ${UI.escapar(n.codigo_sefaz || '')} — ${UI.escapar(n.mensagem_sefaz)}</div>` : ''}
         ${n.protocolo ? `<div class="mini">Protocolo ${UI.escapar(n.protocolo)} · chave ${UI.escapar(n.chave_formatada || '')}</div>` : ''}
-      </div></div>`;
+      </div></div>
+      ${Emissao.cartaoErro(n.erro)}`;
   },
 
   /* ================================================================== ITENS */
@@ -698,19 +752,60 @@ const Emissao = {
               const r = await Api.post(`/api/nfe/${n.id}/transmitir`, {
                 empresa_id: Estado.empresaId, confirmo_producao: true,
               });
-              UI.fecharModal();
-              if (r.ok) UI.sucesso(r.mensagem);
-              else UI.erro(r.mensagem);
               if (typeof Notas !== 'undefined' && Notas._linhas) Notas.tela();
+              if (!r.ok) return Emissao.painelRecusa(r.nota || n, r.erro, 'transmitir');
+              UI.fecharModal();
+              UI.sucesso(r.mensagem);
               Emissao.abrir(n.id);
             } catch (e) {
-              UI.erro(e.message);
-              Emissao.abrir(n.id);
+              Emissao.painelRecusa(n, { causa: 'Não deu para transmitir a nota.',
+                                        corrigir: e.message, mensagem: '' }, 'transmitir');
             }
           },
         },
       ],
     });
+  },
+
+  /** Quando a SEFAZ recusa: um painel que fica na tela dizendo o que houve,
+      o que fazer e com o atalho para o lugar do conserto. */
+  painelRecusa(n, erro, origem) {
+    const dados = erro || { causa: 'A SEFAZ não aceitou a nota.', corrigir: '', mensagem: '' };
+    const conserto = Emissao.CONSERTO[dados.onde];
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <p style="margin-top:0">A nota <b>não foi autorizada</b>${origem === 'cancelar'
+        ? ' — o cancelamento não passou' : ''}.
+      ${n.status_emissao === 'RASCUNHO'
+        ? 'Ela voltou a ser rascunho e <b>não gastou número</b>: é só corrigir e mandar de novo.'
+        : ''}</p>
+      ${Emissao.cartaoErro({ ...dados, denegada: dados.denegada })}
+      <p class="mini">Guarde o código acima se precisar falar com o seu contador
+      ou com o suporte — é por ele que se identifica a recusa.</p>`;
+
+    const botoes = [{ rotulo: 'Fechar', acao: UI.fecharModal }];
+    if (dados.mensagem || dados.causa) {
+      botoes.push({
+        rotulo: 'Copiar a mensagem',
+        acao: () => {
+          const texto = `NF-e ${n.numero || '(rascunho)'} — SEFAZ ${dados.codigo || ''}: `
+            + `${dados.mensagem || dados.corrigir || ''}`;
+          navigator.clipboard?.writeText(texto)
+            .then(() => UI.sucesso('Mensagem copiada.'))
+            .catch(() => UI.erro('O navegador não deixou copiar. Selecione o texto na tela.'));
+        },
+      });
+    }
+    if (conserto && conserto.rota) {
+      botoes.push({ rotulo: conserto.rotulo, classe: 'btn-primario',
+        acao: () => { UI.fecharModal(); App.irPara(conserto.rota); } });
+    } else if (n.pode_editar !== false) {
+      botoes.push({ rotulo: 'Corrigir a nota', classe: 'btn-primario',
+        acao: () => Emissao.abrir(n.id) });
+    }
+
+    UI.abrirModal({ titulo: 'A SEFAZ não autorizou', corpo, largo: true, botoes });
+    Emissao.ligarConserto(corpo, null);
   },
 
   async previa(notaId) {
@@ -780,12 +875,13 @@ const Emissao = {
               const r = await Api.post(`/api/nfe/${n.id}/cancelar`, {
                 empresa_id: Estado.empresaId, justificativa: dados.justificativa,
               });
+              if (typeof Notas !== 'undefined') Notas.tela();
+              if (r.ok === false) return Emissao.painelRecusa(r.nota || n, r.erro, 'cancelar');
               UI.fecharModal();
               UI.sucesso(r.mensagem);
-              if (typeof Notas !== 'undefined') Notas.tela();
             } catch (e) {
-              UI.erro(e.message);
-              Emissao.abrir(n.id);
+              Emissao.painelRecusa(n, { causa: 'Não deu para cancelar a nota.',
+                                        corrigir: e.message, mensagem: '' }, 'cancelar');
             }
           },
         },

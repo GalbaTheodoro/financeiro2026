@@ -20,7 +20,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import danfe, dfe as motor, emissao as nfe, notas as regras
+from .. import danfe, dfe as motor, emissao as nfe, notas as regras, rejeicoes
 from ..database import get_db
 from ..deps import acesso_liberado, validar_empresa
 from ..models import (
@@ -373,6 +373,9 @@ def _ficha(db: Session, nota: Nota) -> dict:
             "crt": empresa.crt if empresa else "1",
             "pode_editar": nota.status_emissao == "RASCUNHO",
             "pode_cancelar": nota.status_emissao == "AUTORIZADA",
+            # a última recusa continua explicada quando a nota é reaberta
+            "erro": rejeicoes.explicar(nota.codigo_sefaz, nota.mensagem_sefaz)
+            if nota.mensagem_sefaz and nota.status_emissao != "AUTORIZADA" else None,
         }),
         "itens": [serializar(i) for i in nota.itens],
         "parcelas": [serializar(p) for p in nota.pagamentos if p.origem == "DUPLICATA"],
@@ -474,10 +477,20 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
         nota.status_emissao = "RASCUNHO"
         nota.chave = f"RASCUNHO-{nota.id}"
         nota.numero = None
+        nota.codigo_sefaz = None
+        nota.mensagem_sefaz = str(erro)[:300]
         serie = _serie(db, nota.empresa_id, nota.serie or "1", ambiente)
         serie.proximo_numero = numero
         db.commit()
-        raise HTTPException(400, str(erro)) from None
+        db.refresh(nota)
+        # 200 com ok=False: a tela mostra o painel de erro explicado, não um toast que some
+        return {
+            "ok": False,
+            "codigo": "",
+            "mensagem": str(erro),
+            "erro": rejeicoes.explicar_falha(str(erro)),
+            "nota": _ficha(db, nota)["nota"],
+        }
 
     nota.codigo_sefaz = (retorno["codigo"] or "")[:5]
     nota.mensagem_sefaz = (retorno["mensagem"] or "")[:300]
@@ -511,6 +524,11 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
             if retorno["autorizada"]
             else f"A SEFAZ não autorizou ({retorno['codigo']}): {retorno['mensagem']}"
         ),
+        # o que deu errado, explicado e com o lugar do conserto
+        "erro": None if retorno["autorizada"] else {
+            **rejeicoes.explicar(retorno["codigo"], retorno["mensagem"]),
+            "denegada": retorno["denegada"],
+        },
         "nota": _ficha(db, nota)["nota"],
     }
 
@@ -534,11 +552,20 @@ def cancelar(nota_id: int, dados: CancelarNotaIn, db: Session = Depends(get_db),
             dados.justificativa or "",
         )
     except nfe.ErroEmissao as erro:
-        raise HTTPException(400, str(erro)) from None
+        return {
+            "ok": False,
+            "mensagem": str(erro),
+            "erro": rejeicoes.explicar_falha(str(erro)),
+            "nota": _ficha(db, nota)["nota"],
+        }
 
     if not retorno["ok"]:
-        raise HTTPException(
-            400, f"A SEFAZ não cancelou ({retorno['cstat']}): {retorno['motivo']}")
+        return {
+            "ok": False,
+            "mensagem": f"A SEFAZ não cancelou ({retorno['cstat']}): {retorno['motivo']}",
+            "erro": rejeicoes.explicar(retorno["cstat"], retorno["motivo"]),
+            "nota": _ficha(db, nota)["nota"],
+        }
     nota.status_emissao = "CANCELADA"
     nota.situacao = "CANCELADA"
     nota.cancelamento_justificativa = (dados.justificativa or "").strip()[:255]

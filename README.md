@@ -379,8 +379,23 @@ sem IE ou sem código do município — com a mensagem dizendo o que corrigir e 
 > contador: o sistema usa o que está nos cadastros e não decide tributação sozinho.
 > Comece sempre em homologação.
 
-Código: `backend/emissao.py` (chave, XML, assinatura, transmissão e cancelamento) e
-`backend/routers/emissao.py`; tela em `frontend/js/emissao.js`.
+#### Quando a SEFAZ recusa
+
+A SEFAZ responde com um código (`cStat`) e uma frase curta — *"Rejeição: Duplicidade de
+NF-e"* — que não diz o que fazer. O sistema traduz essa resposta em três partes e mostra
+num painel que **fica na tela** (não some como aviso): o que aconteceu, o que fazer para
+a nota passar, e a resposta original da SEFAZ com o código, para levar ao contador.
+Junto vai um **atalho para o lugar do conserto**: cadastro da empresa, do cliente, do
+produto, o certificado digital ou a etapa certa da própria nota.
+
+O aviso continua dentro da nota quando ela é reaberta, então dá para corrigir com calma.
+Rejeição comum devolve o número da série e a nota volta a ser rascunho; denegação consome
+o número e exige nota nova. Códigos fora da tabela ainda saem explicados: a frase da SEFAZ
+é lida em busca de palavras conhecidas (certificado, NCM, CFOP, inscrição estadual...).
+
+Código: `backend/emissao.py` (chave, XML, assinatura, transmissão e cancelamento),
+`backend/rejeicoes.py` (a tradução das recusas) e `backend/routers/emissao.py`;
+tela em `frontend/js/emissao.js`.
 Teste: `python testes/teste_emissao.py` — monta e confere o XML inteiro **sem tocar na SEFAZ**.
 
 
@@ -568,6 +583,7 @@ sistema-financeiro/
 │   ├── danfe.py                 Folha da nota fiscal (DANFE) pronta para imprimir
 │   ├── notas.py                 Regras das notas: importar o XML, faturar e desfaturar
 │   ├── emissao.py               NF-e 4.00: chave, XML, assinatura e webservices por UF
+│   ├── rejeicoes.py             Recusas da SEFAZ explicadas e com o lugar do conserto
 │   ├── migracao.py              Atualização automática do banco
 │   ├── diagnostico.py           Página que explica por que o sistema não ligou
 │   ├── seed.py                  Dados iniciais

@@ -357,6 +357,42 @@ denegada = nfe.ler_retorno_autorizacao(RETORNO_DENEGA, assinada)
 checar("denegação é separada da rejeição comum",
        not denegada["autorizada"] and denegada["denegada"])
 
+print("\n=== 7b. A recusa explicada para quem usa ===")
+from backend import rejeicoes  # noqa: E402
+
+explicado = rejeicoes.explicar(rejeitada["codigo"], rejeitada["mensagem"])
+checar("a rejeição 539 vira explicação em português",
+       "número" in explicado["causa"] and explicado["onde"] == rejeicoes.NOTA
+       and explicado["mensagem"] == rejeitada["mensagem"], explicado["causa"])
+checar("a resposta original da SEFAZ continua junto",
+       explicado["codigo"] == "539" and "Duplicidade" in explicado["mensagem"])
+
+casos = [
+    ("210", rejeicoes.CLIENTE), ("209", rejeicoes.EMPRESA), ("281", rejeicoes.CERTIFICADO),
+    ("778", rejeicoes.PRODUTO), ("610", rejeicoes.ITENS), ("108", rejeicoes.ESPERAR),
+    ("252", rejeicoes.NOTA), ("302", rejeicoes.CLIENTE), ("213", rejeicoes.CERTIFICADO),
+]
+faltando = [c for c, onde in casos
+            if rejeicoes.explicar(c, "")["onde"] != onde
+            or len(rejeicoes.explicar(c, "")["corrigir"]) < 20]
+checar("cada código conhecido diz onde se conserta", not faltando, str(faltando))
+
+# código fora da tabela: a frase da SEFAZ é lida em busca de pistas
+pista = rejeicoes.explicar("999", "Rejeicao: Certificado digital vencido")
+checar("código desconhecido ainda aponta o caminho pela frase da SEFAZ",
+       pista["onde"] == rejeicoes.CERTIFICADO and "certificado" in pista["corrigir"].lower(),
+       pista["onde"])
+pista_ncm = rejeicoes.explicar("888", "Rejeicao: Informado NCM inexistente")
+checar("frase com NCM manda para o cadastro do produto",
+       pista_ncm["onde"] == rejeicoes.PRODUTO)
+generico = rejeicoes.explicar("777", "Rejeicao: algo que ninguem previu")
+checar("sem pista nenhuma ainda sai um texto útil, com código e frase",
+       generico["codigo"] == "777" and "ninguem previu" in generico["mensagem"]
+       and len(generico["corrigir"]) > 40)
+falha = rejeicoes.explicar_falha("A SEFAZ não respondeu no tempo esperado (timeout).")
+checar("falha de conexão avisa que não é erro da nota",
+       falha["onde"] == rejeicoes.ESPERAR, falha["corrigir"][:40])
+
 print("\n=== 8. Endereços dos webservices ===")
 checar("MG tem endereço próprio de autorização",
        "fazenda.mg.gov.br" in nfe._endereco(nfe.AUTORIZACAO, "MG", "1")

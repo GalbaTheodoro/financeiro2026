@@ -488,14 +488,16 @@ const Emissao = {
         .replace('<select', `<select data-campo="${nome}" data-linha="${i}"`), dica);
   },
 
-  /** Bloco de impostos do item — fechado por padrão para não atrapalhar quem
-      só quer lançar quantidade e preço. */
+  /** Bloco de impostos do item — já vem aberto, com os CST e os valores à vista.
+      Quem não quiser ver fecha, e a escolha vale para os próximos desenhos. */
   blocoImpostos(i) {
     const simples = ['1', '4'].includes(String(Emissao._preparo?.empresa?.crt || '1'));
+    const aberto = (Emissao._abertos || {})[i] !== false;
     return `
-      <details class="impostos-item" ${Emissao._abertos?.[i] ? 'open' : ''} data-impostos="${i}">
-        <summary class="mini" style="cursor:pointer;margin-top:10px">
-          Impostos do item <span data-resumo-imposto="${i}"></span>
+      <details class="impostos-item" ${aberto ? 'open' : ''} data-impostos="${i}">
+        <summary style="cursor:pointer;margin-top:12px">
+          <b>Impostos do item</b>
+          <span class="mini" data-resumo-imposto="${i}"></span>
         </summary>
         <h5 class="titulo-bloco" style="margin:10px 0 0">ICMS</h5>
         <div class="linha-campos">
@@ -727,11 +729,15 @@ const Emissao = {
         entrada.value = Emissao.mostrar(item[nome], Emissao.CASAS[nome] || 2);
       });
       const selo = document.querySelector(`[data-resumo-imposto="${i}"]`);
-      if (selo) selo.textContent = `· ICMS ${UI.moeda(Emissao.numero(item.icms_valor))}`
-        + ` · PIS/COFINS ${UI.moeda(Emissao.numero(item.pis_valor)
-          + Emissao.numero(item.cofins_valor))}`
-        + ` · IBS/CBS ${UI.moeda(Emissao.numero(item.ibs_uf_valor)
-          + Emissao.numero(item.ibs_mun_valor) + Emissao.numero(item.cbs_valor))}`;
+      if (selo) {
+        selo.textContent = `— ICMS ${item.icms_cst || '?'} `
+          + `${UI.moeda(Emissao.numero(item.icms_valor))}`
+          + ` · PIS ${item.cst_pis || '?'}/COFINS ${item.cst_cofins || '?'} `
+          + `${UI.moeda(Emissao.numero(item.pis_valor) + Emissao.numero(item.cofins_valor))}`
+          + ` · IBS/CBS ${item.ibs_cbs_cst || '?'} `
+          + `${UI.moeda(Emissao.numero(item.ibs_uf_valor)
+            + Emissao.numero(item.ibs_mun_valor) + Emissao.numero(item.cbs_valor))}`;
+      }
     });
     const resumo = document.getElementById('total-itens');
     if (resumo) {

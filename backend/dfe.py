@@ -282,6 +282,44 @@ def _enviar(url: str, corpo_xml: str, acao_ns: str, contexto) -> str:
         ) from None
 
 
+# Quando o corpo do envio não casa com o WSDL, o servidor responde que não achou
+# o método. Cada SEFAZ monta o WSDL de um jeito — umas esperam o <nfeDadosMsg>
+# solto no corpo, outras esperam ele dentro de um invólucro com o nome da
+# operação. Em vez de adivinhar por estado, o sistema tenta as duas formas.
+_FALHA_DE_DESPACHO = ("despacho", "dispatch", "cannot find", "não foi possível localizar",
+                      "nao foi possivel localizar", "não é possível localizar",
+                      "nao e possivel localizar", "operation not found")
+
+
+def corpo_servico(ns_servico: str, dados: str, envoltorio: str = "") -> list[str]:
+    """As duas formas do corpo SOAP, na ordem em que valem a pena ser tentadas."""
+    solto = f'<nfeDadosMsg xmlns="{ns_servico}">{dados}</nfeDadosMsg>'
+    if not envoltorio:
+        return [solto]
+    embrulhado = (f'<{envoltorio} xmlns="{ns_servico}">'
+                  f"<nfeDadosMsg>{dados}</nfeDadosMsg></{envoltorio}>")
+    return [solto, embrulhado]
+
+
+def _enviar_variantes(url: str, corpos: list[str], acao_ns: str, contexto) -> str:
+    """Envia tentando cada formato de corpo até um ser aceito.
+
+    Só troca de formato quando a SEFAZ reclama de não achar o método; qualquer
+    outro erro sobe na hora, para não mascarar problema de verdade.
+    """
+    ultimo: ErroDFe | None = None
+    for i, corpo in enumerate(corpos):
+        try:
+            return _enviar(url, corpo, acao_ns, contexto)
+        except ErroDFe as erro:
+            texto = str(erro).lower()
+            if i + 1 < len(corpos) and any(p in texto for p in _FALHA_DE_DESPACHO):
+                ultimo = erro
+                continue
+            raise
+    raise ultimo if ultimo else ErroDFe("Não foi possível falar com a SEFAZ.")
+
+
 def _busca(no, *nomes) -> str:
     """Texto do primeiro nome encontrado em qualquer nível abaixo de `no`."""
     if no is None:
@@ -328,17 +366,18 @@ def consultar_distribuicao(chave, certificado, cadeia, ambiente: str, uf: str,
     if len(documento) not in (11, 14):
         raise ErroDFe("O CNPJ da empresa não está preenchido corretamente no cadastro.")
     etiqueta = "CNPJ" if len(documento) == 14 else "CPF"
-    corpo = (
-        '<nfeDistDFeInteresse xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe">'
-        "<nfeDadosMsg>"
+    dados = (
         f'<distDFeInt xmlns="{NS}" versao="1.01">'
         f"<tpAmb>{ambiente}</tpAmb><cUFAutor>{codigo_uf}</cUFAutor>"
         f"<{etiqueta}>{documento}</{etiqueta}>"
         f"<distNSU><ultNSU>{str(ultimo_nsu or '0').zfill(15)}</ultNSU></distNSU>"
-        "</distDFeInt></nfeDadosMsg></nfeDistDFeInteresse>"
+        "</distDFeInt>"
     )
-    resposta = _enviar(
-        WS["distribuicao"][ambiente], corpo,
+    corpos = corpo_servico(
+        "http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe",
+        dados, "nfeDistDFeInteresse")
+    resposta = _enviar_variantes(
+        WS["distribuicao"][ambiente], list(reversed(corpos)),
         "http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe/nfeDistDFeInteresse",
         _contexto_ssl(chave, certificado, cadeia),
     )
@@ -639,12 +678,11 @@ def manifestar(chave_privada, certificado, cadeia, ambiente: str, chave_nfe: str
     ambiente = "2" if str(ambiente) == "2" else "1"
     inf = montar_inf_evento(chave_nfe, cnpj, tipo, ambiente, sequencia, justificativa)
     envelope = montar_envelope_evento(inf, assinar(inf, chave_privada, certificado))
-    corpo = (
-        '<nfeRecepcaoEventoNF xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">'
-        f"<nfeDadosMsg>{envelope}</nfeDadosMsg></nfeRecepcaoEventoNF>"
-    )
-    resposta = _enviar(
-        WS["evento"][ambiente], corpo,
+    corpos = corpo_servico(
+        "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4",
+        envelope, "nfeRecepcaoEventoNF")
+    resposta = _enviar_variantes(
+        WS["evento"][ambiente], corpos,
         "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento",
         _contexto_ssl(chave_privada, certificado, cadeia),
     )

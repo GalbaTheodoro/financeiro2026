@@ -613,6 +613,7 @@ sistema-financeiro/
     ├── teste_status_contrato.py Teste do ciclo Aberto → Recebido Total e do relatório
     ├── teste_postgres.py        Teste do sistema rodando com o banco na nuvem
     ├── teste_celular.py         Teste da interface no celular (390x844)
+    ├── teste_edicao.py          Teste do aviso de "não salvo" e do Salvar em cada etapa
     └── teste_interface.py       Teste do site e das telas (Playwright)
 ```
 
@@ -640,6 +641,7 @@ python testes/teste_cadastros.py    # unidades, modalidades, produtos, nº autom
 python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/capturas/contrato.pdf)
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos
 python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões e contrato por etapas
+python testes/teste_edicao.py       # janela não fecha sozinha e Salvar em qualquer etapa
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:
 python testes/teste_empresas_acesso.py  # administrador, liberar/bloquear por data e limites

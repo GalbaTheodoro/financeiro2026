@@ -57,12 +57,24 @@ const UI = {
   erro(m) { UI.aviso(m, 'erro'); },
 
   /* ------------------------------------------------------------------ modal */
-  abrirModal({ titulo, corpo, botoes = [], largo = false }) {
+  /* Enquanto tem coisa digitada e não salva, a janela não fecha sozinha:
+     clique fora e tecla Esc são ignorados e o "x" pergunta antes. */
+  _sujo: false,          // mexeu em algum campo depois de abrir/salvar
+  _aoSalvar: null,       // o que o "Salvar e sair" deve chamar
+
+  abrirModal({ titulo, corpo, botoes = [], largo = false, aoSalvar = null }) {
+    UI.tirarPerguntaSaida();
     document.getElementById('modal-titulo').textContent = titulo;
     const areaCorpo = document.getElementById('modal-corpo');
     areaCorpo.innerHTML = '';
     if (typeof corpo === 'string') areaCorpo.innerHTML = corpo;
     else areaCorpo.appendChild(corpo);
+
+    UI._sujo = false;
+    UI._aoSalvar = aoSalvar;
+    const sujar = () => { UI._sujo = true; };
+    areaCorpo.oninput = sujar;
+    areaCorpo.onchange = sujar;
 
     UI.trocarBotoes(botoes, areaCorpo);
     document.getElementById('modal').classList.toggle('largo', largo);
@@ -70,6 +82,58 @@ const UI = {
     const primeiro = areaCorpo.querySelector('input,select,textarea');
     if (primeiro) setTimeout(() => primeiro.focus(), 60);
     return areaCorpo;
+  },
+
+  /** Chamar depois de gravar: a janela volta a poder ser fechada sem aviso. */
+  modalSalvo() { UI._sujo = false; },
+
+  /** Tem formulário aberto com alteração ainda não gravada? */
+  modalComEdicao() {
+    const fundo = document.getElementById('modal-fundo');
+    if (!fundo || fundo.classList.contains('oculto')) return false;
+    return UI._sujo;
+  },
+
+  /** O "x" e o Esc passam por aqui: se tem coisa não salva, pergunta antes. */
+  tentarFecharModal() {
+    if (!UI.modalComEdicao()) return UI.fecharModal();
+    return UI.perguntarSaida();
+  },
+
+  tirarPerguntaSaida() {
+    document.getElementById('pergunta-saida')?.remove();
+  },
+
+  /** Painel por cima do formulário — o que está digitado continua intacto atrás. */
+  perguntarSaida() {
+    if (document.getElementById('pergunta-saida')) return;
+    const caixa = document.createElement('div');
+    caixa.id = 'pergunta-saida';
+    caixa.className = 'pergunta-saida';
+    caixa.innerHTML = `
+      <div class="pergunta-saida-caixa">
+        <h4>Você alterou dados e ainda não salvou.</h4>
+        <p class="mini">Se sair agora, o que foi digitado se perde.</p>
+        <div class="pergunta-saida-botoes">
+          <button type="button" class="btn btn-primario" id="saida-continuar">Continuar editando</button>
+          ${UI._aoSalvar ? '<button type="button" class="btn" id="saida-salvar">Salvar e sair</button>' : ''}
+          <button type="button" class="btn btn-perigo" id="saida-descartar">Sair sem salvar</button>
+        </div>
+      </div>`;
+    document.getElementById('modal').appendChild(caixa);
+    caixa.querySelector('#saida-continuar').onclick = () => UI.tirarPerguntaSaida();
+    const salvar = caixa.querySelector('#saida-salvar');
+    if (salvar) {
+      salvar.onclick = async () => {
+        UI.tirarPerguntaSaida();
+        const acao = UI._aoSalvar;
+        if (acao) await acao();
+      };
+    }
+    caixa.querySelector('#saida-descartar').onclick = () => {
+      UI.tirarPerguntaSaida();
+      UI.fecharModal();
+    };
   },
   /** Redesenha os botões do rodapé do modal — usado pelo formulário em etapas. */
   trocarBotoes(botoes, areaCorpo) {
@@ -86,6 +150,9 @@ const UI = {
   },
 
   fecharModal() {
+    UI.tirarPerguntaSaida();
+    UI._sujo = false;
+    UI._aoSalvar = null;
     document.getElementById('modal-fundo').classList.add('oculto');
   },
   async confirmar(mensagem, rotulo = 'Confirmar') {

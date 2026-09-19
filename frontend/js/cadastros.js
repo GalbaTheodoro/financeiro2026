@@ -149,35 +149,35 @@ const Cadastros = {
       })
       .join('')}</div>`;
 
+    const gravar = async (corpo) => {
+      try {
+        const dados = UI.lerFormulario(corpo || document.getElementById('modal-corpo'));
+        if (cfg.incluiEmpresa !== false) dados.empresa_id = Estado.empresaId;
+        const obrigatorio = cfg.campos.find(
+          (c) => c.obrigatorio && (dados[c.nome] === null || dados[c.nome] === ''),
+        );
+        if (obrigatorio) return UI.erro(`Preencha o campo "${obrigatorio.rotulo}".`);
+        const corpoFinal = cfg.montarPayload ? cfg.montarPayload(dados, registro) : dados;
+        if (edicao) await Api.put(`${cfg.endpoint}/${registro.id}`, corpoFinal);
+        else await Api.post(cfg.endpoint, corpoFinal);
+        UI.modalSalvo();
+        UI.fecharModal();
+        UI.sucesso('Registro salvo.');
+        await Api.carregarCache(true);
+        App.recarregar();
+      } catch (e) {
+        UI.erro(e.message);
+      }
+    };
+
     const area = UI.abrirModal({
       titulo: `${edicao ? 'Editar' : 'Novo'} — ${cfg.titulo}`,
       corpo: html,
       largo: cfg.campos.length > 8,
+      aoSalvar: () => gravar(),
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
-        {
-          rotulo: 'Salvar',
-          classe: 'btn-primario',
-          acao: async (corpo) => {
-            try {
-              const dados = UI.lerFormulario(corpo);
-              if (cfg.incluiEmpresa !== false) dados.empresa_id = Estado.empresaId;
-              const obrigatorio = cfg.campos.find(
-                (c) => c.obrigatorio && (dados[c.nome] === null || dados[c.nome] === ''),
-              );
-              if (obrigatorio) return UI.erro(`Preencha o campo "${obrigatorio.rotulo}".`);
-              const corpoFinal = cfg.montarPayload ? cfg.montarPayload(dados, registro) : dados;
-              if (edicao) await Api.put(`${cfg.endpoint}/${registro.id}`, corpoFinal);
-              else await Api.post(cfg.endpoint, corpoFinal);
-              UI.fecharModal();
-              UI.sucesso('Registro salvo.');
-              await Api.carregarCache(true);
-              App.recarregar();
-            } catch (e) {
-              UI.erro(e.message);
-            }
-          },
-        },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
+        { rotulo: 'Salvar', classe: 'btn-primario', acao: gravar },
       ],
     });
 
@@ -1007,7 +1007,7 @@ const Cadastros = {
       titulo: 'Gerar alíquotas interestaduais',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Gerar',
           classe: 'btn-primario',

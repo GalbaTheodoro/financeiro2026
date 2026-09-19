@@ -180,12 +180,18 @@ const App = {
     document.getElementById('btn-abrir-menu').onclick = App.abrirMenu;
     document.getElementById('btn-fechar-menu').onclick = App.fecharMenu;
     document.getElementById('menu-fundo').onclick = App.fecharMenu;
-    document.getElementById('modal-fechar').onclick = UI.fecharModal;
+    document.getElementById('modal-fechar').onclick = () => UI.tentarFecharModal();
+    // clique fora só fecha quando não há nada digitado esperando para ser salvo
     document.getElementById('modal-fundo').onclick = (e) => {
-      if (e.target.id === 'modal-fundo') UI.fecharModal();
+      if (e.target.id !== 'modal-fundo') return;
+      if (UI.modalComEdicao()) return UI.perguntarSaida();
+      UI.fecharModal();
     };
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { UI.fecharModal(); App.fecharMenu(); }
+      if (e.key !== 'Escape') return;
+      App.fecharMenu();
+      if (document.getElementById('pergunta-saida')) return UI.tirarPerguntaSaida();
+      UI.tentarFecharModal();
     });
     document.getElementById('btn-sair').onclick = () => Api.sair();
     window.addEventListener('hashchange', () => App.navegar());

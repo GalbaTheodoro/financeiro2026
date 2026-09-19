@@ -414,7 +414,7 @@ const Notas = {
             linhas: duplicatas,
           })}` : ''}`,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Faturar',
           classe: 'btn-primario',
@@ -495,7 +495,7 @@ const Notas = {
         })}
         <div class="mini" style="margin-top:8px">Total: <b>${UI.moeda(soma)}</b></div>`,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Faturar todas',
           classe: 'btn-primario',

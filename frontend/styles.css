@@ -188,6 +188,20 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .modal{background:#fff;border-radius:14px;width:100%;max-width:760px;box-shadow:0 24px 60px rgba(2,6,23,.35);
   display:flex;flex-direction:column;max-height:calc(100vh - 80px)}
 .modal.largo{max-width:1040px}
+.modal{position:relative}
+/* aviso de "tem coisa não salva" — fica por cima, o formulário continua intacto atrás */
+.pergunta-saida{position:absolute;inset:0;background:rgba(15,23,42,.45);border-radius:14px;
+  display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.pergunta-saida-caixa{background:#fff;border-radius:12px;padding:18px 20px;max-width:420px;width:100%;
+  box-shadow:0 18px 44px rgba(2,6,23,.32)}
+.pergunta-saida-caixa h4{font-size:15px;margin:0 0 4px}
+.pergunta-saida-caixa p{margin:0 0 14px}
+.pergunta-saida-botoes{display:flex;flex-direction:column;gap:8px}
+.pergunta-saida-botoes .btn{width:100%;justify-content:center}
+@media(min-width:620px){
+  .pergunta-saida-botoes{flex-direction:row;flex-wrap:wrap}
+  .pergunta-saida-botoes .btn{width:auto}
+}
 .modal,.modal-corpo{min-width:0}
 .modal-corpo .tabela-wrap{max-width:100%}
 .modal header{padding:15px 20px;border-bottom:1px solid var(--borda);display:flex;

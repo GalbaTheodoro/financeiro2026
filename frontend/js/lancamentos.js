@@ -315,7 +315,7 @@ const Lancamentos = {
       corpo,
       largo: true,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Salvar lançamento',
           classe: 'btn-primario',
@@ -511,7 +511,7 @@ const Lancamentos = {
       titulo: eh_receber ? 'Receber título' : 'Pagar título',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: eh_receber ? 'Confirmar recebimento' : 'Confirmar pagamento',
           classe: 'btn-verde',
@@ -563,7 +563,7 @@ const Lancamentos = {
       titulo: 'Baixa em lote',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Confirmar baixas',
           classe: 'btn-verde',

@@ -216,7 +216,7 @@ const DFe = {
         <p class="mini">A SEFAZ mantém os documentos por cerca de 90 dias. "Recomeçar do zero"
         traz tudo de novo — os que já estão aqui só são atualizados, nada é duplicado.</p>`,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Buscar agora',
           classe: 'btn-primario',
@@ -255,7 +255,7 @@ const DFe = {
           ${UI.campo('Arquivo XML', '<input type="file" id="arquivo-xml" accept=".xml,text/xml,application/xml">')}
         </div>`,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Enviar',
           classe: 'btn-primario',

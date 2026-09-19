@@ -122,7 +122,7 @@ const Caixa = {
       titulo: entrada ? 'Entrada no caixa' : 'Saída do caixa',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Lançar',
           classe: entrada ? 'btn-verde' : 'btn-primario',
@@ -171,7 +171,7 @@ const Caixa = {
       titulo: 'Transferência entre contas',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Transferir',
           classe: 'btn-primario',

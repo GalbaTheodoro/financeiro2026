@@ -70,7 +70,7 @@ const Emissao = {
   },
 
   /* ============================================================= FORMULÁRIO */
-  formulario(dados, preparo) {
+  formulario(dados, preparo, etapaInicial = 0) {
     const n = dados.nota;
     const editavel = n.pode_editar;
     Emissao._nota = n;
@@ -188,9 +188,11 @@ const Emissao = {
     const botoes = () => {
       const lista = [];
       if (atual > 0) lista.push({ rotulo: 'Voltar', acao: () => irPara(atual - 1) });
-      else lista.push({ rotulo: 'Fechar', acao: UI.fecharModal });
+      else lista.push({ rotulo: 'Fechar', acao: () => UI.tentarFecharModal() });
 
       if (atual < ultima) {
+        // salvar dá para fazer em qualquer etapa — não precisa chegar até o fim
+        if (editavel) lista.push({ rotulo: 'Salvar', acao: () => Emissao.salvar(n.id, false) });
         lista.push({
           rotulo: 'Próximo',
           classe: 'btn-primario',
@@ -213,6 +215,7 @@ const Emissao = {
 
     const irPara = (indice) => {
       atual = Math.max(0, Math.min(indice, ultima));
+      Emissao._etapa = atual;     // para voltar à mesma etapa depois de salvar
       corpo.querySelectorAll('[data-painel]').forEach((p) => {
         p.classList.toggle('oculto', Number(p.dataset.painel) !== atual);
       });
@@ -242,6 +245,7 @@ const Emissao = {
       titulo: n.numero ? `NF-e ${n.numero} — série ${n.serie}` : 'Nova NF-e (rascunho)',
       corpo,
       largo: true,
+      aoSalvar: editavel ? () => Emissao.salvar(n.id, false, true) : null,
       botoes: botoes(),
     });
 
@@ -267,7 +271,7 @@ const Emissao = {
     } else {
       corpo.querySelectorAll('input,select,textarea').forEach((c) => { c.disabled = true; });
     }
-    irPara(0);
+    irPara(etapaInicial);
   },
 
   /* Aviso no alto do formulário quando ainda falta cadastro para transmitir. */
@@ -642,17 +646,20 @@ const Emissao = {
     };
   },
 
-  async salvar(notaId, transmitir) {
+  /** Grava o rascunho. `sair` fecha a janela depois de gravar; senão volta
+      para a mesma etapa em que você estava, com os valores já conferidos. */
+  async salvar(notaId, transmitir, sair = false) {
     const payload = Emissao.corpoFormulario();
     if (!payload.parceiro_id) return UI.erro('Escolha o cliente da nota.');
     if (!payload.itens.length) return UI.erro('A nota precisa de pelo menos um item com quantidade e valor.');
+    const etapa = Emissao._etapa || 0;
     try {
       const salvo = await Api.put(`/api/nfe/${notaId}`, payload);
-      if (!transmitir) {
-        UI.sucesso('Rascunho salvo.');
-        return Emissao.formulario(salvo, Emissao._preparo);
-      }
-      Emissao.confirmarTransmissao(salvo.nota);
+      UI.modalSalvo();
+      if (transmitir) return Emissao.confirmarTransmissao(salvo.nota);
+      UI.sucesso('Rascunho salvo.');
+      if (sair) return UI.fecharModal();
+      return Emissao.formulario(salvo, Emissao._preparo, etapa);
     } catch (e) {
       UI.erro(e.message);
     }

@@ -273,7 +273,7 @@ const Assinaturas = {
       titulo: 'Contratar usuários extras',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Solicitar pacote',
           classe: 'btn-primario',
@@ -453,7 +453,7 @@ const Assinaturas = {
       titulo: 'Confirmar pagamento',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Confirmar e liberar',
           classe: 'btn-verde',
@@ -499,7 +499,7 @@ const Assinaturas = {
       titulo: `Conta de ${assinatura.usuario_nome}`,
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Salvar',
           classe: 'btn-primario',
@@ -633,7 +633,7 @@ const Assinaturas = {
       titulo: 'Liberar acesso da empresa',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         { rotulo: 'Liberar', classe: 'btn-verde', acao: async () => {
           const d = UI.lerFormulario(corpo);
           if (!d.ate) return UI.erro('Escolha até que dia o acesso fica liberado.');
@@ -671,7 +671,7 @@ const Assinaturas = {
       titulo: 'Limite de usuários',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         { rotulo: 'Salvar', classe: 'btn-primario', acao: async () => {
           const d = UI.lerFormulario(corpo);
           try {

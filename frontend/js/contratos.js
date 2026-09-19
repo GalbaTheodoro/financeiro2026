@@ -160,7 +160,7 @@ const Contratos = {
     { id: 'fechamento', rotulo: 'Embarque' },
   ],
 
-  async formulario(contrato) {
+  async formulario(contrato, etapaInicial = 0) {
     const edicao = Boolean(contrato);
     const v = (campo, padrao = '') => UI.escapar(contrato ? (contrato[campo] ?? padrao) : padrao);
     const parceiros = UI.opcoesParceiros();
@@ -453,7 +453,8 @@ const Contratos = {
     recalcular();
 
     /* ------------------------------------------------------- navegação das etapas */
-    let atual = 0;
+    let atual = etapaInicial;
+    let registroId = contrato ? contrato.id : null;
     const ultima = Contratos.ETAPAS.length - 1;
 
     const validar = (indice) => {
@@ -482,7 +483,9 @@ const Contratos = {
       return true;
     };
 
-    const salvar = async () => {
+    /* `fechar` verdadeiro grava e abre a ficha; falso grava e deixa você
+       continuar na mesma etapa (é o botão Salvar que aparece em toda etapa). */
+    const salvar = async (fechar = true) => {
       for (let i = 0; i <= ultima; i += 1) {
         if (!validar(i)) { irPara(i); return; }
       }
@@ -512,11 +515,14 @@ const Contratos = {
       };
       delete payload.icms_valor_tela;
       try {
-        const salvo = edicao
-          ? await Api.put(`/api/contratos/${contrato.id}`, payload)
+        const salvo = registroId
+          ? await Api.put(`/api/contratos/${registroId}`, payload)
           : await Api.post('/api/contratos', payload);
-        UI.fecharModal();
+        registroId = salvo.id;
+        UI.modalSalvo();
         UI.sucesso('Contrato salvo.');
+        if (!fechar) return Contratos.formulario(salvo, atual);
+        UI.fecharModal();
         Contratos.ficha(salvo.id);
       } catch (e) {
         UI.erro(e.message);
@@ -526,8 +532,10 @@ const Contratos = {
     const botoes = () => {
       const lista = [];
       if (atual > 0) lista.push({ rotulo: '← Voltar', acao: () => irPara(atual - 1) });
-      else lista.push({ rotulo: 'Cancelar', acao: UI.fecharModal });
+      else lista.push({ rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() });
       if (atual < ultima) {
+        // dá para gravar em qualquer etapa, sem precisar ir até o fim
+        lista.push({ rotulo: 'Salvar', acao: () => salvar(false) });
         lista.push({
           rotulo: 'Próximo →',
           classe: 'btn-primario',
@@ -537,7 +545,7 @@ const Contratos = {
         lista.push({
           rotulo: edicao ? 'Salvar contrato' : 'Salvar e abrir',
           classe: 'btn-primario',
-          acao: salvar,
+          acao: () => salvar(true),
         });
       }
       return lista;
@@ -576,9 +584,10 @@ const Contratos = {
       titulo: edicao ? `Editar contrato ${contrato.numero}` : 'Novo contrato',
       corpo,
       largo: true,
+      aoSalvar: () => salvar(true),
       botoes: botoes(),
     });
-    irPara(0);
+    irPara(etapaInicial);
   },
 
   /* ============================================================ FICHA / AÇÕES */

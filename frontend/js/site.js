@@ -178,7 +178,7 @@ const Site = {
       corpo,
       largo: true,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
           rotulo: 'Criar conta e começar',
           classe: 'btn-primario',
@@ -233,7 +233,7 @@ const Site = {
       titulo: 'Entrar no sistema',
       corpo,
       botoes: [
-        { rotulo: 'Cancelar', acao: UI.fecharModal },
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         { rotulo: 'Entrar', classe: 'btn-primario', acao: entrar },
       ],
     });

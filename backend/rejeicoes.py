@@ -196,6 +196,14 @@ PISTAS: tuple[tuple[tuple[str, ...], str, str], ...] = (
     (("indisponí", "indisponi", "fora do ar", "paralis", "tempo", "timeout"),
      "A SEFAZ não respondeu agora. Não é erro da nota: tente de novo em alguns minutos.",
      ESPERAR),
+    (("http 404", "http 403", "http 401", "not found"),
+     "O endereço do serviço da SEFAZ respondeu que não existe ou não liberou o acesso. "
+     "Confira o estado (UF) da empresa e se o certificado é o da própria empresa. "
+     "Se estiver tudo certo, a SEFAZ pode ter mudado o endereço — avise o suporte.", EMPRESA),
+    (("http 5", "soap", "fault", "esquema", "schema", "parse", "mal formado", "malformado"),
+     "A SEFAZ recusou o envio antes mesmo de olhar a nota — é erro técnico, não de "
+     "preenchimento. Tente de novo em alguns minutos; se repetir, use o botão de copiar "
+     "abaixo e mande a mensagem inteira para o suporte.", SUPORTE),
 )
 
 GENERICO = (

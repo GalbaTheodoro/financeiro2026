@@ -119,7 +119,14 @@ MODALIDADES_FRETE = {
 
 
 class ErroEmissao(Exception):
-    """Falha esperada ao emitir — vira mensagem na tela."""
+    """Falha esperada ao emitir — vira mensagem na tela.
+
+    `detalhe` leva a resposta crua da SEFAZ para os "detalhes técnicos" da tela.
+    """
+
+    def __init__(self, mensagem: str, detalhe: str = ""):
+        super().__init__(mensagem)
+        self.detalhe = detalhe
 
 
 # --------------------------------------------------------------------------- #
@@ -588,7 +595,7 @@ def transmitir(chave_privada, certificado, cadeia, uf: str, ambiente: str,
             motor._contexto_ssl(chave_privada, certificado, cadeia),
         )
     except motor.ErroDFe as erro:
-        raise ErroEmissao(str(erro)) from None
+        raise ErroEmissao(str(erro), getattr(erro, "detalhe", "")) from None
     return ler_retorno_autorizacao(resposta, nfe_assinada)
 
 
@@ -668,7 +675,7 @@ def cancelar(chave_privada, certificado, cadeia, uf: str, ambiente: str, chave_n
             motor._contexto_ssl(chave_privada, certificado, cadeia),
         )
     except motor.ErroDFe as erro:
-        raise ErroEmissao(str(erro)) from None
+        raise ErroEmissao(str(erro), getattr(erro, "detalhe", "")) from None
     retorno = motor.ler_retorno_evento(resposta, envelope)
     # 135 registrado, 155 registrado fora de prazo
     retorno["ok"] = retorno["cstat"] in ("135", "155")

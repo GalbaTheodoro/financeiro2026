@@ -99,7 +99,38 @@ FORMAS_PAGAMENTO = {
 
 
 class ErroDFe(Exception):
-    """Falha esperada (certificado, rede ou recusa da SEFAZ) — vira mensagem na tela."""
+    """Falha esperada (certificado, rede ou recusa da SEFAZ) — vira mensagem na tela.
+
+    `detalhe` guarda a resposta crua da SEFAZ (o envelope SOAP inteiro), para a
+    tela mostrar em "detalhes técnicos" sem poluir a mensagem principal.
+    """
+
+    def __init__(self, mensagem: str, detalhe: str = ""):
+        super().__init__(mensagem)
+        self.detalhe = detalhe
+
+
+def motivo_do_fault(resposta: str) -> str:
+    """Tira a frase de dentro de um SOAP Fault.
+
+    A SEFAZ devolve HTTP 500 com um envelope de erro; o que interessa está em
+    `Reason/Text` (SOAP 1.2) ou `faultstring` (SOAP 1.1). Sem isso, a tela
+    mostrava XML cortado no meio e ninguém entendia nada.
+    """
+    texto = (resposta or "").strip()
+    if not texto:
+        return ""
+    try:
+        raiz = ET.fromstring(texto)
+    except ET.ParseError:
+        # não é XML válido: devolve o texto limpo de marcação
+        return re.sub(r"<[^>]+>", " ", texto).strip()[:400]
+    for nome in ("Text", "faultstring", "Reason", "Detail", "detail"):
+        for achado in raiz.iter():
+            etiqueta = achado.tag.split("}")[-1]
+            if etiqueta == nome and (achado.text or "").strip():
+                return " ".join((achado.text or "").split())[:400]
+    return " ".join(re.sub(r"<[^>]+>", " ", texto).split())[:400]
 
 
 # --------------------------------------------------------------------------- #
@@ -237,8 +268,13 @@ def _enviar(url: str, corpo_xml: str, acao_ns: str, contexto) -> str:
         with urllib.request.urlopen(requisicao, timeout=45, context=contexto) as resposta:
             return resposta.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as erro:
-        detalhe = erro.read().decode("utf-8", "replace")[:300]
-        raise ErroDFe(f"A SEFAZ recusou a consulta (HTTP {erro.code}). {detalhe}") from None
+        bruto = erro.read().decode("utf-8", "replace")
+        motivo = motivo_do_fault(bruto)
+        raise ErroDFe(
+            f"A SEFAZ devolveu erro (HTTP {erro.code})"
+            + (f": {motivo}" if motivo else "."),
+            detalhe=f"Endereço: {url}\nAção: {acao_ns}\n\n{bruto[:4000]}",
+        ) from None
     except urllib.error.URLError as erro:
         raise ErroDFe(
             f"Não foi possível falar com a SEFAZ: {erro.reason}. "

@@ -488,7 +488,8 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
             "ok": False,
             "codigo": "",
             "mensagem": str(erro),
-            "erro": rejeicoes.explicar_falha(str(erro)),
+            "erro": {**rejeicoes.explicar_falha(str(erro)),
+                     "detalhe": getattr(erro, "detalhe", "")},
             "nota": _ficha(db, nota)["nota"],
         }
 
@@ -555,7 +556,8 @@ def cancelar(nota_id: int, dados: CancelarNotaIn, db: Session = Depends(get_db),
         return {
             "ok": False,
             "mensagem": str(erro),
-            "erro": rejeicoes.explicar_falha(str(erro)),
+            "erro": {**rejeicoes.explicar_falha(str(erro)),
+                     "detalhe": getattr(erro, "detalhe", "")},
             "nota": _ficha(db, nota)["nota"],
         }
 

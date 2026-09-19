@@ -318,6 +318,11 @@ const Emissao = {
           ${erro.denegada ? `<div class="mini" style="margin-top:6px">
             <b>Nota denegada:</b> o número foi consumido e essa nota não pode ser reaproveitada.
             Depois de resolver a pendência, emita outra.</div>` : ''}
+          ${erro.detalhe ? `<details style="margin-top:10px">
+            <summary class="mini" style="cursor:pointer">Detalhes técnicos (para o suporte)</summary>
+            <pre class="mini" style="white-space:pre-wrap;word-break:break-all;margin:6px 0 0;
+              max-height:220px;overflow:auto">${UI.escapar(erro.detalhe)}</pre>
+          </details>` : ''}
           ${atalho}
         </div></div>`;
   },
@@ -789,7 +794,8 @@ const Emissao = {
         rotulo: 'Copiar a mensagem',
         acao: () => {
           const texto = `NF-e ${n.numero || '(rascunho)'} — SEFAZ ${dados.codigo || ''}: `
-            + `${dados.mensagem || dados.corrigir || ''}`;
+            + `${dados.mensagem || dados.corrigir || ''}`
+            + (dados.detalhe ? `\n\nResposta completa:\n${dados.detalhe}` : '');
           navigator.clipboard?.writeText(texto)
             .then(() => UI.sucesso('Mensagem copiada.'))
             .catch(() => UI.erro('O navegador não deixou copiar. Selecione o texto na tela.'));

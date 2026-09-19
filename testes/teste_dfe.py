@@ -215,6 +215,42 @@ except dfe.ErroDFe as erro:
     sem_justificativa = str(erro)
 checar("'Operação não realizada' exige justificativa de 15 letras", bool(sem_justificativa))
 
+print("\n=== 2b. Quando a SEFAZ devolve um envelope de erro (SOAP Fault) ===")
+FAULT_12 = (
+    "<?xml version='1.0' encoding='UTF-8'?>"
+    '<S:Envelope xmlns:S="http://www.w3.org/2003/05/soap-envelope"><S:Body>'
+    '<S:Fault xmlns:ns4="http://schemas.xmlsoap.org/soap/envelope/">'
+    "<S:Code><S:Value>S:Sender</S:Value></S:Code><S:Reason>"
+    '<S:Text xml:lang="pt">Não é possível processar a mensagem: o certificado digital '
+    "utilizado não tem permissão para acessar este serviço.</S:Text>"
+    "</S:Reason></S:Fault></S:Body></S:Envelope>"
+)
+motivo = dfe.motivo_do_fault(FAULT_12)
+checar("a frase de dentro do SOAP Fault é extraída inteira",
+       motivo.startswith("Não é possível processar") and "certificado digital" in motivo
+       and "<S:" not in motivo, motivo[:60])
+FAULT_11 = (
+    '<?xml version="1.0"?><S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/">'
+    "<S:Body><S:Fault><faultcode>S:Server</faultcode>"
+    "<faultstring>Erro interno no servico</faultstring></S:Fault></S:Body></S:Envelope>"
+)
+checar("também lê o formato antigo (faultstring)",
+       dfe.motivo_do_fault(FAULT_11) == "Erro interno no servico")
+checar("resposta que não é XML vira texto limpo",
+       dfe.motivo_do_fault("<html><body>502 Bad Gateway</body></html>") == "502 Bad Gateway")
+checar("resposta vazia não quebra", dfe.motivo_do_fault("") == "")
+
+from backend import rejeicoes  # noqa: E402
+
+explicado = rejeicoes.explicar_falha(f"A SEFAZ devolveu erro (HTTP 500): {motivo}")
+checar("a falha de envelope aponta para o certificado",
+       explicado["onde"] == rejeicoes.CERTIFICADO, explicado["onde"])
+tecnico = rejeicoes.explicar_falha(
+    "A SEFAZ devolveu erro (HTTP 500): Nao e possivel ler a mensagem enviada")
+checar("erro técnico avisa que não é falta de preenchimento",
+       tecnico["onde"] == rejeicoes.SUPORTE and "não de" in tecnico["corrigir"],
+       tecnico["onde"])
+
 print("\n=== 3. DANFE ===")
 folha = danfe.gerar(nfe_xml, "ASSESSORIA AGRODOCK LTDA")
 checar("DANFE traz emitente, chave, itens e duplicatas",

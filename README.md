@@ -371,7 +371,10 @@ Código: `backend/notas.py` e `backend/routers/notas.py`; teste: `python testes/
 - **cancelar** é o evento 110111, com justificativa de 15 letras e dentro do prazo legal.
 
 Os webservices são resolvidos por UF (MG, SP, PR, RS, GO, MT, MS, BA, PE, CE e AM têm
-servidor próprio; o resto cai no SVRS). Antes de sair, a nota é barrada por item sem NCM ou
+servidor próprio; o resto cai no SVRS). O corpo do envio vai no formato padrão
+(`<nfeDadosMsg>` solto); se a SEFAZ responder que **não achou o método de despacho** — há
+estado cujo WSDL espera o invólucro com o nome da operação — o sistema repete o envio no
+outro formato sozinho, sem pedir nada a quem está emitindo. Antes de sair, a nota é barrada por item sem NCM ou
 CFOP, cliente sem código do município do IBGE, contribuinte sem inscrição estadual e empresa
 sem IE ou sem código do município — com a mensagem dizendo o que corrigir e onde.
 

@@ -437,6 +437,16 @@ NT 2025.002 antes de mandar para a SEFAZ.
 > contador: o sistema usa o que está nos cadastros e não decide tributação sozinho.
 > Comece sempre em homologação.
 
+#### Conferir o XML antes de mandar
+
+O schema oficial da NF-e 4.00 está em `testes/xsd/`, e `testes/teste_schema_nfe.py` valida
+contra ele a nota simples, a nota completa (transporte, duplicatas, texto livre), os CST de
+ICMS que o café usa (00, 20, 51 diferimento, 40 e 60), a nota **assinada** e o lote. Assim o
+erro aparece aqui, com o nome do campo, em vez de virar uma *Rejeição 225 — Falha no Schema
+XML* que não diz qual campo está errado. Foi esse teste que mostrou o `dhEmi` saindo com
+fração de segundo (`...T21:48:18.609636-03:00`), que o schema não aceita. O sistema em si
+continua sem depender de `lxml`: a validação é só do teste.
+
 #### Quando a SEFAZ recusa
 
 A SEFAZ responde com um código (`cStat`) e uma frase curta — *"Rejeição: Duplicidade de
@@ -690,6 +700,7 @@ sistema-financeiro/
     ├── teste_celular.py         Teste da interface no celular (390x844)
     ├── teste_edicao.py          Teste do aviso de "não salvo" e do Salvar em cada etapa
     ├── teste_regras_fiscais.py  Teste do cruzamento cliente x item e do imposto escolhido
+    ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
 ```
 
@@ -719,6 +730,7 @@ python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório
 python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões e contrato por etapas
 python testes/teste_edicao.py       # janela não fecha sozinha e Salvar em qualquer etapa
 python testes/teste_regras_fiscais.py   # tipos fiscais, tabela de regras e o imposto do item
+python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:
 python testes/teste_empresas_acesso.py  # administrador, liberar/bloquear por data e limites

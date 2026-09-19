@@ -533,9 +533,12 @@ def montar_nfe(empresa, nota: dict, itens, parceiro, transportadora,
     """Monta o <NFe> sem assinatura. Devolve (xml, chave, valor total)."""
     if not itens:
         raise ErroEmissao("A nota está sem itens.")
-    emissao = emissao or datetime.now(motor.FUSO_BR).replace(microsecond=0)
+    emissao = emissao or datetime.now(motor.FUSO_BR)
     if emissao.tzinfo is None:
         emissao = emissao.replace(tzinfo=motor.FUSO_BR)
+    # o schema da NF-e não aceita fração de segundo em dhEmi: "2026-09-19T21:48:18-03:00".
+    # Sem isto a SEFAZ devolve a rejeição 225 (falha no schema do lote).
+    emissao = emissao.replace(microsecond=0)
     ambiente = nota["ambiente"]
     crt = empresa.crt or "1"
 

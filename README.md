@@ -454,6 +454,11 @@ O schema oficial da NF-e 4.00 está em `testes/xsd/`, e `testes/teste_schema_nfe
 contra ele a nota simples, a nota completa (transporte, duplicatas, texto livre), os CST de
 ICMS que o café usa (00, 20, 51 diferimento, 40 e 60), a nota **assinada** e o lote.
 
+**Indicativo do intermediador.** A NT 2020.006 exige o `indIntermed` quando a venda não é
+presencial (`indPres` 2, 3, 4 ou 9) — sem ele vem a rejeição **434**. O sistema manda
+`indIntermed = 0` (sem intermediador) nesses casos e omite o campo quando `indPres` é 0 ou 1,
+onde ele não cabe. Venda por marketplace precisaria de `1` mais o CNPJ da plataforma.
+
 **Data e hora da nota.** O servidor roda em **UTC** e o banco guarda tudo em UTC; o `dhEmi`
 sai no fuso de Brasília, então a hora é *convertida* — nunca apenas etiquetada. Etiquetar
 jogava a nota três horas para a frente e trazia a rejeição **703 — Data-Hora de Emissão

@@ -18,6 +18,7 @@ import sys
 import time
 import urllib.request
 from datetime import date
+from types import SimpleNamespace
 
 try:
     from lxml import etree
@@ -180,6 +181,29 @@ longo = montar(natureza_operacao="VENDA DE CAFÉ ARÁBICA — SAFRA 2026/2027 & 
 problemas = validar(longo)
 checar("acento, & e sinais no texto livre não quebram o schema", not problemas,
        problemas[0][:140] if problemas else "")
+
+print("\n=== 3b. Indicativo do intermediador (rejeição 434) ===")
+checar("a venda não presencial leva indIntermed",
+       "<indIntermed>0</indIntermed>" in simples, "faltou o campo")
+checar("e ele vem logo depois do indPres, na ordem do schema",
+       "<indPres>9</indPres><indIntermed>0</indIntermed>" in simples)
+problemas = validar(simples)
+checar("com o indIntermed o XML continua válido no schema", not problemas,
+       problemas[0][:120] if problemas else "")
+
+from backend.emissao import _ide                       # noqa: E402
+
+cabeca = {"natureza_operacao": "VENDA", "tipo_operacao": "1", "finalidade": "1",
+          "consumidor_final": "0", "ambiente": "2", "destinatario_uf": "SP"}
+empresa_simples = SimpleNamespace(uf="MG", codigo_municipio="3148004")
+for presenca, esperado in (("2", True), ("3", True), ("4", True), ("9", True),
+                           ("0", False), ("1", False)):
+    bloco = _ide(empresa_simples, {**cabeca, "presenca": presenca},
+                 "31260998765432000198550010000000011872332820", 1, "1",
+                 87233282, datetime.now(motor.FUSO_BR))
+    tem = "<indIntermed>" in bloco
+    checar(f"indPres {presenca}: {'leva' if esperado else 'não leva'} indIntermed",
+           tem == esperado, "leva" if tem else "não leva")
 
 print("\n=== 4. Regime normal e o diferimento do café (CST 51) ===")
 api("PUT", f"/api/empresas/{eid}", {

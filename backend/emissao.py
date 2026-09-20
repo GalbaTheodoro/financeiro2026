@@ -216,6 +216,9 @@ def _ide(empresa, nota, chave: str, numero: int, serie: str, codigo: int,
     uf_destino = (nota["destinatario_uf"] or empresa.uf or "").upper()
     if uf_destino and uf_destino != (empresa.uf or "").upper():
         destino = "2"
+    # 0 não se aplica | 1 presencial | 2 internet | 3 teleatendimento
+    # 4 entrega a domicílio | 5 presencial fora do estabelecimento | 9 outros
+    presenca = str(nota.get("presenca") or "9")
     return (
         "<ide>"
         + _tag("cUF", motor.CODIGO_UF.get((empresa.uf or "MG").upper(), "31"), True)
@@ -234,7 +237,12 @@ def _ide(empresa, nota, chave: str, numero: int, serie: str, codigo: int,
         + _tag("tpAmb", nota["ambiente"], True)
         + _tag("finNFe", nota["finalidade"] or "1", True)
         + _tag("indFinal", nota["consumidor_final"] or "0", True)
-        + _tag("indPres", nota["presenca"] or "9", True)
+        + _tag("indPres", presenca, True)
+        # NT 2020.006: quando a venda não é presencial, a SEFAZ exige dizer se
+        # houve intermediador (marketplace). Sem isto vem a rejeição 434
+        # ("NF-e sem indicativo do intermediador"). 0 = sem intermediador.
+        + (_tag("indIntermed", nota.get("intermediador") or "0", True)
+           if presenca in ("2", "3", "4", "9") else "")
         + _tag("procEmi", "0", True)
         + _tag("verProc", VERSAO_SISTEMA, True)
         + "</ide>"

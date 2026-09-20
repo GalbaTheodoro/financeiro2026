@@ -399,6 +399,44 @@ def _pis_cofins(item, crt: str) -> str:
                     total if float(item.aliquota_cofins or 0) else 0))
 
 
+def _ibs_cbs_do_item(item) -> str:
+    """Grupo IBS/CBS do item (NT 2025.002), na ordem exata do schema.
+
+    Sem este grupo a SEFAZ devolve a rejeição **1115 — IBS/CBS não informado**.
+    A estrutura é: CST, cClassTrib e, dentro de `gIBSCBS`, a base, o IBS do
+    estado, o IBS do município, o total do IBS e a CBS.
+
+    Item sem CST/cClassTrib cadastrado sai como tributação integral (000/000001)
+    com as alíquotas de teste de 2026 — é o que deixa a nota passar; a regra
+    fiscal certa se cadastra em Cadastros > Regras fiscais, e a etapa Conferir
+    avisa quando está faltando.
+    """
+    cst = (getattr(item, "ibs_cbs_cst", None) or "000").zfill(3)[:3]
+    classe = (getattr(item, "ibs_cbs_classe", None) or "000001").zfill(6)[:6]
+    base = float(getattr(item, "ibs_cbs_base", 0) or 0) or float(item.valor_total or 0)
+    p_uf = float(getattr(item, "ibs_uf_aliquota", 0) or 0)
+    p_mun = float(getattr(item, "ibs_mun_aliquota", 0) or 0)
+    p_cbs = float(getattr(item, "cbs_aliquota", 0) or 0)
+    v_uf = float(getattr(item, "ibs_uf_valor", 0) or 0)
+    v_mun = float(getattr(item, "ibs_mun_valor", 0) or 0)
+    v_cbs = float(getattr(item, "cbs_valor", 0) or 0)
+    return (
+        "<IBSCBS>"
+        + _tag("CST", cst, True)
+        + _tag("cClassTrib", classe, True)
+        + "<gIBSCBS>"
+        + _tag("vBC", _num(base), True)
+        + "<gIBSUF>" + _tag("pIBSUF", _num(p_uf, 4), True)
+        + _tag("vIBSUF", _num(v_uf), True) + "</gIBSUF>"
+        + "<gIBSMun>" + _tag("pIBSMun", _num(p_mun, 4), True)
+        + _tag("vIBSMun", _num(v_mun), True) + "</gIBSMun>"
+        + _tag("vIBS", _num(v_uf + v_mun), True)
+        + "<gCBS>" + _tag("pCBS", _num(p_cbs, 4), True)
+        + _tag("vCBS", _num(v_cbs), True) + "</gCBS>"
+        + "</gIBSCBS></IBSCBS>"
+    )
+
+
 def _det(item, numero: int, crt: str, ambiente: str) -> str:
     if not (item.ncm or "").strip():
         raise ErroEmissao(
@@ -430,7 +468,9 @@ def _det(item, numero: int, crt: str, ambiente: str) -> str:
         + _tag("indTot", "1", True)
         + "</prod>"
     )
-    imposto = "<imposto>" + _icms_do_item(item, crt) + _pis_cofins(item, crt) + "</imposto>"
+    # ordem do schema: ICMS, PIS/COFINS e, por último, o grupo da reforma
+    imposto = ("<imposto>" + _icms_do_item(item, crt) + _pis_cofins(item, crt)
+               + _ibs_cbs_do_item(item) + "</imposto>")
     return f'<det nItem="{numero}">{prod}{imposto}</det>'
 
 
@@ -458,7 +498,29 @@ def _total(itens, frete: float = 0, desconto: float = 0) -> tuple[str, float]:
         + _tag("vNF", _num(total), True)
         + "</ICMSTot>"
     )
-    return f"<total>{corpo}</total>", total
+    return f"<total>{corpo}{_ibs_cbs_total(itens)}</total>", total
+
+
+def _ibs_cbs_total(itens) -> str:
+    """Somatório do IBS/CBS da nota (`IBSCBSTot`), na ordem exata do schema."""
+    base = sum(float(getattr(i, "ibs_cbs_base", 0) or 0) or float(i.valor_total or 0)
+               for i in itens)
+    ibs_uf = sum(float(getattr(i, "ibs_uf_valor", 0) or 0) for i in itens)
+    ibs_mun = sum(float(getattr(i, "ibs_mun_valor", 0) or 0) for i in itens)
+    cbs = sum(float(getattr(i, "cbs_valor", 0) or 0) for i in itens)
+    zero = _tag("vDif", "0.00", True) + _tag("vDevTrib", "0.00", True)
+    credito = _tag("vCredPres", "0.00", True) + _tag("vCredPresCondSus", "0.00", True)
+    return (
+        "<IBSCBSTot>"
+        + _tag("vBCIBSCBS", _num(base), True)
+        + "<gIBS>"
+        + "<gIBSUF>" + zero + _tag("vIBSUF", _num(ibs_uf), True) + "</gIBSUF>"
+        + "<gIBSMun>" + zero + _tag("vIBSMun", _num(ibs_mun), True) + "</gIBSMun>"
+        + _tag("vIBS", _num(ibs_uf + ibs_mun), True) + credito
+        + "</gIBS>"
+        + "<gCBS>" + zero + _tag("vCBS", _num(cbs), True) + credito + "</gCBS>"
+        + "</IBSCBSTot>"
+    )
 
 
 def _transp(nota, transportadora) -> str:

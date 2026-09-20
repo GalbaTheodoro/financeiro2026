@@ -439,10 +439,15 @@ sozinho, e a redução de base entra antes da alíquota.
 
 As alíquotas de IBS e CBS nascem com os valores de **teste de 2026** (IBS 0,1% e CBS 0,9%,
 apuração informativa), definidos em `IBS_UF_PADRAO`, `IBS_MUN_PADRAO` e `CBS_PADRAO` no
-`backend/emissao.py`. Empresa no regime regular recebe aviso na etapa de conferência quando
-falta CST ou `cClassTrib` do IBS/CBS; no Simples Nacional o destaque só passa a valer em
-2027. **Esses campos ainda não vão no XML** — falta conferir o grupo `IBSCBS` contra a
-NT 2025.002 antes de mandar para a SEFAZ.
+`backend/emissao.py`. A etapa de conferência avisa quando falta CST ou `cClassTrib`.
+
+Esses campos **vão no XML**: cada item leva o grupo `IBSCBS` (CST, `cClassTrib` e, dentro de
+`gIBSCBS`, a base, o IBS do estado, o IBS do município, o total do IBS e a CBS), e o `<total>`
+leva o `IBSCBSTot` somando tudo. Sem esse grupo a SEFAZ devolve a rejeição **1115 — IBS/CBS
+não informado**. Item sem CST/`cClassTrib` cadastrado sai como tributação integral
+(`000` / `000001`) com as alíquotas de teste — o que deixa a nota passar; a classificação
+certa de cada operação se cadastra nas Regras fiscais. A estrutura foi tirada do schema
+oficial em `testes/xsd/`, e `teste_schema_nfe.py` confere ordem, valores e o somatório.
 
 > A tributação (CFOP, CST/CSOSN, alíquotas) é responsabilidade do contribuinte e do seu
 > contador: o sistema usa o que está nos cadastros e não decide tributação sozinho.

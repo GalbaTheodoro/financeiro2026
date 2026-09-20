@@ -205,6 +205,41 @@ for presenca, esperado in (("2", True), ("3", True), ("4", True), ("9", True),
     checar(f"indPres {presenca}: {'leva' if esperado else 'não leva'} indIntermed",
            tem == esperado, "leva" if tem else "não leva")
 
+print("\n=== 3c. Grupo IBS/CBS no item e no total (rejeição 1115) ===")
+checar("o item leva o grupo IBSCBS", "<IBSCBS>" in simples)
+checar("com CST e cClassTrib, nesta ordem",
+       "<IBSCBS><CST>" in simples and "</CST><cClassTrib>" in simples)
+checar("o gIBSCBS traz base, IBS estadual, IBS municipal, total e CBS",
+       all(x in simples for x in ("<gIBSCBS><vBC>", "<gIBSUF><pIBSUF>", "<vIBSUF>",
+                                  "<gIBSMun><pIBSMun>", "<vIBSMun>", "<vIBS>",
+                                  "<gCBS><pCBS>", "<vCBS>")))
+checar("o grupo vem depois do PIS/COFINS, como o schema manda",
+       simples.index("<COFINS>") < simples.index("<IBSCBS>"))
+checar("o total da nota leva o IBSCBSTot", "<IBSCBSTot><vBCIBSCBS>" in simples)
+checar("e o IBSCBSTot vem depois do ICMSTot",
+       simples.index("</ICMSTot>") < simples.index("<IBSCBSTot>"))
+
+# 100 x 1.000 = 100.000 -> IBS 0,1% = 100,00 e CBS 0,9% = 900,00
+checar("as alíquotas de teste de 2026 batem com os valores",
+       "<pIBSUF>0.1000</pIBSUF><vIBSUF>100.00</vIBSUF>" in simples
+       and "<pCBS>0.9000</pCBS><vCBS>900.00</vCBS>" in simples,
+       re.search(r"<gCBS>.*?</gCBS>", simples).group(0))
+checar("o total soma o IBS do estado com o do município",
+       "<vIBS>100.00</vIBS>" in simples)
+
+# nota com vários itens: o total soma todos
+dois = montar(itens=[
+    {"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1000},
+    {"produto_id": cafe["id"], "quantidade": 50, "valor_unitario": 1000}])
+problemas = validar(dois)
+checar("nota com dois itens passa no schema", not problemas,
+       problemas[0][:120] if problemas else "")
+checar("cada item tem o seu grupo IBS/CBS", dois.count("<IBSCBS>") == 2)
+checar("o IBSCBSTot soma os dois itens (150.000 de base)",
+       "<vBCIBSCBS>150000.00</vBCIBSCBS>" in dois
+       and "<gCBS><vDif>0.00</vDif><vDevTrib>0.00</vDevTrib><vCBS>1350.00</vCBS>" in dois,
+       re.search(r"<vBCIBSCBS>[^<]+", dois).group(0))
+
 print("\n=== 4. Regime normal e o diferimento do café (CST 51) ===")
 api("PUT", f"/api/empresas/{eid}", {
     "razao_social": "ASSESSORIA AGRODOCK LTDA", "cnpj": "98765432000198",

@@ -392,11 +392,13 @@ def _pis_cofins(item, crt: str) -> str:
                  + _tag(f"v{nome}", _num(valor), True))
         return f"<{nome}><{nome}Outr>{corpo}</{nome}Outr></{nome}>"
 
-    total = float(item.valor_total or 0)
+    # a base vem da regra fiscal (percentual do item, menos a redução); sem ela,
+    # o valor do item inteiro
+    base = float(getattr(item, "pis_cofins_base", 0) or 0) or float(item.valor_total or 0)
     return (bloco("PIS", item.cst_pis, item.aliquota_pis, item.pis_valor,
-                  total if float(item.aliquota_pis or 0) else 0)
+                  base if float(item.aliquota_pis or 0) else 0)
             + bloco("COFINS", item.cst_cofins, item.aliquota_cofins, item.cofins_valor,
-                    total if float(item.aliquota_cofins or 0) else 0))
+                    base if float(item.aliquota_cofins or 0) else 0))
 
 
 def _ibs_cbs_do_item(item) -> str:

@@ -646,23 +646,34 @@ class RegraFiscal(Base):
     uf_origem = Column(String(2))        # em branco = qualquer estado de saída
     uf_destino = Column(String(2))       # em branco = qualquer estado de destino
     operacao = Column(String(7))         # SAIDA | ENTRADA | em branco = as duas
-    # o que a regra manda aplicar no item
+    # ---- o que a regra manda aplicar no item ----
+    # As "bases" são percentuais do valor do item: 100 = o valor inteiro entra na
+    # base. A redução é aplicada depois, sobre essa base.
     cfop = Column(String(5))
     icms_origem = Column(String(1))
+    # ICMS
     icms_cst = Column(String(3))         # CST (regime normal) ou CSOSN (Simples)
+    icms_base = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=100)
     icms_reducao = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     icms_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    # PIS e COFINS (um CST só para os dois, como na prática)
     cst_pis = Column(String(2))
-    aliquota_pis = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     cst_cofins = Column(String(2))
+    pis_cofins_base = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=100)
+    pis_cofins_reducao = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    aliquota_pis = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     aliquota_cofins = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     cst_ipi = Column(String(2))
     aliquota_ipi = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    # IBS e CBS (reforma tributária)
     ibs_cbs_cst = Column(String(3))
     ibs_cbs_classe = Column(String(6))   # cClassTrib
+    ibs_cbs_base = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=100)
+    ibs_cbs_reducao_base = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    ibs_cbs_reducao_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    cbs_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     ibs_uf_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     ibs_mun_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
-    cbs_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     prioridade = Column(Integer, nullable=False, default=0)
     observacao = Column(String(300))
     ativo = Column(Boolean, nullable=False, default=True)
@@ -984,9 +995,11 @@ class NotaItem(Base):
     # Reforma tributária (NT 2025.002): IBS estadual, IBS municipal e CBS.
     # Em 2026 as alíquotas são de teste (IBS 0,1% e CBS 0,9%) e o cálculo é
     # informativo. Simples Nacional só passa a destacar em 2027.
+    pis_cofins_base = _dinheiro()             # vBC do PIS e da COFINS
     ibs_cbs_cst = Column(String(3))
     ibs_cbs_classe = Column(String(6))        # cClassTrib
     ibs_cbs_base = _dinheiro()
+    ibs_cbs_reducao_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     ibs_uf_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     ibs_uf_valor = _dinheiro()
     ibs_mun_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)

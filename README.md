@@ -391,10 +391,22 @@ fiscais*): o cliente ganha algo como *Indústria*, *Produtor rural*, *Não contr
 *Exportação*; o produto ganha *Café cru em grão*, *Café industrializado*, *Serviço*… O botão
 **Criar os tipos sugeridos** já deixa a lista pronta.
 
-A aba *Cadastros → Regras fiscais* é onde mora **toda a tributação**. Cada linha diz
-*quando vale* — **CFOP**, **UF de saída**, **UF de destino**, **tipo de cliente**, **tipo de
-item** e operação — e *o que aplicar*: origem, CST/CSOSN e alíquota do ICMS (com redução de
-base), CST e alíquota de PIS, COFINS e IPI, e CST, `cClassTrib` e alíquotas de IBS/CBS.
+A aba *Cadastros → Regras fiscais* é onde mora **toda a tributação**. A janela vem na ordem
+em que se pensa a operação:
+
+1. **Quando vale** — CFOP, UF de origem (já preenchida com a UF do cadastro da empresa),
+   UF de destino, tipo de cliente, tipo de item, operação e prioridade.
+2. **ICMS** — CST/CSOSN, base de cálculo, redução da base, alíquota e origem da mercadoria.
+3. **PIS e COFINS** — CST, base de cálculo, redução da base, alíquota de PIS, de COFINS,
+   e o IPI.
+4. **IBS e CBS** — CST, `cClassTrib`, base de cálculo, redução da base, **redução de
+   alíquota**, alíquota de CBS, de IBS estadual e de IBS municipal.
+
+As **bases são percentuais do valor do item** — 100 quer dizer "o valor inteiro entra na
+base" —, e a **redução** é aplicada depois, sobre essa base. Exemplo num item de R$ 100.000:
+base 80% e redução de 25% dão base de R$ 60.000, e 18% de alíquota dão R$ 10.800 de ICMS.
+A **redução de alíquota** do IBS/CBS é o redutor da reforma: 60 desconta 60% das três
+alíquotas de uma vez, então uma CBS de 0,9% vira 0,36%.
 
 O **cadastro do produto não guarda mais CST nem alíquota**. Lá ficam só a identificação da
 mercadoria — NCM, CEST, origem, unidades, GTIN, pesos, cBenef — e o **tipo fiscal**. Quem

@@ -230,8 +230,8 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             # a tela pediu para refazer os impostos: o que estava nela é descartado
             for campo in fiscal.CAMPOS_DA_REGRA + (
                     "icms_base", "icms_valor", "pis_valor", "cofins_valor", "ipi_valor",
-                    "ibs_cbs_base", "ibs_uf_valor", "ibs_mun_valor", "cbs_valor",
-                    "origem_mercadoria"):
+                    "pis_cofins_base", "ibs_cbs_base", "ibs_uf_valor", "ibs_mun_valor",
+                    "cbs_valor", "origem_mercadoria"):
                 if hasattr(entrada, campo):
                     setattr(entrada, campo, None)
         quantidade = float(entrada.quantidade or 0)
@@ -241,8 +241,12 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
         # ---------------------------------------------------------------- ICMS
         cst = _texto(entrada.icms_cst, r.get("icms_cst")) or ""
         reducao = _escolher(entrada.icms_reducao, r.get("icms_reducao"))
-        base_cheia = float(entrada.icms_base) if entrada.icms_base is not None else total
-        base = round(base_cheia * (1 - reducao / 100), 2) if reducao else base_cheia
+        # a regra diz quanto do valor do item entra na base (100% é o normal) e
+        # quanto dessa base é reduzido; o que a tela digitar vence os dois
+        perc_base = float(r.get("icms_base") or 100)
+        base_cheia = (float(entrada.icms_base) if entrada.icms_base is not None
+                      else total * perc_base / 100)
+        base = round(base_cheia * (1 - reducao / 100), 2) if reducao else round(base_cheia, 2)
         aliquota = _escolher(entrada.icms_aliquota, r.get("icms_aliquota"))
         if entrada.icms_valor is not None:
             icms = float(entrada.icms_valor)
@@ -255,20 +259,32 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
         aliq_pis = _escolher(entrada.aliquota_pis, r.get("aliquota_pis"))
         aliq_cofins = _escolher(entrada.aliquota_cofins, r.get("aliquota_cofins"))
         aliq_ipi = _escolher(entrada.aliquota_ipi, r.get("aliquota_ipi"))
+        base_pis = (float(entrada.pis_cofins_base) if entrada.pis_cofins_base is not None
+                    else total * float(r.get("pis_cofins_base") or 100) / 100
+                    * (1 - float(r.get("pis_cofins_reducao") or 0) / 100))
+        base_pis = round(base_pis, 2)
         pis = float(entrada.pis_valor) if entrada.pis_valor is not None \
-            else total * aliq_pis / 100
+            else base_pis * aliq_pis / 100
         cofins = float(entrada.cofins_valor) if entrada.cofins_valor is not None \
-            else total * aliq_cofins / 100
+            else base_pis * aliq_cofins / 100
         ipi = float(entrada.ipi_valor) if entrada.ipi_valor is not None \
             else total * aliq_ipi / 100
 
         # ------------------------------------------------- IBS e CBS (reforma)
-        base_ibs = float(entrada.ibs_cbs_base) if entrada.ibs_cbs_base is not None else total
+        base_ibs = (float(entrada.ibs_cbs_base) if entrada.ibs_cbs_base is not None
+                    else total * float(r.get("ibs_cbs_base") or 100) / 100
+                    * (1 - float(r.get("ibs_cbs_reducao_base") or 0) / 100))
+        base_ibs = round(base_ibs, 2)
+        # redutor de alíquota da reforma: desconta das três alíquotas de uma vez
+        red_aliq = _escolher(entrada.ibs_cbs_reducao_aliquota,
+                             r.get("ibs_cbs_reducao_aliquota"))
+        fator = 1 - red_aliq / 100
         aliq_ibs_uf = _escolher(entrada.ibs_uf_aliquota, r.get("ibs_uf_aliquota"),
-                                nfe.IBS_UF_PADRAO)
+                                nfe.IBS_UF_PADRAO) * fator
         aliq_ibs_mun = _escolher(entrada.ibs_mun_aliquota, r.get("ibs_mun_aliquota"),
-                                 nfe.IBS_MUN_PADRAO)
-        aliq_cbs = _escolher(entrada.cbs_aliquota, r.get("cbs_aliquota"), nfe.CBS_PADRAO)
+                                 nfe.IBS_MUN_PADRAO) * fator
+        aliq_cbs = _escolher(entrada.cbs_aliquota, r.get("cbs_aliquota"),
+                             nfe.CBS_PADRAO) * fator
         ibs_uf = float(entrada.ibs_uf_valor) if entrada.ibs_uf_valor is not None \
             else base_ibs * aliq_ibs_uf / 100
         ibs_mun = float(entrada.ibs_mun_valor) if entrada.ibs_mun_valor is not None \
@@ -299,6 +315,7 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             icms_reducao=reducao,
             origem_mercadoria=(_texto(entrada.origem_mercadoria, r.get("icms_origem"),
                                       (produto.origem if produto else None) or "0"))[:1],
+            pis_cofins_base=dinheiro(base_pis),
             cst_pis=(_texto(entrada.cst_pis, r.get("cst_pis")) or "")[:2] or None,
             aliquota_pis=aliq_pis,
             pis_valor=dinheiro(pis),
@@ -312,6 +329,7 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             ibs_cbs_classe=(_texto(entrada.ibs_cbs_classe, r.get("ibs_cbs_classe"))
                             or "")[:6] or None,
             ibs_cbs_base=dinheiro(base_ibs),
+            ibs_cbs_reducao_aliquota=red_aliq,
             ibs_uf_aliquota=aliq_ibs_uf,
             ibs_uf_valor=dinheiro(ibs_uf),
             ibs_mun_aliquota=aliq_ibs_mun,

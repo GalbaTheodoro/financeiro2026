@@ -275,6 +275,73 @@ acento = api("GET", "/api/fiscal/cclasstrib?busca=imunidade", None, t)
 checar("a busca ignora acento", isinstance(acento["linhas"], list))
 
 # =========================================================================== #
+print("\n=== 4d. Base de cálculo, redução de base e redução de alíquota ===")
+completa = api("POST", "/api/fiscal/regras", {
+    "empresa_id": eid, "nome": "Café cru — com bases e reduções",
+    "tipo_item_id": cafe_cru, "cfop": "5949",
+    "icms_cst": "20", "icms_base": 80, "icms_reducao": 25, "icms_aliquota": 18,
+    "cst_pis": "01", "cst_cofins": "01", "pis_cofins_base": 90,
+    "pis_cofins_reducao": 10, "aliquota_pis": 1.65, "aliquota_cofins": 7.6,
+    "ibs_cbs_cst": "200", "ibs_cbs_classe": "200003", "ibs_cbs_base": 100,
+    "ibs_cbs_reducao_base": 20, "ibs_cbs_reducao_aliquota": 60,
+    "cbs_aliquota": 0.9, "ibs_uf_aliquota": 0.1, "ibs_mun_aliquota": 0}, t)
+checar("a regra guarda as três bases e as reduções",
+       completa["icms_base"] == 80 and completa["pis_cofins_base"] == 90
+       and completa["ibs_cbs_reducao_base"] == 20
+       and completa["ibs_cbs_reducao_aliquota"] == 60,
+       f"icms {completa['icms_base']} / pis {completa['pis_cofins_base']}")
+
+# item de 100 x 1.000 = 100.000
+com_bases = api("POST", "/api/nfe/rascunho", {
+    "empresa_id": eid, "parceiro_id": consumidor["id"], "ambiente": "2", "serie": "1",
+    "itens": [{"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1000,
+               "cfop": "5949"}]}, t)["itens"][0]
+# 100.000 x 80% = 80.000, menos 25% de redução = 60.000; 18% = 10.800
+checar("base do ICMS: 80% do item, menos 25% de redução",
+       abs(com_bases["icms_base"] - 60000) < 0.01, str(com_bases["icms_base"]))
+checar("e o ICMS sai de 18% sobre essa base",
+       abs(com_bases["icms_valor"] - 10800) < 0.01, str(com_bases["icms_valor"]))
+# 100.000 x 90% = 90.000, menos 10% = 81.000; PIS 1,65% = 1.336,50
+checar("base do PIS/COFINS: 90% do item, menos 10% de redução",
+       abs(com_bases["pis_cofins_base"] - 81000) < 0.01, str(com_bases["pis_cofins_base"]))
+checar("e o PIS sai de 1,65% sobre essa base",
+       abs(com_bases["pis_valor"] - 1336.50) < 0.01, str(com_bases["pis_valor"]))
+checar("a COFINS também", abs(com_bases["cofins_valor"] - 6156) < 0.01,
+       str(com_bases["cofins_valor"]))
+# 100.000 menos 20% = 80.000; CBS 0,9% reduzida em 60% = 0,36% -> 288,00
+checar("base do IBS/CBS: 100% do item, menos 20% de redução",
+       abs(com_bases["ibs_cbs_base"] - 80000) < 0.01, str(com_bases["ibs_cbs_base"]))
+checar("a redução de alíquota de 60% derruba a CBS para 0,36%",
+       abs(com_bases["cbs_aliquota"] - 0.36) < 0.0001
+       and abs(com_bases["cbs_valor"] - 288) < 0.01,
+       f"{com_bases['cbs_aliquota']}% = {com_bases['cbs_valor']}")
+checar("e o IBS estadual para 0,04%",
+       abs(com_bases["ibs_uf_aliquota"] - 0.04) < 0.0001
+       and abs(com_bases["ibs_uf_valor"] - 32) < 0.01,
+       f"{com_bases['ibs_uf_aliquota']}% = {com_bases['ibs_uf_valor']}")
+checar("o cClassTrib da regra chega no item", com_bases["ibs_cbs_classe"] == "200003")
+
+sem_base = api("POST", "/api/fiscal/regras", {
+    "empresa_id": eid, "nome": "Café cru — base cheia", "tipo_item_id": cafe_cru,
+    "cfop": "5910", "icms_cst": "00", "icms_aliquota": 12,
+    "cst_pis": "01", "aliquota_pis": 1.65}, t)
+checar("regra sem base informada nasce com 100%",
+       sem_base["icms_base"] == 100 and sem_base["pis_cofins_base"] == 100
+       and sem_base["ibs_cbs_base"] == 100)
+cheio = api("POST", "/api/nfe/rascunho", {
+    "empresa_id": eid, "parceiro_id": consumidor["id"], "ambiente": "2", "serie": "1",
+    "itens": [{"produto_id": cafe["id"], "quantidade": 100, "valor_unitario": 1000,
+               "cfop": "5910"}]}, t)["itens"][0]
+checar("sem base informada o item usa o valor inteiro",
+       abs(cheio["icms_base"] - 100000) < 0.01
+       and abs(cheio["pis_cofins_base"] - 100000) < 0.01,
+       f"{cheio['icms_base']} / {cheio['pis_cofins_base']}")
+
+fora_faixa = api("POST", "/api/fiscal/regras", {
+    "empresa_id": eid, "nome": "Errada", "icms_base": 120}, t, esperar_erro=True)
+checar("base fora de 0 a 100 é recusada", fora_faixa.get("_status") == 400)
+
+# =========================================================================== #
 print("\n=== 5. O que foi digitado à mão continua mandando ===")
 mao = api("PUT", f"/api/nfe/{nota_mg['nota']['id']}", {
     "empresa_id": eid, "parceiro_id": torrefacao_mg["id"], "serie": "1", "ambiente": "2",

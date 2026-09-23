@@ -422,10 +422,11 @@ const Emissao = {
     return { produto_id: '', descricao: '', unidade: '', quantidade: 0, valor_unitario: 0,
              cfop: '', ncm: '', icms_cst: '', desconto: 0, origem_mercadoria: '0',
              icms_base: null, icms_aliquota: 0, icms_reducao: 0, icms_valor: 0,
-             cst_pis: '', aliquota_pis: 0, pis_valor: 0,
+             cst_pis: '', pis_cofins_base: null, aliquota_pis: 0, pis_valor: 0,
              cst_cofins: '', aliquota_cofins: 0, cofins_valor: 0,
              cst_ipi: '', aliquota_ipi: 0, ipi_valor: 0,
              ibs_cbs_cst: '', ibs_cbs_classe: '', ibs_cbs_base: null,
+             ibs_cbs_reducao_aliquota: 0,
              ibs_uf_aliquota: Emissao.IBS_UF, ibs_mun_aliquota: Emissao.IBS_MUN,
              cbs_aliquota: Emissao.CBS };
   },
@@ -438,13 +439,14 @@ const Emissao = {
 
   /** Campos de imposto que são número (para ler e gravar com vírgula). */
   CAMPOS_NUMERO: ['quantidade', 'valor_unitario', 'desconto', 'icms_base', 'icms_aliquota',
-    'icms_reducao', 'icms_valor', 'aliquota_pis', 'pis_valor', 'aliquota_cofins',
-    'cofins_valor', 'aliquota_ipi', 'ipi_valor', 'ibs_cbs_base', 'ibs_uf_aliquota',
-    'ibs_uf_valor', 'ibs_mun_aliquota', 'ibs_mun_valor', 'cbs_aliquota', 'cbs_valor'],
+    'icms_reducao', 'icms_valor', 'pis_cofins_base', 'aliquota_pis', 'pis_valor',
+    'aliquota_cofins', 'cofins_valor', 'aliquota_ipi', 'ipi_valor', 'ibs_cbs_base',
+    'ibs_cbs_reducao_aliquota', 'ibs_uf_aliquota', 'ibs_uf_valor', 'ibs_mun_aliquota',
+    'ibs_mun_valor', 'cbs_aliquota', 'cbs_valor'],
 
   /** Campos calculados: enquanto ninguém digita neles, seguem a base e a alíquota. */
-  CALCULADOS: ['icms_base', 'icms_valor', 'pis_valor', 'cofins_valor', 'ipi_valor',
-    'ibs_cbs_base', 'ibs_uf_valor', 'ibs_mun_valor', 'cbs_valor'],
+  CALCULADOS: ['icms_base', 'icms_valor', 'pis_cofins_base', 'pis_valor', 'cofins_valor',
+    'ipi_valor', 'ibs_cbs_base', 'ibs_uf_valor', 'ibs_mun_valor', 'cbs_valor'],
 
   /* ICMS que não destaca valor: isento, não tributado, diferido, ST. */
   SEM_VALOR_ICMS: ['40', '41', '50', '51', '60', '102', '103', '300', '400', '500'],
@@ -463,14 +465,18 @@ const Emissao = {
         ? 0
         : Math.round(base * Emissao.numero(item.icms_aliquota)) / 100;
     }
-    if (!mao.pis_valor) item.pis_valor = Math.round(total * Emissao.numero(item.aliquota_pis)) / 100;
-    if (!mao.cofins_valor) item.cofins_valor = Math.round(total * Emissao.numero(item.aliquota_cofins)) / 100;
+    if (!mao.pis_cofins_base) item.pis_cofins_base = Math.round(total * 100) / 100;
+    const basePis = Emissao.numero(item.pis_cofins_base);
+    if (!mao.pis_valor) item.pis_valor = Math.round(basePis * Emissao.numero(item.aliquota_pis)) / 100;
+    if (!mao.cofins_valor) item.cofins_valor = Math.round(basePis * Emissao.numero(item.aliquota_cofins)) / 100;
     if (!mao.ipi_valor) item.ipi_valor = Math.round(total * Emissao.numero(item.aliquota_ipi)) / 100;
     if (!mao.ibs_cbs_base) item.ibs_cbs_base = Math.round(total * 100) / 100;
     const baseIbs = Emissao.numero(item.ibs_cbs_base);
-    if (!mao.ibs_uf_valor) item.ibs_uf_valor = Math.round(baseIbs * Emissao.numero(item.ibs_uf_aliquota)) / 100;
-    if (!mao.ibs_mun_valor) item.ibs_mun_valor = Math.round(baseIbs * Emissao.numero(item.ibs_mun_aliquota)) / 100;
-    if (!mao.cbs_valor) item.cbs_valor = Math.round(baseIbs * Emissao.numero(item.cbs_aliquota)) / 100;
+    // o redutor de alíquota da reforma desconta das três alíquotas de uma vez
+    const fator = 1 - Emissao.numero(item.ibs_cbs_reducao_aliquota) / 100;
+    if (!mao.ibs_uf_valor) item.ibs_uf_valor = Math.round(baseIbs * Emissao.numero(item.ibs_uf_aliquota) * fator) / 100;
+    if (!mao.ibs_mun_valor) item.ibs_mun_valor = Math.round(baseIbs * Emissao.numero(item.ibs_mun_aliquota) * fator) / 100;
+    if (!mao.cbs_valor) item.cbs_valor = Math.round(baseIbs * Emissao.numero(item.cbs_aliquota) * fator) / 100;
   },
 
   /** Um campo de imposto dentro do cartão do item. */
@@ -525,6 +531,8 @@ const Emissao = {
         <h5 class="titulo-bloco" style="margin:12px 0 0">PIS e COFINS</h5>
         <div class="linha-campos">
           ${Emissao.selecaoImposto(i, 'cst_pis', 'CST do PIS', Emissao.CST_PISCOFINS)}
+          ${Emissao.campoImposto(i, 'pis_cofins_base', 'Base de cálculo', 2,
+            'em branco = total do item')}
           ${Emissao.campoImposto(i, 'aliquota_pis', 'Alíquota PIS (%)', 4)}
           ${Emissao.campoImposto(i, 'pis_valor', 'Valor do PIS', 2, 'calculado')}
           ${Emissao.selecaoImposto(i, 'cst_cofins', 'CST da COFINS', Emissao.CST_PISCOFINS)}
@@ -551,6 +559,8 @@ const Emissao = {
                value="${UI.escapar(Emissao._itens[i].ibs_cbs_classe || '')}" maxlength="6"
                placeholder="000001">`, 'tabela da NT 2025.002')}
           ${Emissao.campoImposto(i, 'ibs_cbs_base', 'Base do IBS/CBS', 2, 'em branco = total do item')}
+          ${Emissao.campoImposto(i, 'ibs_cbs_reducao_aliquota', 'Redução de alíquota (%)', 4,
+            'desconta das três alíquotas')}
           ${Emissao.campoImposto(i, 'ibs_uf_aliquota', 'IBS estadual (%)', 4)}
           ${Emissao.campoImposto(i, 'ibs_uf_valor', 'Valor IBS estadual', 2, 'calculado')}
           ${Emissao.campoImposto(i, 'ibs_mun_aliquota', 'IBS municipal (%)', 4)}
@@ -772,8 +782,8 @@ const Emissao = {
   },
 
   /* Quantas casas cada campo calculado mostra. */
-  CASAS: { icms_base: 2, icms_valor: 2, pis_valor: 2, cofins_valor: 2, ipi_valor: 2,
-           ibs_cbs_base: 2, ibs_uf_valor: 2, ibs_mun_valor: 2, cbs_valor: 2 },
+  CASAS: { icms_base: 2, icms_valor: 2, pis_cofins_base: 2, pis_valor: 2, cofins_valor: 2,
+           ipi_valor: 2, ibs_cbs_base: 2, ibs_uf_valor: 2, ibs_mun_valor: 2, cbs_valor: 2 },
 
   /** Só os textos de total e os valores calculados mudam enquanto se digita —
       nada é redesenhado, então o campo em uso não perde o foco nem o cursor. */
@@ -1010,6 +1020,7 @@ const Emissao = {
         icms_aliquota: Emissao.numero(i.icms_aliquota),
         icms_valor: Emissao.numero(i.icms_valor),
         cst_pis: i.cst_pis || null,
+        pis_cofins_base: Emissao.numero(i.pis_cofins_base),
         aliquota_pis: Emissao.numero(i.aliquota_pis),
         pis_valor: Emissao.numero(i.pis_valor),
         cst_cofins: i.cst_cofins || null,
@@ -1021,6 +1032,7 @@ const Emissao = {
         ibs_cbs_cst: i.ibs_cbs_cst || null,
         ibs_cbs_classe: i.ibs_cbs_classe || null,
         ibs_cbs_base: Emissao.numero(i.ibs_cbs_base),
+        ibs_cbs_reducao_aliquota: Emissao.numero(i.ibs_cbs_reducao_aliquota),
         ibs_uf_aliquota: Emissao.numero(i.ibs_uf_aliquota),
         ibs_uf_valor: Emissao.numero(i.ibs_uf_valor),
         ibs_mun_aliquota: Emissao.numero(i.ibs_mun_aliquota),

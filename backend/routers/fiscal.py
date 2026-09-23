@@ -178,11 +178,15 @@ def _gravar(db: Session, regra: RegraFiscal, dados: RegraFiscalIn) -> None:
     for campo in ("cfop", "icms_origem", "icms_cst", "cst_pis", "cst_cofins", "cst_ipi",
                   "ibs_cbs_cst", "ibs_cbs_classe"):
         setattr(regra, campo, (getattr(dados, campo) or "").strip() or None)
-    for campo in ("icms_reducao", "icms_aliquota", "aliquota_pis", "aliquota_cofins",
-                  "aliquota_ipi", "ibs_uf_aliquota", "ibs_mun_aliquota", "cbs_aliquota"):
-        valor = float(getattr(dados, campo) or 0)
+    for campo in ("icms_base", "icms_reducao", "icms_aliquota",
+                  "pis_cofins_base", "pis_cofins_reducao", "aliquota_pis", "aliquota_cofins",
+                  "aliquota_ipi", "ibs_cbs_base", "ibs_cbs_reducao_base",
+                  "ibs_cbs_reducao_aliquota", "cbs_aliquota",
+                  "ibs_uf_aliquota", "ibs_mun_aliquota"):
+        valor = getattr(dados, campo)
+        valor = float(100 if valor is None and campo.endswith("_base") else (valor or 0))
         if valor < 0 or valor > 100:
-            raise HTTPException(400, "As alíquotas ficam entre 0 e 100%.")
+            raise HTTPException(400, "Bases, reduções e alíquotas ficam entre 0 e 100%.")
         setattr(regra, campo, valor)
     regra.prioridade = int(dados.prioridade or 0)
     regra.observacao = (dados.observacao or "").strip() or None

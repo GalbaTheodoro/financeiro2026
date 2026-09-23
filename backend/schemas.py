@@ -550,20 +550,29 @@ class RegraFiscalIn(BaseModel):
     operacao: str | None = None    # SAIDA | ENTRADA | vazio = as duas
     cfop: str | None = None
     icms_origem: str | None = None
+    # ICMS — a base é o percentual do valor do item que entra na base (100 = tudo)
     icms_cst: str | None = None
+    icms_base: float = 100
     icms_reducao: float = 0
     icms_aliquota: float = 0
+    # PIS e COFINS
     cst_pis: str | None = None
-    aliquota_pis: float = 0
     cst_cofins: str | None = None
+    pis_cofins_base: float = 100
+    pis_cofins_reducao: float = 0
+    aliquota_pis: float = 0
     aliquota_cofins: float = 0
     cst_ipi: str | None = None
     aliquota_ipi: float = 0
+    # IBS e CBS
     ibs_cbs_cst: str | None = None
     ibs_cbs_classe: str | None = None
+    ibs_cbs_base: float = 100
+    ibs_cbs_reducao_base: float = 0
+    ibs_cbs_reducao_aliquota: float = 0
+    cbs_aliquota: float = 0
     ibs_uf_aliquota: float = 0
     ibs_mun_aliquota: float = 0
-    cbs_aliquota: float = 0
     prioridade: int = 0
     observacao: str | None = None
     ativo: bool = True
@@ -595,6 +604,7 @@ class ItemNotaIn(BaseModel):
     cst_pis: str | None = None
     aliquota_pis: float | None = None
     pis_valor: float | None = None
+    pis_cofins_base: float | None = None
     cst_cofins: str | None = None
     aliquota_cofins: float | None = None
     cofins_valor: float | None = None
@@ -605,6 +615,7 @@ class ItemNotaIn(BaseModel):
     ibs_cbs_cst: str | None = None
     ibs_cbs_classe: str | None = None    # cClassTrib
     ibs_cbs_base: float | None = None
+    ibs_cbs_reducao_aliquota: float | None = None
     ibs_uf_aliquota: float | None = None
     ibs_uf_valor: float | None = None
     ibs_mun_aliquota: float | None = None

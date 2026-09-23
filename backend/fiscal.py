@@ -49,21 +49,33 @@ from .models import Parceiro, Produto, RegraFiscal, TipoFiscal
 CAMPOS_DA_REGRA = (
     "cfop",
     "icms_origem",
+    # ICMS
     "icms_cst",
+    "icms_base",          # % do valor do item que entra na base
     "icms_reducao",
     "icms_aliquota",
+    # PIS e COFINS
     "cst_pis",
-    "aliquota_pis",
     "cst_cofins",
+    "pis_cofins_base",
+    "pis_cofins_reducao",
+    "aliquota_pis",
     "aliquota_cofins",
     "cst_ipi",
     "aliquota_ipi",
+    # IBS e CBS
     "ibs_cbs_cst",
     "ibs_cbs_classe",
+    "ibs_cbs_base",
+    "ibs_cbs_reducao_base",
+    "ibs_cbs_reducao_aliquota",
+    "cbs_aliquota",
     "ibs_uf_aliquota",
     "ibs_mun_aliquota",
-    "cbs_aliquota",
 )
+
+# Percentuais de base: 100 é o normal e não precisa ser mandado para o item.
+_BASES_PADRAO = {"icms_base": 100.0, "pis_cofins_base": 100.0, "ibs_cbs_base": 100.0}
 
 PESOS = {
     "tipo_cliente_id": 32,
@@ -160,6 +172,9 @@ def valores_da_regra(regra: RegraFiscal | None) -> dict:
                 valores[campo] = valor
         elif valor is not None and float(valor or 0) != 0:
             valores[campo] = float(valor)
+    # percentual de base é sempre mandado, inclusive quando é o padrão de 100%
+    for campo, padrao in _BASES_PADRAO.items():
+        valores.setdefault(campo, float(getattr(regra, campo, padrao) or padrao))
     return valores
 
 

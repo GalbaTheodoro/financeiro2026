@@ -570,12 +570,12 @@ def _total(itens, frete: float = 0, desconto: float = 0) -> tuple[str, float]:
 def _ibs_cbs_total(itens) -> str:
     """Somatório do IBS/CBS da nota (`IBSCBSTot`), na ordem exata do schema.
 
-    Só entram os itens que levaram o grupo `gIBSCBS`. Se nenhum item levou — nota
-    toda isenta ou imune, por exemplo —, o total também não é informado.
+    O total **sai sempre** — sem ele a SEFAZ devolve a rejeição **1119 (total de
+    IBS e CBS não informado)**, mesmo numa nota em que nenhum item destaca. Só
+    entram na soma os itens que levaram o grupo `gIBSCBS`; numa nota toda isenta
+    ou imune, o total vai zerado.
     """
     itens = [i for i in itens if _tem_grupo_ibs_cbs(i)]
-    if not itens:
-        return ""
     base = sum(float(getattr(i, "ibs_cbs_base", 0) or 0) or float(i.valor_total or 0)
                for i in itens)
     ibs_uf = sum(float(getattr(i, "ibs_uf_valor", 0) or 0) for i in itens)

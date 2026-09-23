@@ -422,7 +422,8 @@ rejeição **1021 (grupo IBS/CBS informado indevidamente)**; nos demais (000, 01
 210, 220, 221, 222, 510, 515) ele é obrigatório, e omiti-lo é a **1022/1115**. A emissão
 resolve isso sozinha (`CST_SEM_GRUPO_IBSCBS` em `backend/emissao.py`): o CST e o `cClassTrib`
 sempre saem, o grupo de valores só sai quando o CST permite, e o `IBSCBSTot` soma apenas os
-itens que levaram o grupo — some da nota quando nenhum item leva. Na Conferência do cálculo,
+itens que levaram o grupo, mas **sai sempre**, zerado se for o caso: sem ele a SEFAZ
+devolve a rejeição **1119 (total de IBS e CBS não informado)**. Na Conferência do cálculo,
 a regra com um CST desses avisa em vermelho que os valores não vão para a nota.
 
 **O CST e o `cClassTrib` não podem discordar**, e é aí que a 1021 costuma nascer: nos códigos

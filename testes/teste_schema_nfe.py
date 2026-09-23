@@ -264,8 +264,13 @@ for cst, leva in (("000", True), ("200", True), ("510", True),
 isenta = montar(itens=[{"produto_id": cafe["id"], "quantidade": 10,
                         "valor_unitario": 100, "ibs_cbs_cst": "400",
                         "ibs_cbs_classe": "400001"}])
-checar("nota toda isenta também não leva o IBSCBSTot",
-       "<IBSCBSTot>" not in isenta)
+# o total sai SEMPRE, mesmo zerado: sem ele, a SEFAZ devolve a rejeição 1119
+checar("nota toda isenta continua levando o IBSCBSTot, zerado",
+       "<IBSCBSTot><vBCIBSCBS>0.00</vBCIBSCBS>" in isenta,
+       (re.search(r"<IBSCBSTot>.{0,40}", isenta) or [""])[0]
+       if re.search(r"<IBSCBSTot>", isenta) else "não saiu")
+checar("e a nota toda isenta passa no schema", not validar(isenta),
+       (validar(isenta) or [""])[0][:120])
 misturada = montar(itens=[
     {"produto_id": cafe["id"], "quantidade": 10, "valor_unitario": 100,
      "ibs_cbs_cst": "400", "ibs_cbs_classe": "400001"},

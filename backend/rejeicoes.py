@@ -164,6 +164,10 @@ TABELA: dict[str, tuple[str, str, str]] = {
              "O CST do IBS/CBS deste item é de operação tributada e exige os valores. "
              "Em Cadastros > Regras fiscais, preencha a base e as alíquotas de CBS e "
              "IBS da regra deste item (em 2026 o teste é CBS 0,9% e IBS 0,1%).", ITENS),
+    "1119": ("Falta o somatório de IBS e CBS da nota.",
+             "É o total da nota, não um item: ele tem de ir mesmo quando nenhum item "
+             "destaca IBS/CBS. O sistema monta esse total sozinho — se este erro "
+             "aparecer, avise o suporte com o código.", SUPORTE),
     "1115": ("Falta o grupo de IBS/CBS neste item.",
              "Em Cadastros > Regras fiscais, preencha o CST do IBS/CBS, o cClassTrib e "
              "as alíquotas da regra deste item (em 2026 o teste é CBS 0,9% e IBS 0,1%).",

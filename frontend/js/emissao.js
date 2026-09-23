@@ -333,6 +333,7 @@ const Emissao = {
           ${erro.denegada ? `<div class="recusa-corrigir"><b>Nota denegada:</b> o número foi
             consumido e essa nota não pode ser reaproveitada. Depois de resolver a
             pendência, emita outra.</div>` : ''}
+          ${Emissao.fichaDoItemRecusado(erro.item)}
           <div class="recusa-sefaz">
             <div class="rotulo">Palavras da SEFAZ${erro.codigo
               ? ` — código ${UI.escapar(erro.codigo)}` : ''}</div>
@@ -345,6 +346,31 @@ const Emissao = {
           </details>` : ''}
           ${atalho}
         </div></div>`;
+  },
+
+  /** O que foi realmente enviado no item que a SEFAZ apontou. Sem isso, dá para
+      ler a recusa e mesmo assim não saber qual CST saiu na nota. */
+  fichaDoItemRecusado(item) {
+    if (!item) return '';
+    const dado = (rotulo, valor) => (valor === null || valor === undefined || valor === ''
+      ? `<div>${UI.escapar(rotulo)}: <b>em branco</b></div>`
+      : `<div>${UI.escapar(rotulo)}: <b>${UI.escapar(String(valor))}</b></div>`);
+    return `
+      <div class="recusa-sefaz">
+        <div class="rotulo">O que foi enviado no item ${item.numero}</div>
+        <div>${UI.escapar(item.descricao || '')}</div>
+        <div style="margin-top:6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:2px 14px">
+          ${dado('CFOP', item.cfop)}
+          ${dado('CST do ICMS', item.icms_cst)}
+          ${dado('CST do IBS/CBS', item.ibs_cbs_cst)}
+          ${dado('cClassTrib', item.ibs_cbs_classe)}
+          ${dado('Alíquota de CBS', `${UI.numero(item.cbs_aliquota, 2)}%`)}
+          ${dado('Alíquota de IBS', `${UI.numero(item.ibs_uf_aliquota, 2)}%`)}
+        </div>
+        <div style="margin-top:6px">Base e alíquota de IBS/CBS
+          <b>${item.levou_grupo_ibs_cbs ? 'foram enviadas' : 'não foram enviadas'}</b>
+          (é o CST do IBS/CBS que decide isso).</div>
+      </div>`;
   },
 
   /** Liga os botões de atalho do aviso de erro. Quando a SEFAZ apontou um item,
@@ -842,10 +868,11 @@ const Emissao = {
     Emissao.recalcularImpostos(item);
   },
 
-  /** Número para mostrar no campo: em branco quando é zero, para não atrapalhar. */
+  /** Número para mostrar num campo de valor. **Zero aparece como 0**, nunca em
+      branco: campo vazio deixa dúvida se é zero mesmo ou se falta preencher — e,
+      no imposto, essa dúvida vira recusa da SEFAZ. */
   mostrar(valor, casas) {
     const n = Number(valor || 0);
-    if (!n) return '';
     return UI.numero(n, casas).replace(/,?0+$/, (t) => (t.startsWith(',') ? '' : t));
   },
 

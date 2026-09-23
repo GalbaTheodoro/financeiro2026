@@ -15,6 +15,7 @@ POST   /api/nfe/{id}/cancelar          evento de cancelamento
 """
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -473,6 +474,35 @@ def excluir_rascunho(nota_id: int, db: Session = Depends(get_db),
     return {"ok": True}
 
 
+def _erro_com_item(nota: Nota, erro: dict, mensagem: str, denegada: bool) -> dict:
+    """Quando a SEFAZ aponta um item ("[nItem: 3]"), junta ao aviso o que foi
+    realmente enviado naquele item.
+
+    Sem isso, a pessoa lê a recusa e não tem como saber qual CST saiu na nota —
+    e fica corrigindo no escuro.
+    """
+    erro = {**(erro or {}), "denegada": denegada}
+    achado = re.search(r"nItem:\s*(\d+)", str(mensagem or ""))
+    if not achado:
+        return erro
+    numero = int(achado.group(1))
+    item = next((i for i in nota.itens if int(i.numero or 0) == numero), None)
+    if item is None:
+        return erro
+    erro["item"] = {
+        "numero": numero,
+        "descricao": item.descricao,
+        "cfop": item.cfop,
+        "icms_cst": item.icms_cst,
+        "ibs_cbs_cst": item.ibs_cbs_cst,
+        "ibs_cbs_classe": item.ibs_cbs_classe,
+        "cbs_aliquota": float(item.cbs_aliquota or 0),
+        "ibs_uf_aliquota": float(item.ibs_uf_aliquota or 0),
+        "levou_grupo_ibs_cbs": nfe._tem_grupo_ibs_cbs(item),
+    }
+    return erro
+
+
 def _regra_do_item(db: Session, nota: Nota, empresa, item: NotaItem) -> dict:
     """Qual regra fiscal vale para este item — a tela mostra o nome dela."""
     parceiro = db.get(Parceiro, nota.parceiro_id) if nota.parceiro_id else None
@@ -504,7 +534,9 @@ def _ficha(db: Session, nota: Nota) -> dict:
             "pode_editar": nota.status_emissao == "RASCUNHO",
             "pode_cancelar": nota.status_emissao == "AUTORIZADA",
             # a última recusa continua explicada quando a nota é reaberta
-            "erro": rejeicoes.explicar(nota.codigo_sefaz, nota.mensagem_sefaz)
+            "erro": _erro_com_item(
+                nota, rejeicoes.explicar(nota.codigo_sefaz, nota.mensagem_sefaz),
+                nota.mensagem_sefaz, False)
             if nota.mensagem_sefaz and nota.status_emissao != "AUTORIZADA" else None,
         }),
         "itens": [serializar(i, extras=_regra_do_item(db, nota, empresa, i))
@@ -657,10 +689,9 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
             else f"A SEFAZ não autorizou ({retorno['codigo']}): {retorno['mensagem']}"
         ),
         # o que deu errado, explicado e com o lugar do conserto
-        "erro": None if retorno["autorizada"] else {
-            **rejeicoes.explicar(retorno["codigo"], retorno["mensagem"]),
-            "denegada": retorno["denegada"],
-        },
+        "erro": None if retorno["autorizada"] else _erro_com_item(
+            nota, rejeicoes.explicar(retorno["codigo"], retorno["mensagem"]),
+            retorno["mensagem"], retorno["denegada"]),
         "nota": _ficha(db, nota)["nota"],
     }
 

@@ -179,8 +179,9 @@ with sync_playwright() as p:
     abrir_itens(pagina)
     checar("ao reabrir, a base já vem com o percentual novo (50%)",
            campo(pagina, "icms_base") == "50.000", campo(pagina, "icms_base"))
-    checar("e a redução antiga de 25% sumiu do item",
-           campo(pagina, "icms_reducao") == "", campo(pagina, "icms_reducao"))
+    # campo de valor nunca fica vazio: zero aparece como 0
+    checar("e a redução antiga de 25% virou 0 no item",
+           campo(pagina, "icms_reducao") == "0", campo(pagina, "icms_reducao"))
     salvar(pagina)
     gravado = item_gravado()
     checar("gravou a base nova sem ninguém mexer no item",

@@ -247,27 +247,28 @@ print("\n=== 3d. CST que não tributa não leva o grupo (rejeição 1021) ===")
 for cst, leva in (("000", True), ("200", True), ("510", True),
                   ("400", False), ("410", False), ("550", False), ("620", False),
                   ("800", False), ("820", False), ("830", False)):
+    # o cClassTrib acompanha o CST: os três primeiros números são ele
     xml_ibs = montar(itens=[{"produto_id": cafe["id"], "quantidade": 10,
                              "valor_unitario": 100, "ibs_cbs_cst": cst,
-                             "ibs_cbs_classe": "000001", "cbs_aliquota": 0.9,
+                             "ibs_cbs_classe": f"{cst}001", "cbs_aliquota": 0.9,
                              "ibs_uf_aliquota": 0.1}])
     tem = "<gIBSCBS>" in xml_ibs
     checar(f"CST {cst}: {'leva' if leva else 'não leva'} base e alíquota de IBS/CBS",
            tem == leva, "levou" if tem else "não levou")
     checar(f"CST {cst}: mas o CST e o cClassTrib continuam saindo",
-           f"<IBSCBS><CST>{cst}</CST><cClassTrib>" in xml_ibs)
+           f"<IBSCBS><CST>{cst}</CST><cClassTrib>{cst}001</cClassTrib>" in xml_ibs)
     problemas = validar(xml_ibs)
     checar(f"CST {cst}: o XML continua válido no schema", not problemas,
            problemas[0][:120] if problemas else "")
 
 isenta = montar(itens=[{"produto_id": cafe["id"], "quantidade": 10,
                         "valor_unitario": 100, "ibs_cbs_cst": "400",
-                        "ibs_cbs_classe": "000001"}])
+                        "ibs_cbs_classe": "400001"}])
 checar("nota toda isenta também não leva o IBSCBSTot",
        "<IBSCBSTot>" not in isenta)
 misturada = montar(itens=[
     {"produto_id": cafe["id"], "quantidade": 10, "valor_unitario": 100,
-     "ibs_cbs_cst": "400", "ibs_cbs_classe": "000001"},
+     "ibs_cbs_cst": "400", "ibs_cbs_classe": "400001"},
     {"produto_id": cafe["id"], "quantidade": 10, "valor_unitario": 100,
      "ibs_cbs_cst": "000", "ibs_cbs_classe": "000001", "cbs_aliquota": 0.9}])
 checar("com um item isento e um tributado, o total soma só o tributado",
@@ -275,6 +276,49 @@ checar("com um item isento e um tributado, o total soma só o tributado",
        re.search(r"<vBCIBSCBS>[^<]+", misturada).group(0))
 checar("e a nota misturada passa no schema", not validar(misturada),
        (validar(misturada) or [""])[0][:120])
+
+print("\n=== 3e. CST e cClassTrib não podem discordar ===")
+# Os três primeiros números do cClassTrib SÃO o CST. O par trocado é a causa
+# mais comum da 1021: cClassTrib de isenção com o CST em branco (que virava 000)
+# fazia a nota sair tributada, com base e alíquota que aquele código não aceita.
+from backend.emissao import ErroEmissao, _cst_e_classe   # noqa: E402
+
+for cst, classe, esperado in (
+        ("", "", ("000", "000001")),
+        ("", "400001", ("400", "400001")),        # o código sozinho já diz o CST
+        ("000", "", ("000", "000001")),
+        ("400", "400002", ("400", "400002"))):
+    achado = _cst_e_classe(SimpleNamespace(
+        ibs_cbs_cst=cst, ibs_cbs_classe=classe, descricao="CAFE"))
+    checar(f"CST '{cst}' + cClassTrib '{classe}' → {esperado}", achado == esperado,
+           str(achado))
+
+for cst, classe in (("000", "400001"), ("400", "000001"), ("200", "620002")):
+    try:
+        _cst_e_classe(SimpleNamespace(ibs_cbs_cst=cst, ibs_cbs_classe=classe,
+                                      descricao="CAFE ARABICA"))
+        checar(f"CST {cst} com cClassTrib {classe} é barrado", False, "passou")
+    except ErroEmissao as erro:
+        checar(f"CST {cst} com cClassTrib {classe} é barrado antes da SEFAZ",
+               "situações diferentes" in str(erro) and "CAFE ARABICA" in str(erro),
+               str(erro)[:80])
+
+try:
+    _cst_e_classe(SimpleNamespace(ibs_cbs_cst="400", ibs_cbs_classe="",
+                                  descricao="CAFE"))
+    checar("CST que não é 000 sem cClassTrib é barrado", False, "passou")
+except ErroEmissao as erro:
+    checar("CST que não é 000 sem cClassTrib é barrado", "cClassTrib" in str(erro))
+
+# e o cClassTrib sozinho manda o item para o caminho certo no XML
+so_classe = montar(itens=[{"produto_id": cafe["id"], "quantidade": 10,
+                           "valor_unitario": 100, "ibs_cbs_classe": "400001",
+                           "cbs_aliquota": 0.9}])
+checar("cClassTrib de isenção sem CST sai como CST 400, sem base e alíquota",
+       "<IBSCBS><CST>400</CST><cClassTrib>400001</cClassTrib></IBSCBS>" in so_classe,
+       re.search(r"<IBSCBS>.*?</IBSCBS>", so_classe).group(0)[:90])
+checar("e essa nota passa no schema", not validar(so_classe),
+       (validar(so_classe) or [""])[0][:120])
 
 print("\n=== 4. Regime normal e o diferimento do café (CST 51) ===")
 api("PUT", f"/api/empresas/{eid}", {

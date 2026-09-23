@@ -425,6 +425,16 @@ sempre saem, o grupo de valores só sai quando o CST permite, e o `IBSCBSTot` so
 itens que levaram o grupo — some da nota quando nenhum item leva. Na Conferência do cálculo,
 a regra com um CST desses avisa em vermelho que os valores não vão para a nota.
 
+**O CST e o `cClassTrib` não podem discordar**, e é aí que a 1021 costuma nascer: nos códigos
+oficiais os **três primeiros números do `cClassTrib` são o CST** — `000001` é do 000, `400001`
+é do 400, `620002` é do 620. Um `cClassTrib` de isenção com o CST em branco fazia o item sair
+como 000 (tributado), com base e alíquota que aquele código não aceita. Agora: `cClassTrib`
+preenchido e CST vazio → o CST **vem do código**; os dois preenchidos e discordando → a regra
+nem salva, e a emissão para antes da SEFAZ dizendo qual item e quais códigos.
+
+Na tela do item, **campo de valor nunca fica vazio**: zero aparece como `0`. Vazio deixava
+dúvida se era zero mesmo ou se faltava preencher — e, em imposto, essa dúvida vira recusa.
+
 No fim da janela da regra tem a **Conferência do cálculo**: digite um valor de item (vem com
 R$ 1.000) e a tela mostra, a cada campo mexido, a conta inteira — `valor × base% = base
 cheia − redução% → base` e `base × alíquota% = imposto` — para ICMS, PIS, COFINS, IPI, CBS e

@@ -188,6 +188,18 @@ def _gravar(db: Session, regra: RegraFiscal, dados: RegraFiscalIn) -> None:
     for campo in ("cfop", "icms_origem", "icms_cst", "cst_pis", "cst_cofins", "cst_ipi",
                   "ibs_cbs_cst", "ibs_cbs_classe"):
         setattr(regra, campo, (getattr(dados, campo) or "").strip() or None)
+    # Os três primeiros números do cClassTrib são o CST do IBS/CBS (000001 é do
+    # 000, 400001 é do 400). Par que discorda é recusa da SEFAZ — melhor barrar
+    # aqui, com o campo ainda aberto na tela.
+    if regra.ibs_cbs_cst and regra.ibs_cbs_classe \
+            and regra.ibs_cbs_classe[:3] != regra.ibs_cbs_cst[:3]:
+        raise HTTPException(
+            400, f"O CST do IBS/CBS ({regra.ibs_cbs_cst}) e o cClassTrib "
+                 f"({regra.ibs_cbs_classe}) são de situações diferentes: os três "
+                 f"primeiros números do cClassTrib são o CST, então "
+                 f"{regra.ibs_cbs_classe} é do CST {regra.ibs_cbs_classe[:3]}.")
+    if regra.ibs_cbs_classe and not regra.ibs_cbs_cst:
+        regra.ibs_cbs_cst = regra.ibs_cbs_classe[:3]    # o código já diz o CST
     for campo in _PERCENTUAIS:
         valor = getattr(dados, campo)
         valor = float(100 if valor is None and campo.endswith("_base") else (valor or 0))

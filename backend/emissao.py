@@ -420,6 +420,37 @@ def _pis_cofins(item, crt: str) -> str:
 CST_SEM_GRUPO_IBSCBS = ("400", "410", "550", "620", "800", "810", "811", "820", "830")
 
 
+def _cst_e_classe(item) -> tuple[str, str]:
+    """O CST e o cClassTrib do IBS/CBS deste item, conferidos entre si.
+
+    Nos códigos oficiais os **três primeiros números do cClassTrib são o CST**:
+    `000001` é do CST 000, `400001` é do 400, `620002` é do 620. A SEFAZ valida o
+    grupo olhando os dois, então um par que discorda é recusa na certa — e é
+    melhor descobrir isso aqui, com o nome do item na frase, do que lá.
+    """
+    cst = (getattr(item, "ibs_cbs_cst", None) or "").strip()[:3]
+    classe = (getattr(item, "ibs_cbs_classe", None) or "").strip()[:6]
+    nome = getattr(item, "descricao", None) or "sem descrição"
+    if not cst and not classe:
+        return "000", "000001"               # item sem nada: tributação integral
+    if classe and not cst:
+        return classe[:3], classe            # só o cClassTrib: o CST vem dele
+    if cst and not classe:
+        if cst == "000":
+            return "000", "000001"
+        raise ErroEmissao(
+            f"O item {nome} está com CST do IBS/CBS {cst} e sem o cClassTrib. "
+            "Preencha o cClassTrib da regra deste item em Cadastros > Regras "
+            "fiscais — o botão Procurar na tabela ajuda a achar o código.")
+    if classe[:3] != cst:
+        raise ErroEmissao(
+            f"O item {nome} está com CST do IBS/CBS {cst} e cClassTrib {classe}, "
+            f"que são situações diferentes: os três primeiros números do cClassTrib "
+            f"são o CST, então {classe} é do CST {classe[:3]}. Em Cadastros > "
+            "Regras fiscais, acerte os dois na regra deste item.")
+    return cst, classe
+
+
 def _ibs_cbs_do_item(item) -> str:
     """Grupo IBS/CBS do item (NT 2025.002), na ordem exata do schema.
 
@@ -435,8 +466,7 @@ def _ibs_cbs_do_item(item) -> str:
     fiscal certa se cadastra em Cadastros > Regras fiscais, e a etapa Conferir
     avisa quando está faltando.
     """
-    cst = (getattr(item, "ibs_cbs_cst", None) or "000").zfill(3)[:3]
-    classe = (getattr(item, "ibs_cbs_classe", None) or "000001").zfill(6)[:6]
+    cst, classe = _cst_e_classe(item)
     if cst in CST_SEM_GRUPO_IBSCBS:
         return "<IBSCBS>" + _tag("CST", cst, True) + _tag("cClassTrib", classe, True) \
             + "</IBSCBS>"
@@ -466,7 +496,10 @@ def _ibs_cbs_do_item(item) -> str:
 
 def _tem_grupo_ibs_cbs(item) -> bool:
     """O item leva o grupo de base e alíquotas do IBS/CBS?"""
-    cst = (getattr(item, "ibs_cbs_cst", None) or "000").zfill(3)[:3]
+    try:
+        cst, _classe = _cst_e_classe(item)
+    except ErroEmissao:
+        return True          # par inconsistente: quem avisa é a emissão
     return cst not in CST_SEM_GRUPO_IBSCBS
 
 

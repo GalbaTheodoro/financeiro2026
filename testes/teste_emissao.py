@@ -492,6 +492,10 @@ checar("o item pega NCM e CFOP do produto",
        and rascunho["itens"][0]["cfop"] == "6101")
 checar("mas o CST não vem do produto: sem regra fiscal, nasce em branco",
        not rascunho["itens"][0]["icms_cst"], str(rascunho["itens"][0]["icms_cst"]))
+checar("sem regra nenhuma, o IBS/CBS usa as alíquotas de teste de 2026",
+       abs(rascunho["itens"][0]["cbs_aliquota"] - nfe.CBS_PADRAO) < 0.0001
+       and abs(rascunho["itens"][0]["ibs_uf_aliquota"] - nfe.IBS_UF_PADRAO) < 0.0001,
+       f"CBS {rascunho['itens'][0]['cbs_aliquota']}")
 
 # com uma regra fiscal cadastrada, o CST aparece
 api("POST", f"/api/fiscal/tipos/padrao?empresa_id={eid}", None, t)
@@ -564,10 +568,11 @@ checar("PIS e COFINS saem do total do item",
        abs(calculado["pis_valor"] - 1650) < 0.01
        and abs(calculado["cofins_valor"] - 7600) < 0.01,
        f"{calculado['pis_valor']} / {calculado['cofins_valor']}")
-checar("IBS e CBS nascem com as alíquotas de teste de 2026",
-       abs(calculado["ibs_uf_valor"] - 100) < 0.01
-       and abs(calculado["cbs_valor"] - 900) < 0.01
-       and abs(calculado["ibs_uf_aliquota"] - nfe.IBS_UF_PADRAO) < 0.0001,
+# a regra cadastrada acima não preenche IBS/CBS: zero na regra é zero no item
+checar("alíquota zerada na regra fica zerada no item",
+       abs(calculado["cbs_aliquota"]) < 0.0001
+       and abs(calculado["cbs_valor"]) < 0.01
+       and abs(calculado["ibs_uf_valor"]) < 0.01,
        f"IBS {calculado['ibs_uf_valor']} / CBS {calculado['cbs_valor']}")
 
 reduzido = salvar_item(icms_cst="20", icms_reducao=30, icms_aliquota=12)

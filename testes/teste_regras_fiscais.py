@@ -391,6 +391,38 @@ conta_ruim = api("POST", "/api/fiscal/calcular", {
 checar("percentual de base fora de 0 a 100 também é recusado na conferência",
        conta_ruim.get("_status") == 400)
 
+# =========================================================================== #
+print("\n=== 4f. Zero na regra é zero mesmo ===")
+zerada = api("POST", "/api/fiscal/calcular", {
+    "empresa_id": eid, "valor": 1000,
+    "valores": {"icms_cst": "40", "icms_base": 0, "icms_aliquota": 0,
+                "pis_cofins_base": 0, "aliquota_pis": 0, "aliquota_cofins": 0,
+                "ibs_cbs_base": 0, "cbs_aliquota": 0, "ibs_uf_aliquota": 0}}, t)["calculo"]
+checar("base 0% zera a base, não vira 100%",
+       zerada["icms"]["base"] == 0 and zerada["pis_cofins"]["base"] == 0
+       and zerada["ibs_cbs"]["base"] == 0,
+       f"{zerada['icms']['base']} / {zerada['pis_cofins']['base']}")
+checar("alíquota 0% não cai em padrão nenhum",
+       zerada["ibs_cbs"]["aliquota_cbs"] == 0
+       and zerada["ibs_cbs"]["aliquota_ibs_uf"] == 0
+       and zerada["total_impostos"] == 0, str(zerada["total_impostos"]))
+
+sem_ibs = api("POST", "/api/fiscal/regras", {
+    "empresa_id": eid, "nome": "Café cru — isento, sem IBS/CBS",
+    "tipo_item_id": cafe_cru, "cfop": "5927", "icms_cst": "40"}, t)
+checar("a regra guarda o zero que não foi preenchido",
+       sem_ibs["cbs_aliquota"] == 0 and sem_ibs["ibs_uf_aliquota"] == 0)
+item_zero = api("POST", "/api/nfe/rascunho", {
+    "empresa_id": eid, "parceiro_id": consumidor["id"], "ambiente": "2", "serie": "1",
+    "itens": [{"produto_id": cafe["id"], "quantidade": 10, "valor_unitario": 100,
+               "cfop": "5927"}]}, t)["itens"][0]
+checar("regra com IBS/CBS em branco deixa o item com alíquota zero",
+       item_zero["cbs_aliquota"] == 0 and item_zero["cbs_valor"] == 0
+       and item_zero["ibs_uf_aliquota"] == 0,
+       f"CBS {item_zero['cbs_aliquota']} = {item_zero['cbs_valor']}")
+checar("mas a base cheia continua aparecendo",
+       abs(item_zero["ibs_cbs_base"] - 1000) < 0.01, str(item_zero["ibs_cbs_base"]))
+
 # o "Testar uma situação" traz a conta junto com a regra que ganhou
 testado = api("POST", "/api/fiscal/simular", {
     "empresa_id": eid, "parceiro_id": consumidor["id"], "produto_id": cafe["id"],

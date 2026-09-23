@@ -158,8 +158,11 @@ def montar_contexto(db: Session, empresa, parceiro: Parceiro | None,
 def valores_da_regra(regra: RegraFiscal | None) -> dict:
     """O que a regra manda aplicar, já pronto para virar campo do item.
 
-    Texto em branco e alíquota zero **não** são mandados: assim uma regra que só
-    trata do ICMS não apaga o PIS que veio do cadastro do produto.
+    **Zero é zero.** Todo número da regra é mandado como está — base 0%, alíquota
+    0% ou redução 0% são decisões da legislação cadastrada, não campos vazios. Só
+    texto em branco (CST, cClassTrib, CFOP) fica de fora, porque aí não há o que
+    aplicar. Quando não existe regra nenhuma, este dicionário volta vazio e a
+    conta cai nos padrões — é o único caso em que padrão entra.
     """
     if regra is None:
         return {}
@@ -170,11 +173,12 @@ def valores_da_regra(regra: RegraFiscal | None) -> dict:
             valor = valor.strip()
             if valor:
                 valores[campo] = valor
-        elif valor is not None and float(valor or 0) != 0:
+        elif valor is not None:
             valores[campo] = float(valor)
-    # percentual de base é sempre mandado, inclusive quando é o padrão de 100%
+    # base nunca fica sem número: regra antiga sem a coluna vale pelo valor inteiro
     for campo, padrao in _BASES_PADRAO.items():
-        valores.setdefault(campo, float(getattr(regra, campo, padrao) or padrao))
+        if valores.get(campo) is None:
+            valores[campo] = padrao
     return valores
 
 
@@ -231,6 +235,10 @@ def calcular(valores: dict | None, total: float, digitado: dict | None = None) -
 
     * `valores` é o que `valores_da_regra()` devolveu;
     * `digitado` são os campos que a tela mandou preenchidos, que vencem a regra.
+
+    **Zero é zero**: base 0%, alíquota 0% ou redução 0% vindas da regra valem
+    como estão. Os padrões de IBS/CBS só entram quando `valores` vem vazio — ou
+    seja, quando nenhuma regra serviu para o item.
     """
     from . import emissao as nfe          # só para as alíquotas de teste de 2026
 
@@ -347,21 +355,25 @@ def explicar(db: Session, regra: RegraFiscal | None) -> dict | None:
         partes.append(f"{regra.uf_origem or 'qualquer UF'} → {regra.uf_destino or 'qualquer UF'}")
     if regra.operacao:
         partes.append(regra.operacao.lower())
-    from . import emissao as nfe
-
-    valores = valores_da_regra(regra)
-    # a tela precisa enxergar os mesmos padrões que a conta usa quando a regra
-    # não diz nada das alíquotas da reforma — senão ela mostra zero e o servidor
-    # calcula com 0,1% e 0,9%
-    valores.setdefault("ibs_uf_aliquota", nfe.IBS_UF_PADRAO)
-    valores.setdefault("ibs_mun_aliquota", nfe.IBS_MUN_PADRAO)
-    valores.setdefault("cbs_aliquota", nfe.CBS_PADRAO)
     return {
         "id": regra.id,
         "nome": regra.nome or "Regra fiscal",
         "resumo": " · ".join(partes) or "vale para qualquer cliente e qualquer item",
         "observacao": regra.observacao,
-        "valores": valores,
+        "valores": valores_da_regra(regra),
+    }
+
+
+# Alíquotas usadas **só quando não existe regra nenhuma** para o item. Em 2026 a
+# reforma está em fase de teste (IBS 0,1% e CBS 0,9%). Havendo regra, o que ela
+# disser é o que vale — inclusive zero.
+def padroes_sem_regra() -> dict:
+    from . import emissao as nfe
+
+    return {
+        "ibs_uf_aliquota": nfe.IBS_UF_PADRAO,
+        "ibs_mun_aliquota": nfe.IBS_MUN_PADRAO,
+        "cbs_aliquota": nfe.CBS_PADRAO,
     }
 
 

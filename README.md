@@ -408,6 +408,12 @@ base 80% e redução de 25% dão base de R$ 60.000, e 18% de alíquota dão R$ 1
 A **redução de alíquota** do IBS/CBS é o redutor da reforma: 60 desconta 60% das três
 alíquotas de uma vez, então uma CBS de 0,9% vira 0,36%.
 
+**Zero é zero.** Todo número da regra vale como está: base 0% zera a base, alíquota 0% não
+destaca imposto. Não existe "campo vazio vira padrão" na regra — quem preencheu a regra
+decidiu. Os padrões da reforma (IBS 0,1% e CBS 0,9%) só entram quando **nenhuma regra serve**
+para o item. Por isso, numa regra que destaca IBS/CBS, preencha as alíquotas: deixá-las em
+branco não é "usar o padrão", é dizer que não há IBS nem CBS.
+
 No fim da janela da regra tem a **Conferência do cálculo**: digite um valor de item (vem com
 R$ 1.000) e a tela mostra, a cada campo mexido, a conta inteira — `valor × base% = base
 cheia − redução% → base` e `base × alíquota% = imposto` — para ICMS, PIS, COFINS, IPI, CBS e

@@ -485,8 +485,10 @@ def _regra_do_item(db: Session, nota: Nota, empresa, item: NotaItem) -> dict:
         "regra_nome": explicada["nome"] if explicada else None,
         "regra_resumo": explicada["resumo"] if explicada else None,
         # os percentuais da regra (base, redução) vão para a tela porque o item
-        # guarda a base já em reais: é com eles que a tela remonta a mesma conta
-        "regra_valores": explicada["valores"] if explicada else {},
+        # guarda a base já em reais: é com eles que a tela remonta a mesma conta.
+        # Sem regra nenhuma, vão os padrões — os mesmos que a conta usa no
+        # servidor, para a tela não mostrar um número e gravar outro.
+        "regra_valores": explicada["valores"] if explicada else fiscal.padroes_sem_regra(),
     }
 
 

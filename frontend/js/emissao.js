@@ -560,7 +560,7 @@ const Emissao = {
             simples ? 'Simples Nacional' : 'regime normal')}
           ${Emissao.campoImposto(i, 'icms_reducao', 'Redução da base (%)', 4)}
           ${Emissao.campoImposto(i, 'icms_base', 'Base de cálculo', 2,
-            'sai da regra fiscal; apague para recalcular')}
+            'em branco = calculado pela regra fiscal')}
           ${Emissao.campoImposto(i, 'icms_aliquota', 'Alíquota ICMS (%)', 4)}
           ${Emissao.campoImposto(i, 'icms_valor', 'Valor do ICMS', 2, 'calculado')}
         </div>
@@ -568,7 +568,7 @@ const Emissao = {
         <div class="linha-campos">
           ${Emissao.selecaoImposto(i, 'cst_pis', 'CST do PIS', Emissao.CST_PISCOFINS)}
           ${Emissao.campoImposto(i, 'pis_cofins_base', 'Base de cálculo', 2,
-            'sai da regra fiscal; apague para recalcular')}
+            'em branco = calculado pela regra fiscal')}
           ${Emissao.campoImposto(i, 'aliquota_pis', 'Alíquota PIS (%)', 4)}
           ${Emissao.campoImposto(i, 'pis_valor', 'Valor do PIS', 2, 'calculado')}
           ${Emissao.selecaoImposto(i, 'cst_cofins', 'CST da COFINS', Emissao.CST_PISCOFINS)}
@@ -595,7 +595,7 @@ const Emissao = {
                value="${UI.escapar(Emissao._itens[i].ibs_cbs_classe || '')}" maxlength="6"
                placeholder="000001">`, 'tabela da NT 2025.002')}
           ${Emissao.campoImposto(i, 'ibs_cbs_base', 'Base do IBS/CBS', 2,
-            'sai da regra fiscal; apague para recalcular')}
+            'em branco = calculado pela regra fiscal')}
           ${Emissao.campoImposto(i, 'ibs_cbs_reducao_aliquota', 'Redução de alíquota (%)', 4,
             'desconta das três alíquotas')}
           ${Emissao.campoImposto(i, 'ibs_uf_aliquota', 'IBS estadual (%)', 4)}

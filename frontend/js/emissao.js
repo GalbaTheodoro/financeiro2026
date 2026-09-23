@@ -422,11 +422,11 @@ const Emissao = {
   itemVazio() {
     return { produto_id: '', descricao: '', unidade: '', quantidade: 0, valor_unitario: 0,
              cfop: '', ncm: '', icms_cst: '', desconto: 0, origem_mercadoria: '0',
-             icms_base: null, icms_aliquota: 0, icms_reducao: 0, icms_valor: 0,
-             cst_pis: '', pis_cofins_base: null, aliquota_pis: 0, pis_valor: 0,
+             icms_base: 0, icms_aliquota: 0, icms_reducao: 0, icms_valor: 0,
+             cst_pis: '', pis_cofins_base: 0, aliquota_pis: 0, pis_valor: 0,
              cst_cofins: '', aliquota_cofins: 0, cofins_valor: 0,
              cst_ipi: '', aliquota_ipi: 0, ipi_valor: 0,
-             ibs_cbs_cst: '', ibs_cbs_classe: '', ibs_cbs_base: null,
+             ibs_cbs_cst: '', ibs_cbs_classe: '', ibs_cbs_base: 0,
              ibs_cbs_reducao_aliquota: 0,
              ibs_uf_aliquota: Emissao.IBS_UF, ibs_mun_aliquota: Emissao.IBS_MUN,
              cbs_aliquota: Emissao.CBS };

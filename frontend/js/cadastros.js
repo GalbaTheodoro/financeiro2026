@@ -1039,7 +1039,10 @@ const Cadastros = {
         { rotulo: 'Tabela cClassTrib', acao: () => Cadastros.tabelaClassTrib() },
         { rotulo: 'Testar uma situação', acao: () => Cadastros.simularRegra() },
       ],
-      aoMontarFormulario: (area) => Cadastros.ligarClassTrib(area),
+      aoMontarFormulario: (area) => {
+        Cadastros.ligarClassTrib(area);
+        Cadastros.ligarCalculo(area);
+      },
       colunas: [
         { titulo: 'Regra', valor: (r) => `<span class="forte">${UI.escapar(r.nome || '-')}</span>
             <div class="mini">${UI.escapar(r.observacao || '')}</div>` },
@@ -1155,6 +1158,93 @@ const Cadastros = {
     campo.parentElement.appendChild(botao);
   },
 
+  /** Mostra a conta de cada imposto: valor do item → base em % → base em reais →
+      imposto. É o que o servidor devolve em /api/fiscal/calcular, que é a mesma
+      função usada na hora de gravar o item da nota. */
+  painelCalculo(c) {
+    if (!c) return '';
+    const v = c.valor_item;
+    // alíquota com 2 casas quando dá certinho, 4 quando tem redução no meio
+    const pct = (n) => UI.numero(n, Math.abs(Math.round(Number(n) * 100)
+      - Number(n) * 100) < 1e-9 ? 2 : 4);
+    const base = (g) => `<div class="mini">Base de cálculo: ${UI.moeda(v)}
+      × ${pct(g.percentual_base)}% = ${UI.moeda(g.base_cheia)}`
+      + (g.reducao ? ` − ${pct(g.reducao)}% de redução` : '')
+      + ` → <b>${UI.moeda(g.base)}</b></div>`;
+    const linha = (nome, b, a, valor) => `<div class="mini">${UI.escapar(nome)}:
+      ${UI.moeda(b)} × ${pct(a)}% = <b>${UI.moeda(valor)}</b></div>`;
+    const i = c.icms; const p = c.pis_cofins; const ipi = c.ipi; const x = c.ibs_cbs;
+    return `
+      <div class="cartao" style="margin-top:10px;border-left:4px solid var(--verde)">
+        <div class="cartao-corpo">
+          <div><b>ICMS</b>${i.cst ? ` <span class="mini">CST ${UI.escapar(i.cst)}</span>` : ''}</div>
+          ${base(i)}
+          ${linha('ICMS', i.base, i.aliquota, i.valor)}
+
+          <div style="margin-top:8px"><b>PIS e COFINS</b></div>
+          ${base(p)}
+          ${linha('PIS', p.base, p.aliquota_pis, p.valor_pis)}
+          ${linha('COFINS', p.base, p.aliquota_cofins, p.valor_cofins)}
+          ${ipi.aliquota ? `<div style="margin-top:8px"><b>IPI</b></div>
+            ${linha('IPI', ipi.base, ipi.aliquota, ipi.valor)}` : ''}
+
+          <div style="margin-top:8px"><b>IBS e CBS</b>${x.cst
+            ? ` <span class="mini">CST ${UI.escapar(x.cst)}${x.classe
+              ? ` · ${UI.escapar(x.classe)}` : ''}</span>` : ''}</div>
+          ${base(x)}
+          ${x.reducao_aliquota ? `<div class="mini">Redução de alíquota:
+            ${pct(x.reducao_aliquota)}% — já descontada das três alíquotas abaixo</div>` : ''}
+          ${linha('CBS', x.base, x.aliquota_cbs, x.valor_cbs)}
+          ${linha('IBS estadual', x.base, x.aliquota_ibs_uf, x.valor_ibs_uf)}
+          ${linha('IBS municipal', x.base, x.aliquota_ibs_mun, x.valor_ibs_mun)}
+
+          <div style="margin-top:10px">Impostos do item:
+            <b>${UI.moeda(c.total_impostos)}</b></div>
+        </div></div>`;
+  },
+
+  /** Põe no fim do formulário da regra a conferência da conta: a cada campo
+      mexido, refaz o cálculo sobre um valor de exemplo e mostra a base em reais.
+      Assim dá para ver o efeito do percentual de base antes de salvar. */
+  ligarCalculo(area) {
+    if (!area || area.querySelector('[data-conferencia]')) return;
+    const caixa = document.createElement('div');
+    caixa.dataset.conferencia = '1';
+    caixa.dataset.naoSuja = '1';     // mexer aqui não conta como alteração a salvar
+    caixa.innerHTML = `
+      <div class="secao-campos"><b>Conferência do cálculo</b><span class="mini">
+        — a base é um percentual do valor do item; a redução desconta dela e a
+        alíquota incide sobre o que sobrar</span></div>
+      <div class="linha-campos" style="margin-top:8px">
+        <label class="campo" style="max-width:240px">Valor do item para conferir
+          <span class="dica">só para ver a conta; não é gravado na regra</span>
+          <input type="number" step="0.01" data-valor-conferencia value="1000">
+        </label>
+      </div>
+      <div data-saida-calculo></div>`;
+    area.appendChild(caixa);
+    const saida = caixa.querySelector('[data-saida-calculo]');
+    const campoValor = caixa.querySelector('[data-valor-conferencia]');
+
+    const refazer = async () => {
+      try {
+        const r = await Api.post('/api/fiscal/calcular', {
+          empresa_id: Estado.empresaId,
+          valor: Number(campoValor.value || 0),
+          valores: UI.lerFormulario(area),
+        });
+        saida.innerHTML = Cadastros.painelCalculo(r.calculo);
+      } catch (e) {
+        saida.innerHTML = `<div class="mini" style="margin-top:8px">${UI.escapar(e.message)}</div>`;
+      }
+    };
+    let pendente = null;
+    const agendar = () => { clearTimeout(pendente); pendente = setTimeout(refazer, 300); };
+    area.addEventListener('input', agendar);
+    area.addEventListener('change', agendar);
+    refazer();
+  },
+
   /** Tabela de classificação tributária do IBS/CBS, com busca.
       Chamada com `aoEscolher` preenche o campo; sem ela, é só consulta. */
   async tabelaClassTrib(aoEscolher) {
@@ -1233,6 +1323,9 @@ const Cadastros = {
           { valor: 'SAIDA', rotulo: 'Saída (venda)' },
           { valor: 'ENTRADA', rotulo: 'Entrada (compra)' },
         ], 'SAIDA', { vazio: false }))}
+        ${UI.campo('Valor do item',
+          '<input type="number" step="0.01" name="valor" value="1000">',
+          'para ver a base e o imposto em reais')}
       </div>
       <div id="resultado-simulacao"></div>`;
 
@@ -1246,6 +1339,7 @@ const Cadastros = {
           produto_id: dados.produto_id || null,
           cfop: dados.cfop || null,
           operacao: dados.operacao || 'SAIDA',
+          valor: Number(dados.valor || 0),
         });
         if (!r.regra) {
           alvo.innerHTML = `<div class="cartao" style="margin-top:12px;border-left:4px solid var(--ambar)">
@@ -1276,7 +1370,8 @@ const Cadastros = {
               </div>
               ${r.regra.observacao ? `<div class="mini" style="margin-top:6px">
                 ${UI.escapar(r.regra.observacao)}</div>` : ''}
-            </div></div>`;
+            </div></div>
+          ${Cadastros.painelCalculo(r.calculo)}`;
       } catch (e) { UI.erro(e.message); }
     };
 

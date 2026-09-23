@@ -178,6 +178,154 @@ def valores_da_regra(regra: RegraFiscal | None) -> dict:
     return valores
 
 
+# --------------------------------------------------------------------------- #
+# A conta: percentual de base -> base em reais -> imposto
+# --------------------------------------------------------------------------- #
+# ICMS que não destaca valor: isento, não tributado, diferido e já cobrado por ST
+ICMS_SEM_VALOR = ("40", "41", "50", "51", "60")
+# CSOSN do Simples Nacional que também não destacam ICMS
+CSOSN_SEM_VALOR = ("102", "103", "300", "400", "500")
+
+
+def _num(*candidatos, padrao: float = 0.0) -> float:
+    """O primeiro número que veio preenchido; senão o padrão."""
+    for valor in candidatos:
+        if valor is not None and valor != "":
+            return float(valor)
+    return float(padrao)
+
+
+def _primeiro_texto(*candidatos) -> str | None:
+    for valor in candidatos:
+        if valor is None:
+            continue
+        texto = str(valor).strip()
+        if texto:
+            return texto
+    return None
+
+
+def _montar_base(total: float, percentual: float, reducao: float,
+                 digitada) -> tuple[float, float]:
+    """Base cheia e base depois da redução.
+
+    A regra diz **quanto do valor do item entra na base** (100% é o normal) e
+    **quanto dessa base é reduzido**. Quando a tela digita a base em reais, ela
+    já é a base final — a redução não é aplicada de novo em cima.
+    """
+    if digitada is not None and digitada != "":
+        base = round(float(digitada), 2)
+        return base, base
+    cheia = round(total * float(percentual or 0) / 100, 2)
+    if not reducao:
+        return cheia, cheia
+    return cheia, round(cheia * (1 - float(reducao) / 100), 2)
+
+
+def calcular(valores: dict | None, total: float, digitado: dict | None = None) -> dict:
+    """Faz a conta de um item: percentual de base → base em reais → imposto.
+
+    É a **mesma** função que a emissão usa para gravar o item e que a tela de
+    regras usa para mostrar a conta enquanto a pessoa digita — assim o que se vê
+    na tabela é exatamente o que vai sair na nota.
+
+    * `valores` é o que `valores_da_regra()` devolveu;
+    * `digitado` são os campos que a tela mandou preenchidos, que vencem a regra.
+    """
+    from . import emissao as nfe          # só para as alíquotas de teste de 2026
+
+    r = valores or {}
+    d = {k: v for k, v in (digitado or {}).items() if v is not None and v != ""}
+    total = round(float(total or 0), 2)
+
+    def numero(campo, padrao=0.0):
+        return _num(d.get(campo), r.get(campo), padrao=padrao)
+
+    def texto(campo):
+        return _primeiro_texto(d.get(campo), r.get(campo))
+
+    # ------------------------------------------------------------------- ICMS
+    perc_icms = _num(r.get("icms_base"), padrao=100.0)
+    red_icms = numero("icms_reducao")
+    cheia_icms, base_icms = _montar_base(total, perc_icms, red_icms, d.get("icms_base"))
+    cst_icms = texto("icms_cst") or ""
+    aliq_icms = numero("icms_aliquota")
+    if d.get("icms_valor") is not None:
+        icms = round(float(d["icms_valor"]), 2)
+    elif cst_icms[:2] in ICMS_SEM_VALOR or cst_icms.zfill(3) in CSOSN_SEM_VALOR:
+        icms = 0.0                        # diferido, isento, ST: não destaca
+    else:
+        icms = round(base_icms * aliq_icms / 100, 2)
+
+    # --------------------------------------------------------- PIS, COFINS, IPI
+    perc_pc = _num(r.get("pis_cofins_base"), padrao=100.0)
+    red_pc = numero("pis_cofins_reducao")
+    cheia_pc, base_pc = _montar_base(total, perc_pc, red_pc, d.get("pis_cofins_base"))
+    aliq_pis = numero("aliquota_pis")
+    aliq_cofins = numero("aliquota_cofins")
+    pis = (round(float(d["pis_valor"]), 2) if d.get("pis_valor") is not None
+           else round(base_pc * aliq_pis / 100, 2))
+    cofins = (round(float(d["cofins_valor"]), 2) if d.get("cofins_valor") is not None
+              else round(base_pc * aliq_cofins / 100, 2))
+    aliq_ipi = numero("aliquota_ipi")
+    ipi = (round(float(d["ipi_valor"]), 2) if d.get("ipi_valor") is not None
+           else round(total * aliq_ipi / 100, 2))
+
+    # --------------------------------------------------- IBS e CBS (reforma)
+    perc_ibs = _num(r.get("ibs_cbs_base"), padrao=100.0)
+    red_ibs = numero("ibs_cbs_reducao_base")
+    cheia_ibs, base_ibs = _montar_base(total, perc_ibs, red_ibs, d.get("ibs_cbs_base"))
+    # redutor de alíquota da reforma: desconta das três alíquotas de uma vez
+    red_aliq = numero("ibs_cbs_reducao_aliquota")
+    fator = 1 - red_aliq / 100
+    aliq_ibs_uf = round(numero("ibs_uf_aliquota", nfe.IBS_UF_PADRAO) * fator, 4)
+    aliq_ibs_mun = round(numero("ibs_mun_aliquota", nfe.IBS_MUN_PADRAO) * fator, 4)
+    aliq_cbs = round(numero("cbs_aliquota", nfe.CBS_PADRAO) * fator, 4)
+    ibs_uf = (round(float(d["ibs_uf_valor"]), 2) if d.get("ibs_uf_valor") is not None
+              else round(base_ibs * aliq_ibs_uf / 100, 2))
+    ibs_mun = (round(float(d["ibs_mun_valor"]), 2) if d.get("ibs_mun_valor") is not None
+               else round(base_ibs * aliq_ibs_mun / 100, 2))
+    cbs = (round(float(d["cbs_valor"]), 2) if d.get("cbs_valor") is not None
+           else round(base_ibs * aliq_cbs / 100, 2))
+
+    return {
+        "valor_item": total,
+        "icms": {
+            "cst": cst_icms or None,
+            "percentual_base": perc_icms, "reducao": red_icms,
+            "base_cheia": cheia_icms, "base": base_icms,
+            "aliquota": aliq_icms, "valor": icms,
+        },
+        "pis_cofins": {
+            "cst_pis": texto("cst_pis"), "cst_cofins": texto("cst_cofins"),
+            "percentual_base": perc_pc, "reducao": red_pc,
+            "base_cheia": cheia_pc, "base": base_pc,
+            "aliquota_pis": aliq_pis, "valor_pis": pis,
+            "aliquota_cofins": aliq_cofins, "valor_cofins": cofins,
+        },
+        "ipi": {
+            "cst": texto("cst_ipi"), "base": total,
+            "aliquota": aliq_ipi, "valor": ipi,
+        },
+        "ibs_cbs": {
+            "cst": texto("ibs_cbs_cst"), "classe": texto("ibs_cbs_classe"),
+            "percentual_base": perc_ibs, "reducao": red_ibs,
+            "base_cheia": cheia_ibs, "base": base_ibs,
+            "reducao_aliquota": red_aliq,
+            "aliquota_cbs": aliq_cbs, "valor_cbs": cbs,
+            "aliquota_ibs_uf": aliq_ibs_uf, "valor_ibs_uf": ibs_uf,
+            "aliquota_ibs_mun": aliq_ibs_mun, "valor_ibs_mun": ibs_mun,
+        },
+        "total_impostos": round(icms + pis + cofins + ipi + cbs + ibs_uf + ibs_mun, 2),
+    }
+
+
+def calcular_da_regra(regra: RegraFiscal | None, total: float,
+                      digitado: dict | None = None) -> dict:
+    """Atalho: pega os valores da regra e já faz a conta."""
+    return calcular(valores_da_regra(regra), total, digitado)
+
+
 def explicar(db: Session, regra: RegraFiscal | None) -> dict | None:
     """Resumo da regra escolhida, para a tela dizer por que aquele imposto saiu."""
     if regra is None:

@@ -72,7 +72,11 @@ const UI = {
 
     UI._sujo = false;
     UI._aoSalvar = aoSalvar;
-    const sujar = () => { UI._sujo = true; };
+    // campos de conferência (que não gravam nada) não contam como alteração
+    const sujar = (evento) => {
+      if (evento?.target?.closest?.('[data-nao-suja]')) return;
+      UI._sujo = true;
+    };
     areaCorpo.oninput = sujar;
     areaCorpo.onchange = sujar;
 

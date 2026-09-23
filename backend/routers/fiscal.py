@@ -12,6 +12,7 @@ POST   /api/fiscal/regras                cria uma regra
 PUT    /api/fiscal/regras/{id}           edita
 DELETE /api/fiscal/regras/{id}           apaga
 POST   /api/fiscal/simular               mostra qual regra ganha para uma situação
+POST   /api/fiscal/calcular              faz a conta da base e dos impostos de um valor
 """
 from __future__ import annotations
 
@@ -29,6 +30,15 @@ from ..utils import serializar
 router = APIRouter(prefix="/api/fiscal", tags=["fiscal"])
 
 APLICACOES = ("CLIENTE", "ITEM")
+
+# Campos da regra que são percentuais: base, redução e alíquota, todos de 0 a 100
+_PERCENTUAIS = (
+    "icms_base", "icms_reducao", "icms_aliquota",
+    "pis_cofins_base", "pis_cofins_reducao", "aliquota_pis", "aliquota_cofins",
+    "aliquota_ipi", "ibs_cbs_base", "ibs_cbs_reducao_base",
+    "ibs_cbs_reducao_aliquota", "cbs_aliquota",
+    "ibs_uf_aliquota", "ibs_mun_aliquota",
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -178,11 +188,7 @@ def _gravar(db: Session, regra: RegraFiscal, dados: RegraFiscalIn) -> None:
     for campo in ("cfop", "icms_origem", "icms_cst", "cst_pis", "cst_cofins", "cst_ipi",
                   "ibs_cbs_cst", "ibs_cbs_classe"):
         setattr(regra, campo, (getattr(dados, campo) or "").strip() or None)
-    for campo in ("icms_base", "icms_reducao", "icms_aliquota",
-                  "pis_cofins_base", "pis_cofins_reducao", "aliquota_pis", "aliquota_cofins",
-                  "aliquota_ipi", "ibs_cbs_base", "ibs_cbs_reducao_base",
-                  "ibs_cbs_reducao_aliquota", "cbs_aliquota",
-                  "ibs_uf_aliquota", "ibs_mun_aliquota"):
+    for campo in _PERCENTUAIS:
         valor = getattr(dados, campo)
         valor = float(100 if valor is None and campo.endswith("_base") else (valor or 0))
         if valor < 0 or valor > 100:
@@ -241,6 +247,7 @@ class SimularIn(BaseModel):
     tipo_item_id: int | None = None
     cfop: str | None = None
     operacao: str = "SAIDA"
+    valor: float = 1000.0          # valor do item usado para demonstrar a conta
 
 
 @router.post("/simular")
@@ -259,7 +266,53 @@ def simular(dados: SimularIn, db: Session = Depends(get_db),
                                      dados.tipo_cliente_id, dados.tipo_item_id,
                                      cfop=dados.cfop)
     regra = motor.escolher_regra(db, dados.empresa_id, contexto)
-    return {"contexto": contexto, "regra": motor.explicar(db, regra)}
+    valor = float(dados.valor or 0)
+    return {
+        "contexto": contexto,
+        "regra": motor.explicar(db, regra),
+        "valor": valor,
+        # a mesma conta que a emissão faz no item, para conferir sem emitir nada
+        "calculo": motor.calcular_da_regra(regra, valor) if regra else None,
+    }
+
+
+class CalcularIn(BaseModel):
+    """Os percentuais de uma regra — mesmo antes de ela ser salva — e um valor."""
+    empresa_id: int
+    valor: float = 1000.0
+    valores: dict = {}
+
+
+@router.post("/calcular")
+def calcular(dados: CalcularIn, db: Session = Depends(get_db),
+             usuario: Usuario = Depends(acesso_liberado)):
+    """Mostra a conta de um item com estes percentuais.
+
+    A tela de regras chama isto enquanto a pessoa digita: a base em percentual
+    vira base em reais e o imposto sai dela. É a **mesma** função que a emissão
+    usa para gravar o item, então o que aparece aqui é o que vai sair na nota.
+    """
+    validar_empresa(db, dados.empresa_id, usuario)
+    limpos = {}
+    for campo in motor.CAMPOS_DA_REGRA:
+        valor = (dados.valores or {}).get(campo)
+        if valor is None or valor == "":
+            continue
+        if campo in _PERCENTUAIS:
+            try:
+                numero = float(valor)
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"O campo {campo} precisa ser um número.")
+            if not 0 <= numero <= 100:
+                raise HTTPException(400, f"O campo {campo} vai de 0 a 100.")
+            limpos[campo] = numero
+        else:
+            limpos[campo] = str(valor).strip()
+    for campo, padrao in (("icms_base", 100.0), ("pis_cofins_base", 100.0),
+                          ("ibs_cbs_base", 100.0)):
+        limpos.setdefault(campo, padrao)
+    return {"valor": float(dados.valor or 0),
+            "calculo": motor.calcular(limpos, float(dados.valor or 0))}
 
 
 # --------------------------------------------------------------------------- #

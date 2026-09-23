@@ -173,26 +173,17 @@ def _item_do_produto(db: Session, empresa_id: int, produto_id: int | None) -> Pr
     return produto
 
 
-def _escolher(enviado, da_regra, padrao=0.0) -> float:
-    """A ordem de quem manda no número de um imposto.
+def _texto(enviado, da_regra, padrao=None) -> str | None:
+    """A ordem de quem manda num campo de texto (CST, CFOP, cClassTrib):
 
     1. o que foi digitado na tela do item;
     2. a **regra fiscal** que casou (CFOP x UFs x tipo de cliente x tipo de item);
     3. o padrão.
 
-    O cadastro do produto **não entra**: CST e alíquota saem só da tabela de
-    regras, porque a mesma mercadoria tem tributação diferente conforme para quem
-    e para onde ela vai.
+    O cadastro do produto **não entra** na tributação: CST e alíquota saem só da
+    tabela de regras, porque a mesma mercadoria tem tributação diferente conforme
+    para quem e para onde ela vai. A conta dos números é a de `fiscal.calcular`.
     """
-    if enviado is not None:
-        return float(enviado)
-    if da_regra is not None:
-        return float(da_regra or 0)
-    return float(padrao)
-
-
-def _texto(enviado, da_regra, padrao=None) -> str | None:
-    """Mesma ordem, para os campos de texto (CST, CFOP, cClassTrib)."""
     for valor in (enviado, da_regra, padrao):
         if valor is None:
             continue
@@ -202,8 +193,27 @@ def _texto(enviado, da_regra, padrao=None) -> str | None:
     return None
 
 
-# ICMS que não destaca valor: isento, não tributado, diferido e já cobrado por ST
-_ICMS_SEM_VALOR = ("40", "41", "50", "51", "60")
+# Campos de imposto que a tela do item pode mandar preenchidos. O que vier aqui
+# vence a regra fiscal; o que vier em branco é calculado a partir dela.
+_DIGITADOS = (
+    "icms_cst", "icms_base", "icms_reducao", "icms_aliquota", "icms_valor",
+    "cst_pis", "cst_cofins", "pis_cofins_base", "pis_cofins_reducao",
+    "aliquota_pis", "aliquota_cofins", "pis_valor", "cofins_valor",
+    "cst_ipi", "aliquota_ipi", "ipi_valor",
+    "ibs_cbs_cst", "ibs_cbs_classe", "ibs_cbs_base", "ibs_cbs_reducao_base",
+    "ibs_cbs_reducao_aliquota", "cbs_aliquota", "cbs_valor",
+    "ibs_uf_aliquota", "ibs_uf_valor", "ibs_mun_aliquota", "ibs_mun_valor",
+)
+
+
+def _digitado(entrada) -> dict:
+    """Só os campos de imposto que a tela realmente preencheu."""
+    escolhidos = {}
+    for campo in _DIGITADOS:
+        valor = getattr(entrada, campo, None)
+        if valor is not None and valor != "":
+            escolhidos[campo] = valor
+    return escolhidos
 
 
 def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
@@ -238,59 +248,21 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
         unitario = float(entrada.valor_unitario or 0)
         total = round(quantidade * unitario - float(entrada.desconto or 0) + 1e-9, 2)
 
-        # ---------------------------------------------------------------- ICMS
-        cst = _texto(entrada.icms_cst, r.get("icms_cst")) or ""
-        reducao = _escolher(entrada.icms_reducao, r.get("icms_reducao"))
-        # a regra diz quanto do valor do item entra na base (100% é o normal) e
-        # quanto dessa base é reduzido; o que a tela digitar vence os dois
-        perc_base = float(r.get("icms_base") or 100)
-        base_cheia = (float(entrada.icms_base) if entrada.icms_base is not None
-                      else total * perc_base / 100)
-        base = round(base_cheia * (1 - reducao / 100), 2) if reducao else round(base_cheia, 2)
-        aliquota = _escolher(entrada.icms_aliquota, r.get("icms_aliquota"))
-        if entrada.icms_valor is not None:
-            icms = float(entrada.icms_valor)
-        elif cst[:2] in _ICMS_SEM_VALOR or cst.zfill(3) in ("102", "103", "300", "400", "500"):
-            icms = 0.0
-        else:
-            icms = base * aliquota / 100
-
-        # --------------------------------------------------- PIS, COFINS e IPI
-        aliq_pis = _escolher(entrada.aliquota_pis, r.get("aliquota_pis"))
-        aliq_cofins = _escolher(entrada.aliquota_cofins, r.get("aliquota_cofins"))
-        aliq_ipi = _escolher(entrada.aliquota_ipi, r.get("aliquota_ipi"))
-        base_pis = (float(entrada.pis_cofins_base) if entrada.pis_cofins_base is not None
-                    else total * float(r.get("pis_cofins_base") or 100) / 100
-                    * (1 - float(r.get("pis_cofins_reducao") or 0) / 100))
-        base_pis = round(base_pis, 2)
-        pis = float(entrada.pis_valor) if entrada.pis_valor is not None \
-            else base_pis * aliq_pis / 100
-        cofins = float(entrada.cofins_valor) if entrada.cofins_valor is not None \
-            else base_pis * aliq_cofins / 100
-        ipi = float(entrada.ipi_valor) if entrada.ipi_valor is not None \
-            else total * aliq_ipi / 100
-
-        # ------------------------------------------------- IBS e CBS (reforma)
-        base_ibs = (float(entrada.ibs_cbs_base) if entrada.ibs_cbs_base is not None
-                    else total * float(r.get("ibs_cbs_base") or 100) / 100
-                    * (1 - float(r.get("ibs_cbs_reducao_base") or 0) / 100))
-        base_ibs = round(base_ibs, 2)
-        # redutor de alíquota da reforma: desconta das três alíquotas de uma vez
-        red_aliq = _escolher(entrada.ibs_cbs_reducao_aliquota,
-                             r.get("ibs_cbs_reducao_aliquota"))
-        fator = 1 - red_aliq / 100
-        aliq_ibs_uf = _escolher(entrada.ibs_uf_aliquota, r.get("ibs_uf_aliquota"),
-                                nfe.IBS_UF_PADRAO) * fator
-        aliq_ibs_mun = _escolher(entrada.ibs_mun_aliquota, r.get("ibs_mun_aliquota"),
-                                 nfe.IBS_MUN_PADRAO) * fator
-        aliq_cbs = _escolher(entrada.cbs_aliquota, r.get("cbs_aliquota"),
-                             nfe.CBS_PADRAO) * fator
-        ibs_uf = float(entrada.ibs_uf_valor) if entrada.ibs_uf_valor is not None \
-            else base_ibs * aliq_ibs_uf / 100
-        ibs_mun = float(entrada.ibs_mun_valor) if entrada.ibs_mun_valor is not None \
-            else base_ibs * aliq_ibs_mun / 100
-        cbs = float(entrada.cbs_valor) if entrada.cbs_valor is not None \
-            else base_ibs * aliq_cbs / 100
+        # a conta é a mesma que a tela de regras mostra: percentual de base ->
+        # base em reais -> imposto, com o que foi digitado vencendo a regra
+        conta = fiscal.calcular(r, total, _digitado(entrada))
+        c_icms, c_pc = conta["icms"], conta["pis_cofins"]
+        c_ipi, c_ibs = conta["ipi"], conta["ibs_cbs"]
+        cst, base, aliquota, icms = (c_icms["cst"] or "", c_icms["base"],
+                                     c_icms["aliquota"], c_icms["valor"])
+        reducao = c_icms["reducao"]
+        base_pis, aliq_pis, pis = c_pc["base"], c_pc["aliquota_pis"], c_pc["valor_pis"]
+        aliq_cofins, cofins = c_pc["aliquota_cofins"], c_pc["valor_cofins"]
+        aliq_ipi, ipi = c_ipi["aliquota"], c_ipi["valor"]
+        base_ibs, red_aliq = c_ibs["base"], c_ibs["reducao_aliquota"]
+        aliq_ibs_uf, ibs_uf = c_ibs["aliquota_ibs_uf"], c_ibs["valor_ibs_uf"]
+        aliq_ibs_mun, ibs_mun = c_ibs["aliquota_ibs_mun"], c_ibs["valor_ibs_mun"]
+        aliq_cbs, cbs = c_ibs["aliquota_cbs"], c_ibs["valor_cbs"]
 
         nota.itens.append(NotaItem(
             numero=numero,

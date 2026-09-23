@@ -408,6 +408,14 @@ base 80% e redução de 25% dão base de R$ 60.000, e 18% de alíquota dão R$ 1
 A **redução de alíquota** do IBS/CBS é o redutor da reforma: 60 desconta 60% das três
 alíquotas de uma vez, então uma CBS de 0,9% vira 0,36%.
 
+No fim da janela da regra tem a **Conferência do cálculo**: digite um valor de item (vem com
+R$ 1.000) e a tela mostra, a cada campo mexido, a conta inteira — `valor × base% = base
+cheia − redução% → base` e `base × alíquota% = imposto` — para ICMS, PIS, COFINS, IPI, CBS e
+IBS, com o total de impostos do item. Mexer nesse campo não conta como alteração a salvar. O
+botão **Testar uma situação** mostra a mesma conta junto com a regra que venceu. Os números
+vêm de `fiscal.calcular()`, que é a **mesma** função usada na hora de gravar o item da nota —
+então o que aparece na conferência é o que vai sair na NF-e.
+
 O **cadastro do produto não guarda mais CST nem alíquota**. Lá ficam só a identificação da
 mercadoria — NCM, CEST, origem, unidades, GTIN, pesos, cBenef — e o **tipo fiscal**. Quem
 decide imposto é a tabela de regras, porque a mesma mercadoria é tributada de um jeito para

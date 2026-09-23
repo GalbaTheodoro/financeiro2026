@@ -342,6 +342,64 @@ fora_faixa = api("POST", "/api/fiscal/regras", {
 checar("base fora de 0 a 100 é recusada", fora_faixa.get("_status") == 400)
 
 # =========================================================================== #
+print("\n=== 4e. A tela mostra a conta da base antes de salvar ===")
+# a janela da regra manda os percentuais digitados e recebe a conta pronta
+conta = api("POST", "/api/fiscal/calcular", {
+    "empresa_id": eid, "valor": 100000,
+    "valores": {"icms_cst": "20", "icms_base": 80, "icms_reducao": 25,
+                "icms_aliquota": 18, "pis_cofins_base": 90, "pis_cofins_reducao": 10,
+                "aliquota_pis": 1.65, "aliquota_cofins": 7.6,
+                "ibs_cbs_base": 100, "ibs_cbs_reducao_base": 20,
+                "ibs_cbs_reducao_aliquota": 60, "cbs_aliquota": 0.9,
+                "ibs_uf_aliquota": 0.1, "ibs_mun_aliquota": 0}}, t)["calculo"]
+checar("a conta mostra a base cheia e a base já reduzida",
+       abs(conta["icms"]["base_cheia"] - 80000) < 0.01
+       and abs(conta["icms"]["base"] - 60000) < 0.01,
+       f"{conta['icms']['base_cheia']} -> {conta['icms']['base']}")
+checar("o percentual de base volta para a tela explicar a conta",
+       conta["icms"]["percentual_base"] == 80 and conta["icms"]["reducao"] == 25)
+checar("a conta da tela dá o mesmo ICMS que a nota gravou",
+       abs(conta["icms"]["valor"] - com_bases["icms_valor"]) < 0.01,
+       f"{conta['icms']['valor']} x {com_bases['icms_valor']}")
+checar("e o mesmo PIS, COFINS, CBS e IBS",
+       abs(conta["pis_cofins"]["valor_pis"] - com_bases["pis_valor"]) < 0.01
+       and abs(conta["pis_cofins"]["valor_cofins"] - com_bases["cofins_valor"]) < 0.01
+       and abs(conta["ibs_cbs"]["valor_cbs"] - com_bases["cbs_valor"]) < 0.01
+       and abs(conta["ibs_cbs"]["valor_ibs_uf"] - com_bases["ibs_uf_valor"]) < 0.01,
+       f"pis {conta['pis_cofins']['valor_pis']} / cbs {conta['ibs_cbs']['valor_cbs']}")
+checar("o total de impostos do item é a soma de tudo",
+       abs(conta["total_impostos"] - (10800 + 1336.50 + 6156 + 288 + 32)) < 0.01,
+       str(conta["total_impostos"]))
+
+metade = api("POST", "/api/fiscal/calcular", {
+    "empresa_id": eid, "valor": 1000,
+    "valores": {"icms_cst": "00", "icms_base": 50, "icms_aliquota": 18}}, t)["calculo"]
+checar("base de 50% sobre R$ 1.000 dá R$ 500 e ICMS de R$ 90",
+       abs(metade["icms"]["base"] - 500) < 0.01
+       and abs(metade["icms"]["valor"] - 90) < 0.01,
+       f"{metade['icms']['base']} / {metade['icms']['valor']}")
+
+sem_nada = api("POST", "/api/fiscal/calcular", {
+    "empresa_id": eid, "valor": 1000, "valores": {}}, t)["calculo"]
+checar("sem nada preenchido a base nasce com 100% do valor",
+       abs(sem_nada["icms"]["base"] - 1000) < 0.01
+       and sem_nada["icms"]["percentual_base"] == 100)
+
+conta_ruim = api("POST", "/api/fiscal/calcular", {
+    "empresa_id": eid, "valor": 1000, "valores": {"icms_base": 150}},
+    t, esperar_erro=True)
+checar("percentual de base fora de 0 a 100 também é recusado na conferência",
+       conta_ruim.get("_status") == 400)
+
+# o "Testar uma situação" traz a conta junto com a regra que ganhou
+testado = api("POST", "/api/fiscal/simular", {
+    "empresa_id": eid, "parceiro_id": consumidor["id"], "produto_id": cafe["id"],
+    "cfop": "5949", "operacao": "SAIDA", "valor": 100000}, t)
+checar("o teste da tabela já mostra a base em reais",
+       testado["calculo"] and abs(testado["calculo"]["icms"]["base"] - 60000) < 0.01,
+       str((testado.get("calculo") or {}).get("icms")))
+
+# =========================================================================== #
 print("\n=== 5. O que foi digitado à mão continua mandando ===")
 mao = api("PUT", f"/api/nfe/{nota_mg['nota']['id']}", {
     "empresa_id": eid, "parceiro_id": torrefacao_mg["id"], "serie": "1", "ambiente": "2",

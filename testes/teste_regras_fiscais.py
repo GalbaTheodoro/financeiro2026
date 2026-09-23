@@ -423,6 +423,18 @@ checar("regra com IBS/CBS em branco deixa o item com alíquota zero",
 checar("mas a base cheia continua aparecendo",
        abs(item_zero["ibs_cbs_base"] - 1000) < 0.01, str(item_zero["ibs_cbs_base"]))
 
+# a tela da regra avisa quando o CST não leva base nem alíquota (rejeição 1021)
+tributado = api("POST", "/api/fiscal/calcular", {
+    "empresa_id": eid, "valor": 1000,
+    "valores": {"ibs_cbs_cst": "000", "cbs_aliquota": 0.9}}, t)["calculo"]
+isento = api("POST", "/api/fiscal/calcular", {
+    "empresa_id": eid, "valor": 1000,
+    "valores": {"ibs_cbs_cst": "400", "cbs_aliquota": 0.9}}, t)["calculo"]
+checar("CST 000 leva o grupo de IBS/CBS; CST 400 não leva",
+       tributado["ibs_cbs"]["leva_grupo"] is True
+       and isento["ibs_cbs"]["leva_grupo"] is False,
+       f"{tributado['ibs_cbs']['leva_grupo']} / {isento['ibs_cbs']['leva_grupo']}")
+
 # o "Testar uma situação" traz a conta junto com a regra que ganhou
 testado = api("POST", "/api/fiscal/simular", {
     "empresa_id": eid, "parceiro_id": consumidor["id"], "produto_id": cafe["id"],

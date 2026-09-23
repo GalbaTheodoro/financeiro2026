@@ -401,12 +401,34 @@ def _pis_cofins(item, crt: str) -> str:
                     base if float(item.aliquota_cofins or 0) else 0))
 
 
+# CST do IBS/CBS que **vedam** o grupo de base e alíquotas (`gIBSCBS`) — na
+# tabela oficial são os que têm `ind_gIBSCBS = 0`. Mandar o grupo neles devolve a
+# rejeição 1021 (grupo informado indevidamente); deixar de mandar num CST que
+# exige devolve a 1022/1115 (não informado).
+#
+#   400  isenção                     550  suspensão
+#   410  imunidade e não incidência   620  tributação monofásica (usa gIBSCBSMono)
+#   800  transferência de crédito (usa gTransfCred)
+#   810  ajuste de IBS na ZFM         811  ajustes (usa gAjusteCompet)
+#   820  declaração de regime específico
+#   830  exclusão de base de cálculo
+#
+# Os demais (000, 010, 011, 200, 210, 220, 221, 222, 510, 515) levam o grupo. CST
+# desconhecido é tratado como tributado, que é o caso comum.
+# Fonte: IT/NT 2025.002-RTC (tabela de CST do IBS/CBS, coluna ind_gIBSCBS) e o
+# schema DFeTiposBasicos_v1.00, onde gIBSCBS é uma escolha opcional.
+CST_SEM_GRUPO_IBSCBS = ("400", "410", "550", "620", "800", "810", "811", "820", "830")
+
+
 def _ibs_cbs_do_item(item) -> str:
     """Grupo IBS/CBS do item (NT 2025.002), na ordem exata do schema.
 
-    Sem este grupo a SEFAZ devolve a rejeição **1115 — IBS/CBS não informado**.
-    A estrutura é: CST, cClassTrib e, dentro de `gIBSCBS`, a base, o IBS do
-    estado, o IBS do município, o total do IBS e a CBS.
+    Sempre saem o CST e o `cClassTrib`. O grupo `gIBSCBS` — base, IBS do estado,
+    IBS do município, total do IBS e CBS — **só sai quando o CST permite**:
+
+    * CST que tributa (000, 200, 510...): sem o grupo, rejeição 1022/1115;
+    * CST que não tributa (400 isenção, 410 imunidade, 550 suspensão...): com o
+      grupo, rejeição **1021 — grupo IBS/CBS informado indevidamente**.
 
     Item sem CST/cClassTrib cadastrado sai como tributação integral (000/000001)
     com as alíquotas de teste de 2026 — é o que deixa a nota passar; a regra
@@ -415,6 +437,9 @@ def _ibs_cbs_do_item(item) -> str:
     """
     cst = (getattr(item, "ibs_cbs_cst", None) or "000").zfill(3)[:3]
     classe = (getattr(item, "ibs_cbs_classe", None) or "000001").zfill(6)[:6]
+    if cst in CST_SEM_GRUPO_IBSCBS:
+        return "<IBSCBS>" + _tag("CST", cst, True) + _tag("cClassTrib", classe, True) \
+            + "</IBSCBS>"
     base = float(getattr(item, "ibs_cbs_base", 0) or 0) or float(item.valor_total or 0)
     p_uf = float(getattr(item, "ibs_uf_aliquota", 0) or 0)
     p_mun = float(getattr(item, "ibs_mun_aliquota", 0) or 0)
@@ -437,6 +462,12 @@ def _ibs_cbs_do_item(item) -> str:
         + _tag("vCBS", _num(v_cbs), True) + "</gCBS>"
         + "</gIBSCBS></IBSCBS>"
     )
+
+
+def _tem_grupo_ibs_cbs(item) -> bool:
+    """O item leva o grupo de base e alíquotas do IBS/CBS?"""
+    cst = (getattr(item, "ibs_cbs_cst", None) or "000").zfill(3)[:3]
+    return cst not in CST_SEM_GRUPO_IBSCBS
 
 
 def _det(item, numero: int, crt: str, ambiente: str) -> str:
@@ -504,7 +535,14 @@ def _total(itens, frete: float = 0, desconto: float = 0) -> tuple[str, float]:
 
 
 def _ibs_cbs_total(itens) -> str:
-    """Somatório do IBS/CBS da nota (`IBSCBSTot`), na ordem exata do schema."""
+    """Somatório do IBS/CBS da nota (`IBSCBSTot`), na ordem exata do schema.
+
+    Só entram os itens que levaram o grupo `gIBSCBS`. Se nenhum item levou — nota
+    toda isenta ou imune, por exemplo —, o total também não é informado.
+    """
+    itens = [i for i in itens if _tem_grupo_ibs_cbs(i)]
+    if not itens:
+        return ""
     base = sum(float(getattr(i, "ibs_cbs_base", 0) or 0) or float(i.valor_total or 0)
                for i in itens)
     ibs_uf = sum(float(getattr(i, "ibs_uf_valor", 0) or 0) for i in itens)

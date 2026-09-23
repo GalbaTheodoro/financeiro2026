@@ -36,7 +36,7 @@ const Emissao = {
   },
 
   /* Abre o formulário de uma nota nova (ou de um rascunho já existente). */
-  async abrir(notaId, contratoId) {
+  async abrir(notaId, contratoId, etapa = 0, item = null) {
     const preparo = await Api.get('/api/nfe/preparo', { empresa_id: Estado.empresaId });
     // nota nova só começa com o cadastro completo; rascunho já existente sempre abre
     if (!preparo.pronto && !notaId) return Emissao.pendencias(preparo);
@@ -52,7 +52,9 @@ const Emissao = {
       });
       UI.sucesso('Rascunho criado. Preencha e transmita quando estiver certo.');
     }
-    Emissao.formulario(dados, preparo);
+    Emissao.formulario(dados, preparo, etapa);
+    // quando a recusa apontou um item, abre já rolando até ele
+    if (item) setTimeout(() => Emissao.mostrarItem(item - 1), 400);
   },
 
   pendencias(preparo) {
@@ -296,29 +298,46 @@ const Emissao = {
     pagamento: { etapa: 2 },
   },
 
-  /** O aviso que fica na tela: código, frase da SEFAZ, o que é e como arrumar. */
+  /** A SEFAZ costuma dizer em qual item deu o problema: "[nItem: 3]". */
+  itemDoErro(mensagem) {
+    const achado = /nItem:\s*(\d+)/i.exec(String(mensagem || ''));
+    return achado ? Number(achado[1]) : null;
+  },
+
+  /** O aviso que fica na tela quando a SEFAZ recusa. É o texto mais importante
+      da tela, então vem em destaque e na ordem em que se lê: o que houve, o que
+      fazer, e por último as palavras exatas da SEFAZ (que servem para o
+      contador e para o suporte). */
   cartaoErro(erro) {
     if (!erro) return '';
     const conserto = Emissao.CONSERTO[erro.onde];
-    const atalho = conserto && conserto.rota
+    const item = Emissao.itemDoErro(erro.mensagem);
+    const rotulo = conserto && conserto.rota ? conserto.rotulo
+      : item ? `Ir para o item ${item}` : 'Ir para a etapa do conserto';
+    const atalho = conserto
       ? `<button type="button" class="btn btn-mini" data-conserto="${UI.escapar(erro.onde)}"
-           style="margin-top:10px">${UI.escapar(conserto.rotulo)}</button>`
-      : conserto && conserto.etapa !== undefined
-        ? `<button type="button" class="btn btn-mini" data-conserto="${UI.escapar(erro.onde)}"
-             style="margin-top:10px">Ir para a etapa do conserto</button>`
-        : '';
+           ${item ? `data-item="${item}"` : ''}
+           style="margin-top:12px">${UI.escapar(rotulo)}</button>`
+      : '';
     return `
-      <div class="cartao" style="margin-bottom:12px;border-left:4px solid var(--vermelho)">
-        <div class="cartao-corpo">
-          <b>${UI.escapar(erro.causa || 'A SEFAZ recusou a nota.')}</b>
-          <div style="margin-top:8px">${UI.escapar(erro.corrigir || '')}</div>
-          <div class="mini" style="margin-top:10px">
-            Resposta da SEFAZ${erro.codigo ? ` — código <b>${UI.escapar(erro.codigo)}</b>` : ''}:
-            <i>${UI.escapar(erro.mensagem || '')}</i>
+      <div class="recusa">
+        <div class="recusa-topo">
+          <b>A SEFAZ NÃO ACEITOU A NOTA</b>
+          ${erro.codigo ? `<span class="recusa-selo">código ${UI.escapar(erro.codigo)}</span>` : ''}
+          ${item ? `<span class="recusa-selo">item ${item}</span>` : ''}
+        </div>
+        <div class="recusa-corpo">
+          <div class="recusa-causa">${UI.escapar(erro.causa || 'A SEFAZ recusou a nota.')}</div>
+          ${erro.corrigir ? `<div class="recusa-corrigir">
+            ${UI.escapar(erro.corrigir)}</div>` : ''}
+          ${erro.denegada ? `<div class="recusa-corrigir"><b>Nota denegada:</b> o número foi
+            consumido e essa nota não pode ser reaproveitada. Depois de resolver a
+            pendência, emita outra.</div>` : ''}
+          <div class="recusa-sefaz">
+            <div class="rotulo">Palavras da SEFAZ${erro.codigo
+              ? ` — código ${UI.escapar(erro.codigo)}` : ''}</div>
+            ${UI.escapar(erro.mensagem || '(a SEFAZ não devolveu texto)')}
           </div>
-          ${erro.denegada ? `<div class="mini" style="margin-top:6px">
-            <b>Nota denegada:</b> o número foi consumido e essa nota não pode ser reaproveitada.
-            Depois de resolver a pendência, emita outra.</div>` : ''}
           ${erro.detalhe ? `<details style="margin-top:10px">
             <summary class="mini" style="cursor:pointer">Detalhes técnicos (para o suporte)</summary>
             <pre class="mini" style="white-space:pre-wrap;word-break:break-all;margin:6px 0 0;
@@ -328,7 +347,8 @@ const Emissao = {
         </div></div>`;
   },
 
-  /** Liga os botões de atalho do aviso de erro. */
+  /** Liga os botões de atalho do aviso de erro. Quando a SEFAZ apontou um item,
+      o atalho abre a etapa dos itens já rolando até ele, com os impostos à vista. */
   ligarConserto(corpo, irPara) {
     corpo.querySelectorAll('[data-conserto]').forEach((botao) => {
       botao.onclick = () => {
@@ -339,8 +359,20 @@ const Emissao = {
           return App.irPara(conserto.rota);
         }
         if (irPara) irPara(conserto.etapa);
+        const item = Number(botao.dataset.item || 0);
+        if (item) setTimeout(() => Emissao.mostrarItem(item - 1), 250);
       };
     });
+  },
+
+  /** Rola até um item e abre o bloco de impostos dele. */
+  mostrarItem(indice) {
+    const bloco = document.querySelector(`[data-impostos="${indice}"]`);
+    if (!bloco) return;
+    bloco.open = true;
+    Emissao._abertos = Emissao._abertos || {};
+    Emissao._abertos[indice] = true;
+    bloco.scrollIntoView({ block: 'center', behavior: 'smooth' });
   },
 
   faixaSituacao(n) {
@@ -422,11 +454,11 @@ const Emissao = {
   itemVazio() {
     return { produto_id: '', descricao: '', unidade: '', quantidade: 0, valor_unitario: 0,
              cfop: '', ncm: '', icms_cst: '', desconto: 0, origem_mercadoria: '0',
-             icms_base: 0, icms_aliquota: 0, icms_reducao: 0, icms_valor: 0,
-             cst_pis: '', pis_cofins_base: 0, aliquota_pis: 0, pis_valor: 0,
+             icms_base: null, icms_aliquota: 0, icms_reducao: 0, icms_valor: 0,
+             cst_pis: '', pis_cofins_base: null, aliquota_pis: 0, pis_valor: 0,
              cst_cofins: '', aliquota_cofins: 0, cofins_valor: 0,
              cst_ipi: '', aliquota_ipi: 0, ipi_valor: 0,
-             ibs_cbs_cst: '', ibs_cbs_classe: '', ibs_cbs_base: 0,
+             ibs_cbs_cst: '', ibs_cbs_classe: '', ibs_cbs_base: null,
              ibs_cbs_reducao_aliquota: 0,
              ibs_uf_aliquota: Emissao.IBS_UF, ibs_mun_aliquota: Emissao.IBS_MUN,
              cbs_aliquota: Emissao.CBS };
@@ -1210,7 +1242,9 @@ const Emissao = {
     }
 
     UI.abrirModal({ titulo: 'A SEFAZ não autorizou', corpo, largo: true, botoes });
-    Emissao.ligarConserto(corpo, null);
+    // o atalho do aviso reabre a nota já na etapa (e no item) do conserto
+    Emissao.ligarConserto(corpo, (etapa) => Emissao.abrir(
+      n.id, null, etapa, Emissao.itemDoErro(dados.mensagem)));
   },
 
   async previa(notaId) {

@@ -151,6 +151,23 @@ TABELA: dict[str, tuple[str, str, str]] = {
             PRODUTO),
     "779": ("O NCM informado não está completo.",
             "O NCM precisa ter 8 dígitos. Corrija no cadastro do produto.", PRODUTO),
+    # Reforma tributária (NT 2025.002): o CST do IBS/CBS decide se o grupo de
+    # base e alíquotas pode ser enviado. Os dois erros são o mesmo assunto,
+    # vistos dos dois lados.
+    "1021": ("O CST do IBS/CBS deste item não aceita base de cálculo nem alíquota.",
+             "CST como 400 (isenção), 410 (imunidade), 550 (suspensão) e 620 "
+             "(monofásico) não levam valor de IBS/CBS. Em Cadastros > Regras fiscais, "
+             "abra a regra deste item: ou o CST do IBS/CBS está errado para esta "
+             "operação, ou ele está certo e as alíquotas de IBS e CBS precisam ficar "
+             "zeradas.", ITENS),
+    "1022": ("Falta a base de cálculo e as alíquotas do IBS/CBS neste item.",
+             "O CST do IBS/CBS deste item é de operação tributada e exige os valores. "
+             "Em Cadastros > Regras fiscais, preencha a base e as alíquotas de CBS e "
+             "IBS da regra deste item (em 2026 o teste é CBS 0,9% e IBS 0,1%).", ITENS),
+    "1115": ("Falta o grupo de IBS/CBS neste item.",
+             "Em Cadastros > Regras fiscais, preencha o CST do IBS/CBS, o cClassTrib e "
+             "as alíquotas da regra deste item (em 2026 o teste é CBS 0,9% e IBS 0,1%).",
+             ITENS),
 }
 
 # --------------------------------------------------------------------------- #

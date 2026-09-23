@@ -221,6 +221,25 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .aviso.erro{border-left-color:var(--vermelho)}
 @keyframes entrar{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
+/* --------------------------------------------- recusa da SEFAZ (NF-e) ----- */
+/* É o aviso mais importante da tela: tem de saltar aos olhos e dizer, em
+   ordem, o que houve, o que fazer e as palavras exatas da SEFAZ. */
+.recusa{border:2px solid var(--vermelho);border-radius:11px;background:var(--vermelho-claro);
+  margin-bottom:14px;overflow:hidden}
+.recusa-topo{background:var(--vermelho);color:#fff;padding:10px 14px;display:flex;
+  gap:8px;align-items:center;flex-wrap:wrap}
+.recusa-topo b{font-size:15px;letter-spacing:.4px}
+.recusa-selo{background:#fff;color:var(--vermelho);border-radius:999px;padding:2px 10px;
+  font-weight:700;font-size:12px;white-space:nowrap}
+.recusa-corpo{padding:14px}
+.recusa-causa{font-size:16px;font-weight:700;color:var(--vermelho);line-height:1.35}
+.recusa-corrigir{font-size:14px;line-height:1.55;margin-top:8px}
+.recusa-sefaz{margin-top:12px;background:#fff;border:1px solid #fecaca;border-radius:9px;
+  padding:10px 12px;font-size:13px}
+.recusa-sefaz .rotulo{font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--cinza-500);margin-bottom:3px}
+@media(max-width:640px){.recusa-causa{font-size:15px}.recusa-topo b{font-size:14px}}
+
 /* -------------------------------------------------------------------- misc */
 .barra{height:9px;border-radius:99px;background:var(--cinza-200);overflow:hidden}
 .barra > span{display:block;height:100%;background:var(--primaria)}

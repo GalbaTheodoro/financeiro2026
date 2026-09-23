@@ -1191,15 +1191,21 @@ const Cadastros = {
           <div style="margin-top:8px"><b>IBS e CBS</b>${x.cst
             ? ` <span class="mini">CST ${UI.escapar(x.cst)}${x.classe
               ? ` · ${UI.escapar(x.classe)}` : ''}</span>` : ''}</div>
-          ${base(x)}
+          ${x.leva_grupo === false ? `<div class="mini" style="color:var(--vermelho)">
+            O CST ${UI.escapar(x.cst || '')} não é de operação tributada: na nota sai só o
+            CST e o cClassTrib, <b>sem base e sem alíquota</b>. Mandar valores nele é a
+            recusa 1021 da SEFAZ — por isso os números abaixo não vão para a nota.</div>`
+            : `${base(x)}
           ${x.reducao_aliquota ? `<div class="mini">Redução de alíquota:
             ${pct(x.reducao_aliquota)}% — já descontada das três alíquotas abaixo</div>` : ''}
           ${linha('CBS', x.base, x.aliquota_cbs, x.valor_cbs)}
           ${linha('IBS estadual', x.base, x.aliquota_ibs_uf, x.valor_ibs_uf)}
-          ${linha('IBS municipal', x.base, x.aliquota_ibs_mun, x.valor_ibs_mun)}
+          ${linha('IBS municipal', x.base, x.aliquota_ibs_mun, x.valor_ibs_mun)}`}
 
           <div style="margin-top:10px">Impostos do item:
-            <b>${UI.moeda(c.total_impostos)}</b></div>
+            <b>${UI.moeda(x.leva_grupo === false
+              ? c.total_impostos - x.valor_cbs - x.valor_ibs_uf - x.valor_ibs_mun
+              : c.total_impostos)}</b></div>
         </div></div>`;
   },
 

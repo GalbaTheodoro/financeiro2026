@@ -317,6 +317,9 @@ def calcular(valores: dict | None, total: float, digitado: dict | None = None) -
         },
         "ibs_cbs": {
             "cst": texto("ibs_cbs_cst"), "classe": texto("ibs_cbs_classe"),
+            # CST que não tributa não leva base nem alíquota no XML (rejeição 1021)
+            "leva_grupo": (texto("ibs_cbs_cst") or "000").zfill(3)
+            not in nfe.CST_SEM_GRUPO_IBSCBS,
             "percentual_base": perc_ibs, "reducao": red_ibs,
             "base_cheia": cheia_ibs, "base": base_ibs,
             "reducao_aliquota": red_aliq,

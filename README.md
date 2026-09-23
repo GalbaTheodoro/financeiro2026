@@ -414,6 +414,17 @@ decidiu. Os padrões da reforma (IBS 0,1% e CBS 0,9%) só entram quando **nenhum
 para o item. Por isso, numa regra que destaca IBS/CBS, preencha as alíquotas: deixá-las em
 branco não é "usar o padrão", é dizer que não há IBS nem CBS.
 
+**O CST do IBS/CBS decide se a base e a alíquota podem ir na nota.** Na tabela oficial cada
+CST tem o indicador `ind_gIBSCBS`; quando ele é 0 — isenção (400), imunidade (410), suspensão
+(550), monofasia (620), transferência de crédito (800), ajustes (810/811), regime específico
+(820), exclusão de base (830) — o grupo `gIBSCBS` **não pode** ser enviado, e mandá-lo é a
+rejeição **1021 (grupo IBS/CBS informado indevidamente)**; nos demais (000, 010, 011, 200,
+210, 220, 221, 222, 510, 515) ele é obrigatório, e omiti-lo é a **1022/1115**. A emissão
+resolve isso sozinha (`CST_SEM_GRUPO_IBSCBS` em `backend/emissao.py`): o CST e o `cClassTrib`
+sempre saem, o grupo de valores só sai quando o CST permite, e o `IBSCBSTot` soma apenas os
+itens que levaram o grupo — some da nota quando nenhum item leva. Na Conferência do cálculo,
+a regra com um CST desses avisa em vermelho que os valores não vão para a nota.
+
 No fim da janela da regra tem a **Conferência do cálculo**: digite um valor de item (vem com
 R$ 1.000) e a tela mostra, a cada campo mexido, a conta inteira — `valor × base% = base
 cheia − redução% → base` e `base × alíquota% = imposto` — para ICMS, PIS, COFINS, IPI, CBS e
@@ -521,6 +532,12 @@ num painel que **fica na tela** (não some como aviso): o que aconteceu, o que f
 a nota passar, e a resposta original da SEFAZ com o código, para levar ao contador.
 Junto vai um **atalho para o lugar do conserto**: cadastro da empresa, do cliente, do
 produto, o certificado digital ou a etapa certa da própria nota.
+
+O painel é **o elemento mais destacado da tela**: faixa vermelha com o título *A SEFAZ NÃO
+ACEITOU A NOTA*, selos com o código e com o número do item apontado (a SEFAZ manda
+`[nItem: 3]`), a causa em letra grande, o que fazer logo abaixo e, por último, as palavras
+exatas da SEFAZ numa caixa à parte. Quando a recusa é de um item, o atalho vira *Ir para o
+item 3* e abre a nota já rolada até ele, com o bloco de impostos aberto.
 
 O aviso continua dentro da nota quando ela é reaberta, então dá para corrigir com calma.
 Rejeição comum devolve o número da série e a nota volta a ser rascunho; denegação consome

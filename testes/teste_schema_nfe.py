@@ -240,6 +240,42 @@ checar("o IBSCBSTot soma os dois itens (150.000 de base)",
        and "<gCBS><vDif>0.00</vDif><vDevTrib>0.00</vDevTrib><vCBS>1350.00</vCBS>" in dois,
        re.search(r"<vBCIBSCBS>[^<]+", dois).group(0))
 
+print("\n=== 3d. CST que não tributa não leva o grupo (rejeição 1021) ===")
+# "1021 - Grupo IBS/CBS informado indevidamente": o CST do IBS/CBS tem, na tabela
+# oficial, o indicador ind_gIBSCBS. Quando ele é 0 (isenção, imunidade, suspensão,
+# monofasia...), mandar base e alíquota é recusa na certa.
+for cst, leva in (("000", True), ("200", True), ("510", True),
+                  ("400", False), ("410", False), ("550", False), ("620", False),
+                  ("800", False), ("820", False), ("830", False)):
+    xml_ibs = montar(itens=[{"produto_id": cafe["id"], "quantidade": 10,
+                             "valor_unitario": 100, "ibs_cbs_cst": cst,
+                             "ibs_cbs_classe": "000001", "cbs_aliquota": 0.9,
+                             "ibs_uf_aliquota": 0.1}])
+    tem = "<gIBSCBS>" in xml_ibs
+    checar(f"CST {cst}: {'leva' if leva else 'não leva'} base e alíquota de IBS/CBS",
+           tem == leva, "levou" if tem else "não levou")
+    checar(f"CST {cst}: mas o CST e o cClassTrib continuam saindo",
+           f"<IBSCBS><CST>{cst}</CST><cClassTrib>" in xml_ibs)
+    problemas = validar(xml_ibs)
+    checar(f"CST {cst}: o XML continua válido no schema", not problemas,
+           problemas[0][:120] if problemas else "")
+
+isenta = montar(itens=[{"produto_id": cafe["id"], "quantidade": 10,
+                        "valor_unitario": 100, "ibs_cbs_cst": "400",
+                        "ibs_cbs_classe": "000001"}])
+checar("nota toda isenta também não leva o IBSCBSTot",
+       "<IBSCBSTot>" not in isenta)
+misturada = montar(itens=[
+    {"produto_id": cafe["id"], "quantidade": 10, "valor_unitario": 100,
+     "ibs_cbs_cst": "400", "ibs_cbs_classe": "000001"},
+    {"produto_id": cafe["id"], "quantidade": 10, "valor_unitario": 100,
+     "ibs_cbs_cst": "000", "ibs_cbs_classe": "000001", "cbs_aliquota": 0.9}])
+checar("com um item isento e um tributado, o total soma só o tributado",
+       "<vBCIBSCBS>1000.00</vBCIBSCBS>" in misturada,
+       re.search(r"<vBCIBSCBS>[^<]+", misturada).group(0))
+checar("e a nota misturada passa no schema", not validar(misturada),
+       (validar(misturada) or [""])[0][:120])
+
 print("\n=== 4. Regime normal e o diferimento do café (CST 51) ===")
 api("PUT", f"/api/empresas/{eid}", {
     "razao_social": "ASSESSORIA AGRODOCK LTDA", "cnpj": "98765432000198",

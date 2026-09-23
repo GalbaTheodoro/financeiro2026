@@ -77,6 +77,7 @@ const Emissao = {
     Emissao._preparo = preparo;
     Emissao._editavel = editavel;
     Emissao._itens = (dados.itens || []).map((i) => ({ ...i }));
+    Emissao._itens.forEach((i) => Emissao.seguirRegra(i));
     Emissao._parcelas = (dados.parcelas || []).map((p) => ({ ...p }));
     if (!Emissao._itens.length) Emissao._itens.push(Emissao.itemVazio());
 
@@ -448,6 +449,28 @@ const Emissao = {
   CALCULADOS: ['icms_base', 'icms_valor', 'pis_cofins_base', 'pis_valor', 'cofins_valor',
     'ipi_valor', 'ibs_cbs_base', 'ibs_uf_valor', 'ibs_mun_valor', 'cbs_valor'],
 
+  /** Percentuais que vivem só na regra fiscal. O item guarda a base já em reais,
+      então estes não são campos do item: a tela usa para montar a base. */
+  PERCENTUAIS_DA_REGRA: ['icms_base', 'pis_cofins_base', 'pis_cofins_reducao',
+    'ibs_cbs_base', 'ibs_cbs_reducao_base'],
+
+  /** Campos de imposto que **seguem a regra fiscal** enquanto ninguém digitar
+      neles. Quem for digitado fica marcado e é mandado para o servidor; o resto
+      vai em branco, e a conta sai da regra a cada gravação — por isso corrigir a
+      tabela de regras já conserta os rascunhos abertos. */
+  SEGUEM_A_REGRA: ['icms_cst', 'icms_base', 'icms_reducao', 'icms_aliquota', 'icms_valor',
+    'cst_pis', 'cst_cofins', 'pis_cofins_base', 'aliquota_pis', 'pis_valor',
+    'aliquota_cofins', 'cofins_valor', 'cst_ipi', 'aliquota_ipi', 'ipi_valor',
+    'ibs_cbs_cst', 'ibs_cbs_classe', 'ibs_cbs_base', 'ibs_cbs_reducao_aliquota',
+    'cbs_aliquota', 'cbs_valor', 'ibs_uf_aliquota', 'ibs_uf_valor',
+    'ibs_mun_aliquota', 'ibs_mun_valor'],
+
+  /** Um percentual da regra deste item, com o padrão de quando a regra não diz. */
+  percentualDaRegra(item, campo, padrao) {
+    const valor = Number((item.regra_valores || {})[campo]);
+    return Number.isFinite(valor) ? valor : padrao;
+  },
+
   /* ICMS que não destaca valor: isento, não tributado, diferido, ST. */
   SEM_VALOR_ICMS: ['40', '41', '50', '51', '60', '102', '103', '300', '400', '500'],
 
@@ -456,8 +479,14 @@ const Emissao = {
   recalcularImpostos(item) {
     const mao = item._mao || {};
     const total = Emissao.totalItem(item);
+    const perc = (campo, padrao) => Emissao.percentualDaRegra(item, campo, padrao);
+    // a base é o percentual do valor do item que a regra manda entrar no cálculo;
+    // a redução desconta dela depois. 100% e 0% é o caso normal.
     const reducao = Emissao.numero(item.icms_reducao);
-    if (!mao.icms_base) item.icms_base = Math.round(total * (1 - reducao / 100) * 100) / 100;
+    if (!mao.icms_base) {
+      item.icms_base = Math.round(total * perc('icms_base', 100) / 100
+        * (1 - reducao / 100) * 100) / 100;
+    }
     const base = Emissao.numero(item.icms_base);
     const cst = String(item.icms_cst || '');
     if (!mao.icms_valor) {
@@ -465,12 +494,18 @@ const Emissao = {
         ? 0
         : Math.round(base * Emissao.numero(item.icms_aliquota)) / 100;
     }
-    if (!mao.pis_cofins_base) item.pis_cofins_base = Math.round(total * 100) / 100;
+    if (!mao.pis_cofins_base) {
+      item.pis_cofins_base = Math.round(total * perc('pis_cofins_base', 100) / 100
+        * (1 - perc('pis_cofins_reducao', 0) / 100) * 100) / 100;
+    }
     const basePis = Emissao.numero(item.pis_cofins_base);
     if (!mao.pis_valor) item.pis_valor = Math.round(basePis * Emissao.numero(item.aliquota_pis)) / 100;
     if (!mao.cofins_valor) item.cofins_valor = Math.round(basePis * Emissao.numero(item.aliquota_cofins)) / 100;
     if (!mao.ipi_valor) item.ipi_valor = Math.round(total * Emissao.numero(item.aliquota_ipi)) / 100;
-    if (!mao.ibs_cbs_base) item.ibs_cbs_base = Math.round(total * 100) / 100;
+    if (!mao.ibs_cbs_base) {
+      item.ibs_cbs_base = Math.round(total * perc('ibs_cbs_base', 100) / 100
+        * (1 - perc('ibs_cbs_reducao_base', 0) / 100) * 100) / 100;
+    }
     const baseIbs = Emissao.numero(item.ibs_cbs_base);
     // o redutor de alíquota da reforma desconta das três alíquotas de uma vez
     const fator = 1 - Emissao.numero(item.ibs_cbs_reducao_aliquota) / 100;
@@ -524,7 +559,8 @@ const Emissao = {
             simples ? Emissao.CSOSN : Emissao.CST_ICMS,
             simples ? 'Simples Nacional' : 'regime normal')}
           ${Emissao.campoImposto(i, 'icms_reducao', 'Redução da base (%)', 4)}
-          ${Emissao.campoImposto(i, 'icms_base', 'Base de cálculo', 2, 'em branco = total do item')}
+          ${Emissao.campoImposto(i, 'icms_base', 'Base de cálculo', 2,
+            'sai da regra fiscal; apague para recalcular')}
           ${Emissao.campoImposto(i, 'icms_aliquota', 'Alíquota ICMS (%)', 4)}
           ${Emissao.campoImposto(i, 'icms_valor', 'Valor do ICMS', 2, 'calculado')}
         </div>
@@ -532,7 +568,7 @@ const Emissao = {
         <div class="linha-campos">
           ${Emissao.selecaoImposto(i, 'cst_pis', 'CST do PIS', Emissao.CST_PISCOFINS)}
           ${Emissao.campoImposto(i, 'pis_cofins_base', 'Base de cálculo', 2,
-            'em branco = total do item')}
+            'sai da regra fiscal; apague para recalcular')}
           ${Emissao.campoImposto(i, 'aliquota_pis', 'Alíquota PIS (%)', 4)}
           ${Emissao.campoImposto(i, 'pis_valor', 'Valor do PIS', 2, 'calculado')}
           ${Emissao.selecaoImposto(i, 'cst_cofins', 'CST da COFINS', Emissao.CST_PISCOFINS)}
@@ -558,7 +594,8 @@ const Emissao = {
             `<input data-campo="ibs_cbs_classe" data-linha="${i}" inputmode="numeric"
                value="${UI.escapar(Emissao._itens[i].ibs_cbs_classe || '')}" maxlength="6"
                placeholder="000001">`, 'tabela da NT 2025.002')}
-          ${Emissao.campoImposto(i, 'ibs_cbs_base', 'Base do IBS/CBS', 2, 'em branco = total do item')}
+          ${Emissao.campoImposto(i, 'ibs_cbs_base', 'Base do IBS/CBS', 2,
+            'sai da regra fiscal; apague para recalcular')}
           ${Emissao.campoImposto(i, 'ibs_cbs_reducao_aliquota', 'Redução de alíquota (%)', 4,
             'desconta das três alíquotas')}
           ${Emissao.campoImposto(i, 'ibs_uf_aliquota', 'IBS estadual (%)', 4)}
@@ -592,7 +629,7 @@ const Emissao = {
             ${UI.campo('Produto', UI.select(`produto_${i}`,
               produtos.map((p) => ({ valor: p.id, rotulo: `${p.codigo} — ${p.nome}` })),
               item.produto_id || '', { vazio: 'Digitar à mão' }),
-              'traz NCM, CFOP, CST e alíquotas do cadastro')}
+              'traz NCM e CFOP do cadastro; o imposto vem da regra fiscal')}
             ${UI.campo('Descrição',
               `<input data-campo="descricao" data-linha="${i}" value="${UI.escapar(item.descricao || '')}">`)}
             ${UI.campo('Quantidade',
@@ -625,14 +662,13 @@ const Emissao = {
       const anotar = () => {
         const item = Emissao._itens[Number(campo.dataset.linha)];
         const nome = campo.dataset.campo;
-        if (Emissao.CAMPOS_NUMERO.includes(nome)) {
-          // campo calculado que a pessoa apagou volta a ser calculado sozinho
-          item._mao = item._mao || {};
-          if (Emissao.CALCULADOS.includes(nome)) item._mao[nome] = campo.value.trim() !== '';
-          item[nome] = Emissao.numero(campo.value);
-        } else {
-          item[nome] = campo.value;
+        // campo de imposto que a pessoa apagou volta a seguir a regra fiscal
+        item._mao = item._mao || {};
+        if (Emissao.SEGUEM_A_REGRA.includes(nome)) {
+          item._mao[nome] = String(campo.value).trim() !== '';
         }
+        item[nome] = Emissao.CAMPOS_NUMERO.includes(nome)
+          ? Emissao.numero(campo.value) : campo.value;
         Emissao.recalcularImpostos(item);
         Emissao.atualizarTotais(campo);
       };
@@ -720,7 +756,11 @@ const Emissao = {
           + 'Cadastre em Cadastros > Regras fiscais.');
       }
       item._mao = {};
-      Object.assign(item, r.regra.valores || {});
+      item.regra_valores = r.regra.valores || {};
+      // os percentuais de base ficam guardados na regra; o item leva a base em reais
+      const doItem = { ...item.regra_valores };
+      Emissao.PERCENTUAIS_DA_REGRA.forEach((campo) => { delete doItem[campo]; });
+      Object.assign(item, doItem);
       if (r.regra.valores && r.regra.valores.icms_origem) {
         item.origem_mercadoria = r.regra.valores.icms_origem;
       }
@@ -732,6 +772,42 @@ const Emissao = {
     } catch (e) {
       if (!silencioso) UI.erro(e.message);
     }
+  },
+
+  /** Campo calculado só é mandado para o servidor quando foi **digitado à mão**.
+      Em branco, quem monta a base e o valor é a regra fiscal — senão a base que
+      a tela calculou voltaria como se tivesse sido digitada e a regra nunca
+      valeria de novo. */
+  digitado(item, nome) {
+    if (!item._mao || !item._mao[nome]) return null;
+    return Emissao.CAMPOS_NUMERO.includes(nome)
+      ? Emissao.numero(item[nome]) : (item[nome] || null);
+  },
+
+  /** Quais campos desta linha foram digitados à mão — vai gravado no item para
+      o rascunho reaberto saber o que é da regra e o que é da pessoa. */
+  camposManuais(item) {
+    return Emissao.SEGUEM_A_REGRA.filter((nome) => item._mao && item._mao[nome]);
+  },
+
+  /** Ao abrir o rascunho: os campos que ninguém digitou voltam a sair da regra
+      fiscal de hoje. Se a tabela de regras mudou, o item já abre com a
+      legislação nova; o que foi digitado à mão continua como estava. */
+  seguirRegra(item) {
+    item._mao = {};
+    (item.campos_manuais ? String(item.campos_manuais).split(',') : [])
+      .forEach((nome) => { if (nome) item._mao[nome.trim()] = true; });
+    const daRegra = item.regra_valores || {};
+    Emissao.SEGUEM_A_REGRA.forEach((nome) => {
+      // a base e os valores não vêm da regra prontos: são calculados abaixo
+      if (item._mao[nome] || Emissao.CALCULADOS.includes(nome)) return;
+      if (daRegra[nome] !== undefined) item[nome] = daRegra[nome];
+      else item[nome] = Emissao.CAMPOS_NUMERO.includes(nome) ? 0 : '';
+    });
+    if (!item._mao.icms_cst && daRegra.icms_origem) {
+      item.origem_mercadoria = daRegra.icms_origem;
+    }
+    Emissao.recalcularImpostos(item);
   },
 
   /** Número para mostrar no campo: em branco quando é zero, para não atrapalhar. */
@@ -1014,31 +1090,12 @@ const Emissao = {
         valor_unitario: Emissao.numero(i.valor_unitario),
         desconto: Emissao.numero(i.desconto),
         origem_mercadoria: i.origem_mercadoria || null,
-        icms_cst: i.icms_cst || null,
-        icms_reducao: Emissao.numero(i.icms_reducao),
-        icms_base: Emissao.numero(i.icms_base),
-        icms_aliquota: Emissao.numero(i.icms_aliquota),
-        icms_valor: Emissao.numero(i.icms_valor),
-        cst_pis: i.cst_pis || null,
-        pis_cofins_base: Emissao.numero(i.pis_cofins_base),
-        aliquota_pis: Emissao.numero(i.aliquota_pis),
-        pis_valor: Emissao.numero(i.pis_valor),
-        cst_cofins: i.cst_cofins || null,
-        aliquota_cofins: Emissao.numero(i.aliquota_cofins),
-        cofins_valor: Emissao.numero(i.cofins_valor),
-        cst_ipi: i.cst_ipi || null,
-        aliquota_ipi: Emissao.numero(i.aliquota_ipi),
-        ipi_valor: Emissao.numero(i.ipi_valor),
-        ibs_cbs_cst: i.ibs_cbs_cst || null,
-        ibs_cbs_classe: i.ibs_cbs_classe || null,
-        ibs_cbs_base: Emissao.numero(i.ibs_cbs_base),
-        ibs_cbs_reducao_aliquota: Emissao.numero(i.ibs_cbs_reducao_aliquota),
-        ibs_uf_aliquota: Emissao.numero(i.ibs_uf_aliquota),
-        ibs_uf_valor: Emissao.numero(i.ibs_uf_valor),
-        ibs_mun_aliquota: Emissao.numero(i.ibs_mun_aliquota),
-        ibs_mun_valor: Emissao.numero(i.ibs_mun_valor),
-        cbs_aliquota: Emissao.numero(i.cbs_aliquota),
-        cbs_valor: Emissao.numero(i.cbs_valor),
+        // imposto: só vai o que foi digitado à mão. O que estiver em branco é
+        // calculado no servidor pela regra fiscal — é isso que faz a base de
+        // cálculo sair sempre da tabela de regras, e não do que a tela guardou.
+        ...Object.fromEntries(Emissao.SEGUEM_A_REGRA
+          .map((nome) => [nome, Emissao.digitado(i, nome)])),
+        campos_manuais: Emissao.camposManuais(i),
       })),
       parcelas: Emissao._parcelas
         .filter((p) => p.vencimento && Emissao.numero(p.valor) > 0)

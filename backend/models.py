@@ -1006,6 +1006,11 @@ class NotaItem(Base):
     ibs_mun_valor = _dinheiro()
     cbs_aliquota = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
     cbs_valor = _dinheiro()
+    # Quais campos de imposto foram digitados à mão nesta linha, separados por
+    # vírgula. Os que não estão aqui saem da regra fiscal a cada gravação — assim,
+    # corrigir a tabela de regras conserta os rascunhos que ainda não foram
+    # transmitidos, sem apagar o que alguém digitou de propósito.
+    campos_manuais = Column(String(400))
     # produto do cadastro ligado a este item (preenchido na importação)
     produto_id = Column(Integer, ForeignKey("produtos.id"), index=True)
 

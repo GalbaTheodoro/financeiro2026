@@ -622,6 +622,9 @@ class ItemNotaIn(BaseModel):
     ibs_mun_valor: float | None = None
     cbs_aliquota: float | None = None
     cbs_valor: float | None = None
+    # nomes dos campos acima que a pessoa digitou à mão nesta linha; os outros
+    # são recalculados pela regra fiscal a cada gravação
+    campos_manuais: list[str] | None = None
 
 
 class ParcelaNotaIn(BaseModel):

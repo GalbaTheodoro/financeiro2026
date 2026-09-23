@@ -347,12 +347,21 @@ def explicar(db: Session, regra: RegraFiscal | None) -> dict | None:
         partes.append(f"{regra.uf_origem or 'qualquer UF'} → {regra.uf_destino or 'qualquer UF'}")
     if regra.operacao:
         partes.append(regra.operacao.lower())
+    from . import emissao as nfe
+
+    valores = valores_da_regra(regra)
+    # a tela precisa enxergar os mesmos padrões que a conta usa quando a regra
+    # não diz nada das alíquotas da reforma — senão ela mostra zero e o servidor
+    # calcula com 0,1% e 0,9%
+    valores.setdefault("ibs_uf_aliquota", nfe.IBS_UF_PADRAO)
+    valores.setdefault("ibs_mun_aliquota", nfe.IBS_MUN_PADRAO)
+    valores.setdefault("cbs_aliquota", nfe.CBS_PADRAO)
     return {
         "id": regra.id,
         "nome": regra.nome or "Regra fiscal",
         "resumo": " · ".join(partes) or "vale para qualquer cliente e qualquer item",
         "observacao": regra.observacao,
-        "valores": valores_da_regra(regra),
+        "valores": valores,
     }
 
 

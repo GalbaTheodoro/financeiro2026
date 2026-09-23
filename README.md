@@ -437,8 +437,20 @@ UFs e os dois tipos, que decide qual legislação vale para aquele item. A ordem
 tem o botão *Refazer os impostos por esta regra*. Item sem regra nenhuma nasce **sem CST** —
 o aviso na etapa de conferência mostra isso antes de transmitir.
 
-Código: `backend/fiscal.py` (o casamento) e `backend/routers/fiscal.py`.
-Teste: `python testes/teste_regras_fiscais.py`.
+A tela do item **não guarda imposto por conta própria**: ela manda para o servidor só os
+campos que a pessoa digitou à mão, e tudo que estiver em branco é calculado lá pela regra. É
+por isso que a **base de cálculo sai sempre da tabela de regras** — antes a tela calculava a
+base sozinha (valor do item menos a redução) e mandava esse número, que valia como digitado e
+atropelava o percentual da regra. Consequência prática: **corrigir a regra conserta os
+rascunhos abertos** — basta reabrir e salvar, sem tocar em item nenhum.
+
+O que foi digitado à mão fica gravado em `NotaItem.campos_manuais` (os nomes dos campos,
+separados por vírgula), então o rascunho reaberto sabe o que é da regra e o que é da pessoa.
+Apagar o campo na tela o devolve para a regra; o botão *Refazer os impostos por esta regra*
+limpa todos de uma vez.
+
+Código: `backend/fiscal.py` (o casamento e a conta) e `backend/routers/fiscal.py`.
+Testes: `python testes/teste_regras_fiscais.py` e `python testes/teste_base_da_regra.py`.
 
 #### Impostos item a item
 
@@ -749,6 +761,7 @@ sistema-financeiro/
     ├── teste_celular.py         Teste da interface no celular (390x844)
     ├── teste_edicao.py          Teste do aviso de "não salvo" e do Salvar em cada etapa
     ├── teste_regras_fiscais.py  Teste do cruzamento cliente x item e do imposto escolhido
+    ├── teste_base_da_regra.py   Teste de que a base do item sai da regra, e não da tela
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
 ```
@@ -779,6 +792,7 @@ python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório
 python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões e contrato por etapas
 python testes/teste_edicao.py       # janela não fecha sozinha e Salvar em qualquer etapa
 python testes/teste_regras_fiscais.py   # tipos fiscais, tabela de regras e o imposto do item
+python testes/teste_base_da_regra.py    # a base do item da nota vem da regra fiscal
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:

@@ -207,7 +207,12 @@ _DIGITADOS = (
 
 
 def _digitado(entrada) -> dict:
-    """Só os campos de imposto que a tela realmente preencheu."""
+    """Só os campos de imposto que a tela realmente preencheu.
+
+    A tela manda em branco tudo que ela mesma calculou, justamente para que a
+    **regra fiscal** refaça a conta aqui. Quem chega preenchido foi digitado à
+    mão e, por isso, vence a regra.
+    """
     escolhidos = {}
     for campo in _DIGITADOS:
         valor = getattr(entrada, campo, None)
@@ -250,7 +255,14 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
 
         # a conta é a mesma que a tela de regras mostra: percentual de base ->
         # base em reais -> imposto, com o que foi digitado vencendo a regra
-        conta = fiscal.calcular(r, total, _digitado(entrada))
+        digitado = _digitado(entrada)
+        # o que a tela declarou como digitado à mão fica gravado, para o rascunho
+        # reaberto saber o que segue a regra e o que a pessoa fixou
+        manuais = {c for c in (entrada.campos_manuais or []) if c in _DIGITADOS}
+        manuais |= set(digitado)
+        if entrada.usar_regra:
+            manuais = set()
+        conta = fiscal.calcular(r, total, digitado)
         c_icms, c_pc = conta["icms"], conta["pis_cofins"]
         c_ipi, c_ibs = conta["ipi"], conta["ibs_cbs"]
         cst, base, aliquota, icms = (c_icms["cst"] or "", c_icms["base"],
@@ -308,6 +320,7 @@ def _aplicar_itens(db: Session, nota: Nota, itens: list) -> None:
             ibs_mun_valor=dinheiro(ibs_mun),
             cbs_aliquota=aliq_cbs,
             cbs_valor=dinheiro(cbs),
+            campos_manuais=",".join(sorted(manuais))[:400] or None,
             produto_id=produto.id if produto else None,
         ))
     db.flush()
@@ -471,6 +484,9 @@ def _regra_do_item(db: Session, nota: Nota, empresa, item: NotaItem) -> dict:
     return {
         "regra_nome": explicada["nome"] if explicada else None,
         "regra_resumo": explicada["resumo"] if explicada else None,
+        # os percentuais da regra (base, redução) vão para a tela porque o item
+        # guarda a base já em reais: é com eles que a tela remonta a mesma conta
+        "regra_valores": explicada["valores"] if explicada else {},
     }
 
 

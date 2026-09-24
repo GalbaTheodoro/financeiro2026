@@ -787,6 +787,43 @@ class Contrato(Base):
 # --------------------------------------------------------------------------- #
 # DF-e — documentos fiscais eletrônicos emitidos contra o CNPJ da empresa
 # --------------------------------------------------------------------------- #
+class ConfigEmail(Base):
+    """Como a empresa envia e-mail pelo sistema (servidor SMTP do e-mail dela).
+
+    O sistema não tem servidor de e-mail próprio: ele usa a conta da empresa —
+    a mesma do Gmail, do Outlook ou do provedor do domínio. Por isso precisa do
+    servidor, da porta e da senha daquela conta.
+
+    A **senha fica cifrada** no banco (AES-GCM com chave derivada de
+    FIN_SECRET_KEY, igual ao certificado digital) e nenhuma rota a devolve: a
+    tela mostra só se existe senha guardada.
+    """
+
+    __tablename__ = "config_email"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False,
+                        unique=True, index=True)
+    servidor = Column(String(160))                 # smtp.gmail.com, mail.dominio...
+    porta = Column(Integer, nullable=False, default=587)
+    seguranca = Column(String(8), nullable=False, default="TLS")   # TLS | SSL | NENHUMA
+    usuario = Column(String(160))                  # quase sempre o próprio e-mail
+    senha = Column(Text)                           # cifrada
+    remetente_nome = Column(String(120))           # o nome que aparece para quem recebe
+    remetente_email = Column(String(160))
+    responder_para = Column(String(160))           # para onde vai a resposta do cliente
+    email_contador = Column(String(160))           # cópia para o contador
+    copia_empresa = Column(Boolean, nullable=False, default=True)
+    enviar_ao_autorizar = Column(Boolean, nullable=False, default=True)
+    assunto = Column(String(200))                  # aceita {numero} e {empresa}
+    texto = Column(Text)                           # corpo do e-mail
+    ativo = Column(Boolean, nullable=False, default=True)
+    ultimo_envio_em = Column(DateTime)
+    ultimo_erro = Column(String(300))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow)
+
+
 class CertificadoDigital(Base):
     """Certificado digital A1 (arquivo .pfx) usado para falar com a SEFAZ.
 
@@ -939,6 +976,10 @@ class Nota(Base):
     cancelamento_justificativa = Column(String(255))
     cancelamento_protocolo = Column(String(20))
     cancelada_em = Column(DateTime)
+    # envio do XML e da DANFE por e-mail para o cliente
+    email_enviado_em = Column(DateTime)
+    email_destinatarios = Column(String(400))
+    email_erro = Column(String(300))
 
     observacao = Column(Text)
     criado_em = Column(DateTime, default=datetime.utcnow)

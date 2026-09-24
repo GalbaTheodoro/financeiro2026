@@ -21,7 +21,8 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import (danfe, dfe as motor, emissao as nfe, fiscal, notas as regras, rejeicoes)
+from .. import (correio, danfe, dfe as motor, emissao as nfe, fiscal,
+                notas as regras, rejeicoes)
 from ..database import get_db
 from ..deps import acesso_liberado, validar_empresa
 from ..models import (
@@ -474,6 +475,57 @@ def excluir_rascunho(nota_id: int, db: Session = Depends(get_db),
     return {"ok": True}
 
 
+def _enviar_por_email(db: Session, nota: Nota, automatico: bool) -> dict:
+    """Manda o XML e a DANFE da nota para o cliente, com cópia para quem a
+    configuração mandar.
+
+    Nunca levanta exceção: devolve `ok` e a frase do que houve. Quem chama
+    depois de transmitir precisa disso — a nota já está autorizada na SEFAZ, e
+    um e-mail que não saiu não pode virar erro de emissão.
+    """
+    from ..routers.correio import config_da_empresa
+
+    empresa = db.get(Empresa, nota.empresa_id)
+    config = config_da_empresa(db, nota.empresa_id)
+    if config is None or not config.ativo or not (config.servidor or "").strip():
+        return {"ok": False, "configurado": False,
+                "mensagem": "O envio por e-mail ainda não está configurado nesta empresa "
+                            "(Cadastros > Empresas > Configurar e-mail)."}
+    if automatico and not config.enviar_ao_autorizar:
+        return {"ok": False, "configurado": True, "desligado": True,
+                "mensagem": "O envio automático está desligado na configuração de e-mail."}
+
+    parceiro = db.get(Parceiro, nota.parceiro_id) if nota.parceiro_id else None
+    para = correio.separar(getattr(parceiro, "email", None))
+    copias = []
+    if config.copia_empresa:
+        copias += correio.separar(getattr(empresa, "email", None))
+    copias += correio.separar(config.email_contador)
+
+    try:
+        assunto, texto = correio.mensagem_da_nota(config, nota, empresa)
+        enviado = correio.enviar(config, para, assunto, texto,
+                                 anexos=correio.anexos_da_nota(nota), copias=copias)
+    except correio.ErroEmail as erro:
+        nota.email_erro = str(erro)[:300]
+        config.ultimo_erro = str(erro)[:300]
+        db.commit()
+        return {"ok": False, "configurado": True, "mensagem": str(erro)}
+
+    destinos = enviado["para"] + enviado["copia"]
+    nota.email_enviado_em = datetime.utcnow()
+    nota.email_destinatarios = ", ".join(destinos)[:400]
+    nota.email_erro = None
+    config.ultimo_envio_em = nota.email_enviado_em
+    config.ultimo_erro = None
+    db.commit()
+    return {
+        "ok": True, "configurado": True,
+        "para": enviado["para"], "copia": enviado["copia"],
+        "mensagem": f"XML e DANFE enviados para {', '.join(destinos)}.",
+    }
+
+
 def _erro_com_item(nota: Nota, erro: dict, mensagem: str, denegada: bool) -> dict:
     """Quando a SEFAZ aponta um item ("[nItem: 3]"), junta ao aviso o que foi
     realmente enviado naquele item.
@@ -680,6 +732,13 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
     db.commit()
     db.refresh(nota)
 
+    # autorizada: manda o XML e a DANFE para o cliente. Falha de e-mail NÃO
+    # derruba a transmissão — a nota já está autorizada na SEFAZ, e o que ficar
+    # para trás o usuário reenvia pelo botão da lista de notas.
+    envio = None
+    if retorno["autorizada"]:
+        envio = _enviar_por_email(db, nota, automatico=True)
+
     return {
         "ok": retorno["autorizada"],
         "codigo": retorno["codigo"],
@@ -692,8 +751,23 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
         "erro": None if retorno["autorizada"] else _erro_com_item(
             nota, rejeicoes.explicar(retorno["codigo"], retorno["mensagem"]),
             retorno["mensagem"], retorno["denegada"]),
+        "email": envio,
         "nota": _ficha(db, nota)["nota"],
     }
+
+
+@router.post("/{nota_id}/enviar-email")
+def enviar_email(nota_id: int, empresa_id: int, db: Session = Depends(get_db),
+                 usuario: Usuario = Depends(acesso_liberado)):
+    """Manda (ou remanda) o XML e a DANFE desta nota para o cliente."""
+    nota = _nota_emitida(db, nota_id, usuario)
+    if not (nota.xml or "").strip():
+        raise HTTPException(
+            400, "Só a nota autorizada tem XML e DANFE para enviar.")
+    envio = _enviar_por_email(db, nota, automatico=False)
+    if not envio["ok"]:
+        raise HTTPException(400, envio["mensagem"])
+    return envio
 
 
 @router.post("/{nota_id}/cancelar")

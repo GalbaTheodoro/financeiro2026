@@ -141,6 +141,15 @@ const Notas = {
         { titulo: 'Faturamento', classe: 'centro', valor: (n) => Notas.selo(n) },
         { titulo: 'Ações', classe: 'centro',
           valor: (n, i) => `<button class="btn btn-mini" data-ficha="${i}">Abrir</button>
+            ${n.tem_xml
+              ? `<button class="btn btn-mini" data-xml="${i}"
+                   title="Baixar o arquivo XML desta nota">XML</button>` : ''}
+            ${n.tem_xml && n.origem === 'EMITIDA'
+              ? `<button class="btn btn-mini" data-email="${i}" title="${n.email_enviado_em
+                  ? `Já enviado em ${UI.data(n.email_enviado_em)} para ${
+                      UI.escapar(n.email_destinatarios || '')} — clique para enviar de novo`
+                  : 'Enviar o XML e a DANFE para o e-mail do cliente'}">${
+                  n.email_enviado_em ? 'Reenviar' : 'E-mail'}</button>` : ''}
             ${n.faturada
               ? `<button class="btn btn-mini btn-perigo" data-desfaturar="${i}">Desfaturar</button>`
               : (podeFaturar(n)
@@ -156,6 +165,29 @@ const Notas = {
         // nota emitida pela empresa abre no formulário de emissão; recebida, na ficha
         if (nota.origem === 'EMITIDA') return Emissao.abrir(nota.id);
         return Notas.ficha(nota.id);
+      };
+    });
+    // baixa o XML direto da lista, sem precisar abrir a nota
+    alvo.querySelectorAll('[data-xml]').forEach((b) => {
+      b.onclick = () => DFe.baixarArquivo(linhas[Number(b.dataset.xml)]);
+    });
+    // manda (ou remanda) o XML e a DANFE para o cliente
+    alvo.querySelectorAll('[data-email]').forEach((b) => {
+      b.onclick = async () => {
+        const nota = linhas[Number(b.dataset.email)];
+        const rotulo = b.textContent;
+        b.disabled = true;
+        b.textContent = 'Enviando...';
+        try {
+          const r = await Api.postQuery(
+            `/api/nfe/${nota.id}/enviar-email`, { empresa_id: Estado.empresaId });
+          UI.sucesso(r.mensagem);
+          Notas.tela();
+        } catch (e) {
+          UI.erro(e.message);
+          b.disabled = false;
+          b.textContent = rotulo;
+        }
       };
     });
     alvo.querySelectorAll('[data-faturar]').forEach((b) => {

@@ -1219,6 +1219,11 @@ const Emissao = {
               if (!r.ok) return Emissao.painelRecusa(r.nota || n, r.erro, 'transmitir');
               UI.fecharModal();
               UI.sucesso(r.mensagem);
+              // a nota foi autorizada: diz também o que aconteceu com o e-mail
+              if (r.email && r.email.ok) UI.sucesso(r.email.mensagem);
+              else if (r.email && r.email.configurado && !r.email.desligado) {
+                UI.erro(`Nota autorizada, mas o e-mail não saiu: ${r.email.mensagem}`);
+              }
               Emissao.abrir(n.id);
             } catch (e) {
               Emissao.painelRecusa(n, { causa: 'Não deu para transmitir a nota.',

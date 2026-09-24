@@ -32,6 +32,15 @@ def checar(descricao, condicao, extra=""):
         falhas.append(descricao)
 
 
+def baixar(caminho, token=None) -> str:
+    """Pega um arquivo (não é JSON): o XML da nota, por exemplo."""
+    req = urllib.request.Request(f"{BASE}{caminho}")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    with urllib.request.urlopen(req) as r:
+        return r.read().decode("utf-8", "replace")
+
+
 def api(metodo, caminho, dados=None, token=None, esperar_erro=False):
     req = urllib.request.Request(
         f"{BASE}{caminho}",
@@ -113,6 +122,15 @@ somente_resumo = [n for n in lista["linhas"] if n["resumo"]]
 checar("a nota do fornecedor é ENTRADA e o título sugerido é a pagar",
        completa["sentido"] == "Entrada" and completa["tipo_titulo_sugerido"] == "PAGAR")
 checar("nenhuma nota nasce faturada", all(not n["faturada"] for n in lista["linhas"]))
+# é por este campo que a lista decide mostrar o botão de baixar o XML
+checar("a lista diz quais notas têm XML para baixar",
+       completa["tem_xml"] is True
+       and all(n["tem_xml"] is False for n in somente_resumo),
+       f"completa {completa['tem_xml']} / resumos "
+       f"{[n['tem_xml'] for n in somente_resumo]}")
+baixado = baixar(f"/api/dfe/notas/{completa['id']}/xml", t)
+checar("e o XML baixa inteiro, com a NF-e dentro",
+       baixado.startswith("<?xml") and "<infNFe" in baixado, baixado[:40])
 
 print("\n=== 2. Ficha da nota ===")
 ficha = api("GET", f"/api/notas/{completa['id']}", None, t)

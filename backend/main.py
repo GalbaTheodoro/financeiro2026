@@ -19,6 +19,7 @@ from .routers import (
     caixa,
     consulta,
     contratos,
+    correio,
     dfe,
     emissao,
     fiscal,
@@ -100,6 +101,7 @@ app.include_router(consulta.router)
 app.include_router(contratos.router)
 app.include_router(icms.router)
 app.include_router(fiscal.router)
+app.include_router(correio.router)
 app.include_router(dfe.router)
 app.include_router(notas.router)
 app.include_router(emissao.router)

@@ -353,6 +353,12 @@ duplicata, sai uma parcela só. O título nasce classificado e contabilizado.
 **Desfaturar** apaga esse título, estorna as partidas e libera a nota — só no AgroDock, a
 nota na SEFAZ não é tocada. Título com baixa não desfatura: primeiro estorne a baixa.
 Também dá para faturar **em lote**; o que falhar volta listado com o motivo.
+
+Na lista, toda nota que tem XML guardado ganha o botão **XML**, que baixa o arquivo
+direto — sem abrir a nota. É o arquivo inteiro (`nfeProc` nas emitidas), com o nome da
+chave de acesso, que é o que o contador pede. Nota que veio só como resumo da SEFAZ não
+tem XML e por isso não mostra o botão.
+
 Código: `backend/notas.py` e `backend/routers/notas.py`; teste: `python testes/teste_faturamento.py`.
 
 **Emitir NF-e** (modelo 55) sai da mesma tela. O caminho é rascunho → prévia → transmitir:
@@ -369,6 +375,36 @@ Código: `backend/notas.py` e `backend/routers/notas.py`; teste: `python testes/
 - autorizada, a nota guarda o `nfeProc` — é dele que saem a DANFE e o XML do contador, e é
   por ele que a nota entra no faturamento como conta a receber;
 - **cancelar** é o evento 110111, com justificativa de 15 letras e dentro do prazo legal.
+
+#### Mandar a nota para o cliente por e-mail
+
+Autorizada, a nota **sai sozinha por e-mail** para o cliente, com dois anexos: o **XML**
+(o documento fiscal, que o contador escritura) e a **DANFE em PDF** (a folha de conferir e
+imprimir). O PDF é desenhado no layout oficial a partir do próprio XML autorizado, pela
+biblioteca `brazilfiscalreport` — Python puro, então funciona igual no PC e no servidor,
+sem navegador e sem nada instalado.
+
+Quem envia é a **conta de e-mail da própria empresa** (*Cadastros → Empresas → Configurar
+e-mail*): o sistema só conversa com o servidor SMTP dela. Assim o cliente vê a nota vindo
+da empresa e responde para ela. A tela tem servidores prontos para Gmail, Microsoft e
+domínio próprio, e um **e-mail de teste** — que é a única forma honesta de saber se a senha
+está certa antes da primeira nota. Gmail e Microsoft exigem **senha de app**; quando o
+servidor recusa a senha, a mensagem de erro já diz isso.
+
+A **senha fica cifrada** no banco (AES-GCM com chave derivada de FIN_SECRET_KEY, igual ao
+certificado digital) e **nenhuma rota a devolve**: a tela mostra apenas se existe senha
+guardada. Salvar com o campo em branco mantém a que já estava.
+
+Vão cópias para o e-mail da empresa e para o do contador, se configurados. O envio
+automático pode ser desligado. **Falha de e-mail não derruba a nota**: ela já está
+autorizada na SEFAZ, então o erro aparece como aviso e a nota guarda o que houve — na lista
+o botão vira **Reenviar**, mostrando para quem e quando já foi.
+
+Código: `backend/correio.py` (o envio), `backend/danfe.py` (`gerar_pdf`) e
+`backend/routers/correio.py`.
+Teste: `python testes/teste_email.py` — sobe um servidor SMTP de mentira em 127.0.0.1
+(`testes/smtp_de_mentira.py`) e confere a mensagem inteira; **nenhum e-mail sai para a
+internet**.
 
 Os webservices são resolvidos por UF (MG, SP, PR, RS, GO, MT, MS, BA, PE, CE e AM têm
 servidor próprio; o resto cai no SVRS). O corpo do envio vai no formato padrão
@@ -742,10 +778,11 @@ sistema-financeiro/
 │   ├── consulta_cep.py          Consulta de CEP nos Correios
 │   ├── externo.py               Chamadas HTTP às APIs externas
 │   ├── dfe.py                   Certificado A1, NFeDistribuiçãoDFe e manifestação
-│   ├── danfe.py                 Folha da nota fiscal (DANFE) pronta para imprimir
+│   ├── danfe.py                 Folha da nota fiscal (DANFE): página para imprimir e PDF
 │   ├── notas.py                 Regras das notas: importar o XML, faturar e desfaturar
 │   ├── emissao.py               NF-e 4.00: chave, XML, assinatura e webservices por UF
 │   ├── rejeicoes.py             Recusas da SEFAZ explicadas e com o lugar do conserto
+│   ├── correio.py               Envio de e-mail pela conta da empresa (SMTP), com anexos
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -796,6 +833,8 @@ sistema-financeiro/
     ├── teste_edicao.py          Teste do aviso de "não salvo" e do Salvar em cada etapa
     ├── teste_regras_fiscais.py  Teste do cruzamento cliente x item e do imposto escolhido
     ├── teste_base_da_regra.py   Teste de que a base do item sai da regra, e não da tela
+    ├── teste_email.py           Teste do envio da nota por e-mail (XML + DANFE em PDF)
+    ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
 ```
@@ -827,6 +866,7 @@ python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões 
 python testes/teste_edicao.py       # janela não fecha sozinha e Salvar em qualquer etapa
 python testes/teste_regras_fiscais.py   # tipos fiscais, tabela de regras e o imposto do item
 python testes/teste_base_da_regra.py    # a base do item da nota vem da regra fiscal
+python testes/teste_email.py        # nota por e-mail, com servidor SMTP de mentira
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:

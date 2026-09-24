@@ -386,3 +386,39 @@ def gerar(xml: str, empresa_nome: str = "") -> str:
   </div>
 </div>
 </body></html>"""
+
+
+# --------------------------------------------------------------------------- #
+# DANFE em PDF — é o arquivo que vai anexado no e-mail do cliente
+# --------------------------------------------------------------------------- #
+def gerar_pdf(xml: str) -> bytes:
+    """Devolve a DANFE em PDF, gerada a partir do XML autorizado.
+
+    A página HTML acima é para ver e imprimir na tela; para **anexar no e-mail**
+    é preciso um arquivo, e arquivo de nota fiscal é PDF. Quem desenha é a
+    biblioteca `brazilfiscalreport`, que monta o DANFE no layout oficial lendo o
+    próprio `nfeProc` — é Python puro (fpdf2), então roda igual no PC e no
+    servidor, sem depender de navegador nem de programa instalado.
+
+    Levanta `ValueError` com uma frase clara quando o XML não serve.
+    """
+    if not (xml or "").strip():
+        raise ValueError("Esta nota não tem XML guardado — só a autorizada tem DANFE.")
+    if "infNFe" not in xml:
+        raise ValueError(
+            "Esta nota está no sistema apenas como resumo. Dê ciência da operação e "
+            "busque os documentos de novo para receber o XML completo."
+        )
+    try:
+        from brazilfiscalreport.danfe import Danfe
+    except ImportError:                                   # pragma: no cover
+        raise ValueError(
+            "Falta a biblioteca que desenha a DANFE em PDF. Rode: "
+            "pip install brazilfiscalreport"
+        ) from None
+    try:
+        return bytes(Danfe(xml=xml).output())
+    except Exception as erro:                             # noqa: BLE001
+        raise ValueError(
+            f"Não foi possível montar a DANFE em PDF desta nota ({erro})."
+        ) from None

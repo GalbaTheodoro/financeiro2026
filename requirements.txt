@@ -10,3 +10,6 @@ cryptography>=42.0
 # driver do PostgreSQL (banco na nuvem). No PC, sem FIN_DATABASE_URL,
 # o sistema continua usando o arquivo dados/financeiro.db e nem carrega isto.
 psycopg[binary]>=3.1
+# DANFE em PDF para anexar no e-mail do cliente. É Python puro (usa fpdf2),
+# então roda igual no PC e no servidor, sem navegador e sem nada instalado.
+brazilfiscalreport>=1.1

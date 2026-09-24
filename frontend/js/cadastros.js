@@ -431,6 +431,7 @@ const Cadastros = {
       },
       acoesLinha: [
         { rotulo: () => 'Conferir p/ NF-e', acao: (r) => Cadastros.conferirEmissao(r) },
+        { rotulo: () => 'Configurar e-mail', acao: (r) => Cadastros.configurarEmail(r) },
       ],
       listar: () => Api.get('/api/empresas'),
       colunas: [
@@ -657,6 +658,164 @@ const Cadastros = {
         { rotulo: 'Editar a empresa', classe: 'btn-primario',
           acao: () => Cadastros.formulario(
             Cadastros._configuracaoAtual, Cadastros._registros.find((e) => e.id === empresa.id)) },
+      ],
+    });
+  },
+
+  /** Configuração de envio de e-mail da empresa.
+
+      O sistema não tem servidor de e-mail: quem manda é a conta da própria
+      empresa. Por isso a tela pede servidor, porta e senha — e por isso tem o
+      botão de teste, que é a única forma honesta de saber se os dados estão
+      certos antes de a primeira nota sair. */
+  async configurarEmail(empresa) {
+    let config = {};
+    try {
+      config = await Api.get('/api/email/config', { empresa_id: empresa.id });
+    } catch (e) {
+      return UI.erro(e.message);
+    }
+    const corpo = document.createElement('div');
+    const sugestoes = config.sugestoes || [];
+    corpo.innerHTML = `
+      <p class="mini" style="margin-top:0">Quem envia é a conta de e-mail <b>da própria
+      empresa</b> — o cliente recebe a nota vindo dela e responde para ela. Preencha os
+      dados do servidor de saída (SMTP) da sua conta.</p>
+
+      ${config.ultimo_erro ? `<div class="cartao" style="margin-bottom:12px;
+        border-left:4px solid var(--vermelho)"><div class="cartao-corpo">
+        <b>O último envio falhou.</b><div class="mini">${UI.escapar(config.ultimo_erro)}</div>
+        </div></div>` : ''}
+
+      <div class="secao-campos"><b>Servidor</b><span class="mini"> — escolha um pronto
+        ou preencha à mão</span></div>
+      <div class="linha-campos">
+        ${UI.campo('Sugestões', UI.select('sugestao',
+          sugestoes.map((s, i) => ({ valor: String(i), rotulo: s.nome })), '',
+          { vazio: 'Preencher à mão' }), 'preenche servidor, porta e segurança')}
+        ${UI.campo('Servidor de saída (SMTP)',
+          `<input name="servidor" value="${UI.escapar(config.servidor || '')}"
+             placeholder="smtp.gmail.com">`)}
+        ${UI.campo('Porta', `<input type="number" name="porta"
+          value="${config.porta || 587}">`, '587 com TLS, 465 com SSL')}
+        ${UI.campo('Segurança', UI.select('seguranca', [
+          { valor: 'TLS', rotulo: 'TLS (porta 587)' },
+          { valor: 'SSL', rotulo: 'SSL (porta 465)' },
+          { valor: 'NENHUMA', rotulo: 'Sem segurança' },
+        ], config.seguranca || 'TLS', { vazio: false }))}
+      </div>
+      <div class="mini" data-aviso-provedor style="margin-top:4px"></div>
+
+      <div class="secao-campos"><b>Conta</b></div>
+      <div class="linha-campos">
+        ${UI.campo('Usuário', `<input name="usuario"
+          value="${UI.escapar(config.usuario || '')}" placeholder="seuemail@empresa.com.br">`,
+          'quase sempre o e-mail inteiro')}
+        ${UI.campo('Senha', `<input type="password" name="senha" autocomplete="new-password"
+          placeholder="${config.tem_senha ? 'guardada — deixe em branco para manter'
+            : 'senha da conta ou senha de app'}">`,
+          config.tem_senha ? 'já existe uma senha guardada' : 'fica cifrada no banco')}
+      </div>
+      <div class="mini">Gmail e Microsoft não aceitam a senha normal da conta: gere uma
+        <b>senha de app</b> nas configurações de segurança da conta.</div>
+
+      <div class="secao-campos"><b>Quem aparece para o cliente</b></div>
+      <div class="linha-campos">
+        ${UI.campo('Nome do remetente', `<input name="remetente_nome"
+          value="${UI.escapar(config.remetente_nome || empresa.razao_social || '')}">`)}
+        ${UI.campo('E-mail do remetente', `<input name="remetente_email"
+          value="${UI.escapar(config.remetente_email || '')}">`,
+          'precisa ser o e-mail da conta acima')}
+        ${UI.campo('Responder para', `<input name="responder_para"
+          value="${UI.escapar(config.responder_para || '')}">`, 'em branco = o remetente')}
+      </div>
+
+      <div class="secao-campos"><b>Quem recebe cópia</b></div>
+      <div class="linha-campos">
+        ${UI.campo('E-mail do contador', `<input name="email_contador"
+          value="${UI.escapar(config.email_contador || '')}">`,
+          'recebe cópia de toda nota autorizada')}
+        <label class="campo"><span>Cópia para a empresa</span>
+          <span><input type="checkbox" name="copia_empresa"
+            ${config.copia_empresa === false ? '' : 'checked'}>
+            ${UI.escapar(config.email_empresa || 'e-mail da empresa')}</span></label>
+        <label class="campo"><span>Envio automático</span>
+          <span><input type="checkbox" name="enviar_ao_autorizar"
+            ${config.enviar_ao_autorizar === false ? '' : 'checked'}>
+            Enviar assim que a SEFAZ autorizar</span></label>
+      </div>
+
+      <div class="secao-campos"><b>A mensagem</b><span class="mini"> — pode usar
+        {numero}, {empresa} e {chave}</span></div>
+      <div class="linha-campos">
+        ${UI.campo('Assunto', `<input name="assunto" style="width:100%"
+          value="${UI.escapar(config.assunto || '')}">`)}
+      </div>
+      <label class="campo" style="grid-column:1/-1">Texto do e-mail
+        <textarea name="texto" rows="7">${UI.escapar(config.texto || '')}</textarea></label>
+      <div class="mini">Vão sempre dois anexos: o <b>XML</b> (o documento fiscal, para o
+        contador) e a <b>DANFE em PDF</b> (a folha para conferir e imprimir).</div>
+
+      <div class="secao-campos"><b>Conferir antes de valer</b><span class="mini">
+        — o teste é a única forma de saber se a senha está certa</span></div>
+      <div class="linha-campos">
+        <label class="campo" style="max-width:320px">Enviar um teste para
+          <span class="dica">não é gravado; serve só para conferir</span>
+          <input data-teste-para value="${UI.escapar(config.remetente_email
+            || config.email_empresa || '')}">
+        </label>
+      </div>`;
+
+    const avisoProvedor = corpo.querySelector('[data-aviso-provedor]');
+    const escolha = corpo.querySelector('[name=sugestao]');
+    escolha.onchange = () => {
+      const s = sugestoes[Number(escolha.value)];
+      avisoProvedor.textContent = s ? s.aviso : '';
+      if (!s) return;
+      corpo.querySelector('[name=servidor]').value = s.servidor;
+      corpo.querySelector('[name=porta]').value = s.porta;
+      corpo.querySelector('[name=seguranca]').value = s.seguranca;
+    };
+
+    const gravar = async () => {
+      const dados = UI.lerFormulario(corpo);
+      delete dados.sugestao;
+      const salvo = await Api.put('/api/email/config', { ...dados, empresa_id: empresa.id });
+      UI.modalSalvo();
+      return salvo;
+    };
+
+    UI.abrirModal({
+      titulo: `Envio de e-mail — ${empresa.razao_social}`,
+      corpo,
+      largo: true,
+      aoSalvar: gravar,
+      botoes: [
+        { rotulo: 'Fechar', acao: () => UI.tentarFecharModal() },
+        {
+          rotulo: 'Salvar e enviar teste',
+          acao: async () => {
+            const para = (corpo.querySelector('[data-teste-para]').value || '').trim();
+            if (!para) return UI.erro('Diga para qual endereço mandar o teste.');
+            try {
+              await gravar();
+              const r = await Api.post('/api/email/teste',
+                                       { empresa_id: empresa.id, para });
+              UI.sucesso(r.mensagem);
+            } catch (e) { UI.erro(e.message); }
+          },
+        },
+        {
+          rotulo: 'Salvar',
+          classe: 'btn-primario',
+          acao: async () => {
+            try {
+              await gravar();
+              UI.sucesso('Configuração de e-mail salva.');
+              UI.fecharModal();
+            } catch (e) { UI.erro(e.message); }
+          },
+        },
       ],
     });
   },

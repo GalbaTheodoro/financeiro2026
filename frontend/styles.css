@@ -38,12 +38,13 @@ a{color:var(--primaria)}
 .sidebar{width:236px;background:#0e2b1c;color:#cbd5e1;display:flex;flex-direction:column;
   position:sticky;top:0;height:100vh;flex-shrink:0;z-index:120}
 .menu-fundo{display:none;position:fixed;inset:0;background:rgba(6,20,13,.55);z-index:110}
-.marca{display:flex;align-items:center;gap:11px;padding:16px 18px;font-weight:700;color:#fff;font-size:16px;
+/* A marca é a primeira coisa que se vê: nome grande, subtítulo em versalete. */
+.marca{display:flex;align-items:center;gap:12px;padding:18px 18px 16px;font-weight:700;color:#fff;
   border-bottom:1px solid rgba(255,255,255,.08)}
-.marca .logo-icone{width:34px;height:auto;flex-shrink:0}
-.marca span{display:flex;flex-direction:column;line-height:1.15;min-width:0}
-.marca span b{font-size:16px;letter-spacing:-.01em}
-.marca span small{font-size:10.5px;font-weight:600;color:#8fb3a0;text-transform:uppercase;letter-spacing:.06em}
+.marca .logo-icone{width:38px;height:auto;flex-shrink:0}
+.marca span{display:flex;flex-direction:column;line-height:1.12;min-width:0}
+.marca span b{font-size:20px;letter-spacing:-.02em}
+.marca span small{font-size:9.5px;font-weight:700;color:#9ec3ad;text-transform:uppercase;letter-spacing:.14em}
 .marca-icone{width:30px;height:30px;border-radius:8px;background:var(--azul);display:flex;
   align-items:center;justify-content:center;font-size:17px}
 .logo-completo{height:46px;width:auto;display:block}
@@ -66,13 +67,19 @@ a{color:var(--primaria)}
 .conteudo{flex:1;min-width:0;display:flex;flex-direction:column}
 .topo{background:#fff;border-bottom:1px solid var(--borda);padding:14px 24px;display:flex;
   align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+/* A marca no topo: escondida no computador (a barra lateral já a mostra) e
+   visível no celular e no tablet, onde a barra lateral fica fechada. */
+.topo-marca{display:none;align-items:center;gap:9px;text-decoration:none;flex-shrink:0}
+.topo-marca .logo-icone{height:30px;width:auto}
+.topo-marca b{font-size:17.5px;letter-spacing:-.02em;color:#0e2b1c}
 .topo-titulo{min-width:0;flex:1}
 .topo-titulo h2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .topo h2{font-size:19px}
 .migalha{font-size:12.5px;color:var(--cinza-500)}
 .topo-acoes{display:flex;gap:10px;align-items:center;margin-left:auto}
 .campo-inline{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--cinza-500)}
-.pagina{padding:22px 24px 60px;flex:1}
+.pagina{padding:22px 24px 60px;flex:1;min-width:0}
+
 
 /* --------------------------------------------------------------- controles */
 input,select,textarea{
@@ -82,6 +89,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primaria
 input[type=checkbox]{width:auto}
 textarea{min-height:66px;resize:vertical}
 label.campo{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--cinza-700)}
+/* Campo mais baixo que os vizinhos (uma caixa de marcar ao lado de selects)
+   desce para a base da linha, em vez de flutuar no alto. */
+.linha-campos > label.campo{justify-content:flex-end}
 label.campo .dica{font-weight:400;color:var(--cinza-500);font-size:11px}
 .btn{padding:8px 14px;border-radius:8px;border:1px solid var(--cinza-300);background:#fff;
   color:var(--cinza-700);font:inherit;font-weight:600;cursor:pointer;white-space:nowrap;font-size:13px}
@@ -105,6 +115,7 @@ label.campo .dica{font-weight:400;color:var(--cinza-500);font-size:11px}
 .cartao-corpo{padding:16px 18px}
 .cartao-corpo.sem-padding{padding:0}
 .grade{display:grid;gap:14px}
+.grade > .cartao{margin-bottom:0}
 .g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
@@ -173,7 +184,12 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 /* ------------------------------------------------------------------- filtros */
 .filtros{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
   align-items:end;padding:14px 18px;background:var(--cinza-50);border-bottom:1px solid var(--borda)}
-.filtros .acoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;grid-column:1/-1}
+/* Os botões do filtro entram na grade logo depois do último campo e alinhados
+   pela base dele — antes iam sozinhos para uma linha só deles, deixando um vão
+   no meio do cartão. Duas colunas dão conta tanto de um "Filtrar" sozinho
+   quanto de "Gerar · CSV · Imprimir" lado a lado. */
+.filtros .acoes{display:flex;gap:8px;flex-wrap:wrap;align-self:end;grid-column:span 2}
+.filtros .acoes .btn{flex:1;min-width:92px;max-width:210px}
 
 /* --------------------------------------------------------------------- abas */
 .abas{display:flex;gap:4px;border-bottom:1px solid var(--borda);margin-bottom:18px;flex-wrap:wrap}
@@ -313,15 +329,32 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
     color:var(--cinza-700);flex-shrink:0}
   .fechar-menu{display:flex;align-items:center;justify-content:center;margin-left:auto;background:none;
     border:none;color:#8fb3a0;font-size:26px;line-height:1;cursor:pointer;padding:0 2px}
-  .topo{padding:10px 12px;gap:10px}
+  .topo{padding:10px 14px;gap:12px}
   .topo h2{font-size:17px}
+  .topo-marca{display:flex}
   .migalha{display:none}
   .topo-acoes .campo-inline span{display:none}
-  .topo-acoes select{max-width:42vw}
-  .pagina{padding:14px 12px 70px}
+  .topo-acoes select{max-width:38vw}
+  .pagina{padding:14px 14px 70px}
+}
+
+/* Quatro KPIs numa tela média cairiam 3 + 1, deixando um buraco na segunda
+   linha. Em duas colunas eles fecham um quadrado certinho. */
+@media (min-width:761px) and (max-width:1180px){
+  .grade.g4{grid-template-columns:repeat(2,1fr)}
 }
 
 @media (max-width:760px){
+  /* O topo do celular vira duas linhas: em cima o menu, a marca e a empresa;
+     embaixo o nome da tela, com espaço para não sair cortado. */
+  .topo{flex-wrap:wrap;row-gap:9px;padding:10px 14px 9px}
+  .abrir-menu{order:1}
+  .topo-marca{order:2}
+  .topo-acoes{order:3;margin-left:auto}
+  .topo-acoes select{max-width:44vw}
+  .topo-titulo{order:4;flex:1 0 100%;border-top:1px solid var(--borda);padding-top:9px}
+  .topo h2{font-size:17px;white-space:normal}
+
   /* campos maiores e sem zoom automático no iPhone */
   input,select,textarea{font-size:16px;padding:11px 12px}
   .btn{padding:11px 15px;font-size:14px}
@@ -330,6 +363,9 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   .cartao-cabecalho{padding:12px 14px}
   .cartao-cabecalho .espaco{width:100%}
   .cartao-cabecalho .espaco .btn{flex:1}
+  /* Fila de botões dentro do cartão (os atalhos do painel, por exemplo): no
+     celular eles crescem para preencher a linha, em vez de ficarem escadinha. */
+  .cartao-corpo.espaco > .btn{flex:1 1 44%}
   .cartao-corpo{padding:14px}
   .grade{gap:10px}
   .g2,.g3,.g4{grid-template-columns:1fr 1fr}
@@ -343,7 +379,9 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 
   /* filtros empilhados, com o botão ocupando a linha */
   .filtros{grid-template-columns:1fr;padding:12px 14px;gap:10px}
-  .filtros .acoes{width:100%;display:flex;gap:8px}
+  /* numa coluna só, "span 2" criaria uma segunda coluna invisível e jogaria o
+     cartão para fora da tela — aqui os botões ocupam a linha inteira */
+  .filtros .acoes{width:100%;display:flex;gap:8px;grid-column:1/-1}
   .filtros .acoes .btn{flex:1}
 
   /* abas roláveis de lado */
@@ -386,7 +424,7 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   .modal-fundo{padding:0;align-items:stretch}
   .modal,.modal.largo{max-width:100%;border-radius:0;max-height:100vh;min-height:100vh}
   .modal header{position:sticky;top:0;background:#fff;z-index:2;padding:13px 15px}
-  .modal-corpo{padding:15px}
+  .modal-corpo{padding:15px 15px 22px}
   .modal-rodape{padding:11px 15px;border-radius:0;position:sticky;bottom:0;gap:8px}
   .modal-rodape .btn{flex:1 1 auto;min-width:44%}
 
@@ -415,6 +453,15 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   .kpi-valor{font-size:17px}
   .topo h2{font-size:16px}
   .cartao-cabecalho h3{font-size:14.5px}
+}
+
+/* Em tela bem estreita (celular pequeno) não cabem menu + marca + empresa na
+   mesma linha: a empresa desce e fica ao lado do nome da tela. Num celular
+   comum (390px) os três cabem, e aí a divisória continua valendo. */
+@media (max-width:370px){
+  .topo-titulo{order:4;border-top:none;padding-top:0}
+  .topo-acoes{order:5;margin-left:auto}
+  .topo-acoes select{max-width:46vw}
 }
 
 @media print{
@@ -667,9 +714,20 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   .chamada h2{font-size:23px}
   .rodape-interno{flex-direction:column;gap:14px}
   .ficha-demo-corpo{grid-template-columns:1fr 1fr}
-  .site-marca .logo-icone{height:30px}
-  .marca-texto b{font-size:16px}
-  .marca-texto small{font-size:8.5px;letter-spacing:.1em}
+
+  /* O cabeçalho do site no celular: em cima a marca e o botão do menu; embaixo
+     os dois botões, lado a lado e do mesmo tamanho. Antes o ☰ era empurrado
+     para uma segunda linha sozinho, colado na borda. */
+  .site-largura{padding:0 18px}
+  .site-topo-interno{gap:9px 10px}
+  .site-marca{order:1;flex:1;min-width:0}
+  .site .menu-hamburguer{order:2;margin-left:auto}
+  .site-topo-interno .espaco{order:3;width:100%;margin-left:0;gap:8px}
+  .site-topo-interno .espaco .btn{flex:1;padding:11px 10px}
+  .site-nav{order:4}
+  .site-marca .logo-icone{height:34px}
+  .marca-texto b{font-size:18px}
+  .marca-texto small{font-size:8.5px;letter-spacing:.11em}
 }
 
 /* ========================================================================== */
@@ -808,3 +866,12 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
 .gta-conferencia ul{margin:6px 0 0 18px;padding:0}
 .gta-conferencia li{margin-bottom:3px}
 .gta-conferencia.ok{border-color:#a7f3d0;background:var(--verde-claro);color:#065f46}
+/* Em monitor largo o conteúdo para de esticar: a folga vai para as laterais, e
+   igual nas três faixas — o aviso, a barra de cima e a página —, para a borda
+   direita do seletor de empresa cair no mesmo lugar da borda dos cartões. */
+@media (min-width:1620px){
+  .faixa-assinatura,.topo,.pagina{
+    padding-left:max(24px, calc((100% - 1560px) / 2));
+    padding-right:max(24px, calc((100% - 1560px) / 2));
+  }
+}

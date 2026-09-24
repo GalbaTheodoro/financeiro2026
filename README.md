@@ -851,6 +851,17 @@ O sistema inteiro é responsivo — não existe versão separada, é a mesma tel
 - o formulário do contrato vem **em etapas**, uma tela de cada vez;
 - relatórios em matriz (DRE, balancete, razão) encolhem a fonte e continuam tabela.
 
+Com a gaveta fechada, é a **barra de cima** que diz onde a pessoa está: ela leva o ícone e
+o nome **AgroDock** ao lado do ☰, e o nome da tela vai numa segunda linha, com uma
+divisória — assim título comprido não sai cortado. Em celular pequeno (menos de 370px) o
+seletor de empresa desce e fica ao lado do nome da tela.
+
+Nada estoura para o lado: a varredura automática de layout confere, em **320, 390, 768,
+1024 e 1920px**, se alguma tela tem rolagem horizontal ou algum elemento passando da
+borda. No computador largo (a partir de 1620px) o conteúdo para de esticar em 1560px e a
+folga vai para as laterais — igual no aviso de assinatura, na barra de cima e na página,
+para tudo terminar na mesma linha.
+
 ### Relatórios
 
 | Relatório | Conteúdo |

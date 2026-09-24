@@ -49,6 +49,8 @@ hoje = date.today()
 conta = api("POST", "/api/publico/cadastro", {
     "nome": "Galba no celular", "email": f"celular{sufixo}@teste.com", "senha": "123456",
     "empresa": "Brascafé Assessoria",
+    # plano completo: assim o teste passa também pelo cupom fiscal e pela GTA
+    "plano": "P4_SEMESTRAL",
 })
 token = conta["token"]
 eid = conta["empresa"]["id"]
@@ -120,13 +122,38 @@ with sync_playwright() as p:
         "() => document.querySelector('.sidebar').getBoundingClientRect().right <= 1")
     checar("o X fecha a gaveta", fechou)
 
+    # Com a gaveta fechada, é a barra de cima que diz em que sistema a pessoa está.
+    checar("a marca AgroDock aparece na barra de cima",
+           "AgroDock" in pagina.inner_text(".topo .topo-marca"))
+    encaixe = pagina.evaluate("""() => {
+        const topo = document.querySelector('.topo').getBoundingClientRect();
+        const titulo = document.querySelector('.topo-titulo').getBoundingClientRect();
+        const marca = document.querySelector('.topo-marca').getBoundingClientRect();
+        const primeiro = document.querySelector('#pagina .cartao, #pagina .kpi');
+        const p = primeiro ? primeiro.getBoundingClientRect() : null;
+        return {
+          // marca e título em linhas diferentes: nada por cima de nada
+          separados: titulo.top >= marca.bottom - 1,
+          // a barra de cima não cobre o começo da página
+          livre: !p || p.top >= topo.bottom - 1,
+        };
+    }""")
+    checar("marca e nome da tela em linhas separadas", encaixe["separados"])
+    checar("a barra de cima não cobre o conteúdo", encaixe["livre"])
+
     print("\n=== 3. Telas principais sem rolagem lateral ===")
     for rota, nome in [("receber", "contas a receber"), ("pagar", "contas a pagar"),
                        ("caixa", "caixa"), ("contratos", "contratos"),
-                       ("relatorios", "relatórios"), ("cadastros/parceiros", "cadastros")]:
+                       ("notas", "notas fiscais"), ("cupom", "cupom fiscal"),
+                       ("gta", "GTA"), ("relatorios", "relatórios"),
+                       ("cadastros/parceiros", "cadastros")]:
         pagina.goto(f"{BASE}/#/{rota}")
         pagina.wait_for_timeout(1300)
         sem_estouro(nome)
+        titulo_inteiro = pagina.evaluate(
+            "() => {const h = document.querySelector('#titulo-pagina');"
+            " return h.scrollWidth <= h.clientWidth + 1;}")
+        checar(f"{nome}: o nome da tela cabe sem cortar", titulo_inteiro)
 
     print("\n=== 4. Contrato lançado pelas etapas ===")
     pagina.goto(f"{BASE}/#/contratos")

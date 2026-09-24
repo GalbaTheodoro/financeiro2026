@@ -1220,7 +1220,8 @@ const Emissao = {
               UI.fecharModal();
               UI.sucesso(r.mensagem);
               // a nota foi autorizada: diz também o que aconteceu com o e-mail
-              if (r.email && r.email.ok) UI.sucesso(r.email.mensagem);
+              if (r.email && r.email.ok && r.email.aviso) UI.erro(r.email.mensagem);
+              else if (r.email && r.email.ok) UI.sucesso(r.email.mensagem);
               else if (r.email && r.email.configurado && !r.email.desligado) {
                 UI.erro(`Nota autorizada, mas o e-mail não saiu: ${r.email.mensagem}`);
               }

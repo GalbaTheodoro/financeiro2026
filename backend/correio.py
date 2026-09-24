@@ -246,11 +246,14 @@ def mensagem_da_nota(config, nota, empresa) -> tuple[str, str]:
     return assunto.strip(), texto
 
 
-def anexos_da_nota(nota) -> list[tuple[str, bytes, str]]:
+def anexos_da_nota(nota) -> tuple[list[tuple[str, bytes, str]], str]:
     """Os dois arquivos que vão na nota: o XML e a DANFE em PDF.
 
-    Se a DANFE não puder ser desenhada, o XML vai assim mesmo — é ele o
-    documento fiscal; ficar sem enviar nada seria pior.
+    Devolve `(anexos, aviso)`. Se a DANFE não puder ser desenhada, o XML vai
+    assim mesmo — é ele o documento fiscal, e ficar sem enviar nada seria pior —,
+    mas o `aviso` explica por quê. **O aviso não pode ser engolido**: já
+    aconteceu de o PDF faltar por falta da biblioteca e ninguém ficar sabendo,
+    porque o e-mail saía dizendo que tinha dado tudo certo.
     """
     from . import danfe
 
@@ -261,6 +264,6 @@ def anexos_da_nota(nota) -> list[tuple[str, bytes, str]]:
     anexos = [(f"{nome}.xml", xml.encode("utf-8"), "application/xml")]
     try:
         anexos.append((f"{nome}.pdf", danfe.gerar_pdf(xml), "application/pdf"))
-    except ValueError:
-        pass
-    return anexos
+    except ValueError as erro:
+        return anexos, str(erro)
+    return anexos, ""

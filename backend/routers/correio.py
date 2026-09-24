@@ -57,8 +57,12 @@ def config_da_empresa(db: Session, empresa_id: int) -> ConfigEmail | None:
 
 def _ficha(config: ConfigEmail | None, empresa: Empresa) -> dict:
     """O que a tela recebe. **A senha nunca sai daqui** — só o aviso de que existe."""
+    from .. import danfe
+
+    pdf_ok, pdf_motivo = danfe.pdf_disponivel()
     if config is None:
         return {
+            "pdf_ok": pdf_ok, "pdf_motivo": pdf_motivo,
             "configurado": False,
             "tem_senha": False,
             "porta": 587,
@@ -74,6 +78,7 @@ def _ficha(config: ConfigEmail | None, empresa: Empresa) -> dict:
             "sugestoes": correio.SUGESTOES,
         }
     return {
+        "pdf_ok": pdf_ok, "pdf_motivo": pdf_motivo,
         "configurado": bool((config.servidor or "").strip()),
         "tem_senha": bool(config.senha),
         "servidor": config.servidor,

@@ -502,10 +502,12 @@ def _enviar_por_email(db: Session, nota: Nota, automatico: bool) -> dict:
         copias += correio.separar(getattr(empresa, "email", None))
     copias += correio.separar(config.email_contador)
 
+    aviso = ""
     try:
         assunto, texto = correio.mensagem_da_nota(config, nota, empresa)
+        anexos, aviso = correio.anexos_da_nota(nota)
         enviado = correio.enviar(config, para, assunto, texto,
-                                 anexos=correio.anexos_da_nota(nota), copias=copias)
+                                 anexos=anexos, copias=copias)
     except correio.ErroEmail as erro:
         nota.email_erro = str(erro)[:300]
         config.ultimo_erro = str(erro)[:300]
@@ -515,14 +517,19 @@ def _enviar_por_email(db: Session, nota: Nota, automatico: bool) -> dict:
     destinos = enviado["para"] + enviado["copia"]
     nota.email_enviado_em = datetime.utcnow()
     nota.email_destinatarios = ", ".join(destinos)[:400]
-    nota.email_erro = None
+    # o PDF que faltou fica registrado na nota: é a única pista de que o
+    # cliente recebeu só o XML
+    nota.email_erro = (f"Enviado sem a DANFE em PDF. {aviso}"[:300] if aviso else None)
     config.ultimo_envio_em = nota.email_enviado_em
-    config.ultimo_erro = None
+    config.ultimo_erro = aviso[:300] if aviso else None
     db.commit()
     return {
-        "ok": True, "configurado": True,
+        "ok": True, "configurado": True, "aviso": aviso,
         "para": enviado["para"], "copia": enviado["copia"],
-        "mensagem": f"XML e DANFE enviados para {', '.join(destinos)}.",
+        "anexos": ["XML"] if aviso else ["XML", "DANFE em PDF"],
+        "mensagem": (f"Enviado para {', '.join(destinos)}, mas **só com o XML**: {aviso}"
+                     if aviso else
+                     f"XML e DANFE enviados para {', '.join(destinos)}."),
     }
 
 

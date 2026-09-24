@@ -391,6 +391,24 @@ def gerar(xml: str, empresa_nome: str = "") -> str:
 # --------------------------------------------------------------------------- #
 # DANFE em PDF — é o arquivo que vai anexado no e-mail do cliente
 # --------------------------------------------------------------------------- #
+def pdf_disponivel() -> tuple[bool, str]:
+    """A biblioteca que desenha a DANFE em PDF está instalada?
+
+    Serve para a tela avisar **antes** de a primeira nota sair sem o PDF — foi
+    assim que se descobriu, tarde demais, que o `pip install` não tinha rodado.
+    """
+    try:
+        from brazilfiscalreport.danfe import Danfe          # noqa: F401
+    except ImportError as erro:
+        return False, (
+            "Falta a biblioteca que desenha a DANFE em PDF "
+            f"({erro}). No seu computador, rode o iniciar.bat — ele instala sozinho; "
+            "ou, na pasta do projeto: .venv\\Scripts\\activate e depois "
+            "pip install -r requirements.txt. No servidor, publique de novo."
+        )
+    return True, ""
+
+
 def gerar_pdf(xml: str) -> bytes:
     """Devolve a DANFE em PDF, gerada a partir do XML autorizado.
 
@@ -409,13 +427,10 @@ def gerar_pdf(xml: str) -> bytes:
             "Esta nota está no sistema apenas como resumo. Dê ciência da operação e "
             "busque os documentos de novo para receber o XML completo."
         )
-    try:
-        from brazilfiscalreport.danfe import Danfe
-    except ImportError:                                   # pragma: no cover
-        raise ValueError(
-            "Falta a biblioteca que desenha a DANFE em PDF. Rode: "
-            "pip install brazilfiscalreport"
-        ) from None
+    tem, motivo = pdf_disponivel()
+    if not tem:
+        raise ValueError(motivo)
+    from brazilfiscalreport.danfe import Danfe
     try:
         return bytes(Danfe(xml=xml).output())
     except Exception as erro:                             # noqa: BLE001

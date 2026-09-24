@@ -181,7 +181,8 @@ const Notas = {
         try {
           const r = await Api.postQuery(
             `/api/nfe/${nota.id}/enviar-email`, { empresa_id: Estado.empresaId });
-          UI.sucesso(r.mensagem);
+          // saiu, mas sem o PDF: isso é aviso, não sucesso
+          if (r.aviso) UI.erro(r.mensagem); else UI.sucesso(r.mensagem);
           Notas.tela();
         } catch (e) {
           UI.erro(e.message);

@@ -721,6 +721,12 @@ const Cadastros = {
                 ${UI.escapar(config.ultimo_erro)}</div>` : ''}
             </div>
           </div>
+          ${config.pdf_ok === false ? `<div class="cartao"
+            style="margin-top:10px;border-left:4px solid var(--vermelho)">
+            <div class="cartao-corpo">
+              <b>A DANFE em PDF não vai sair — só o XML.</b>
+              <div class="mini">${UI.escapar(config.pdf_motivo || '')}</div>
+            </div></div>` : ''}
           <div class="mini" style="margin-top:10px">
             Quem envia é a conta de e-mail <b>da própria empresa</b> — o cliente recebe a
             nota vindo dela e responde para ela. Gmail e Microsoft exigem uma

@@ -206,6 +206,60 @@ checar("a lista de notas também mostra o envio",
        any(n["id"] == nota and n["email_enviado_em"] for n in lista["linhas"]))
 
 # =========================================================================== #
+print("\n=== 3b. Sem a biblioteca do PDF, o aviso não pode sumir ===")
+# Foi o que aconteceu de verdade: a biblioteca não estava instalada, o e-mail
+# saiu só com o XML e ninguém ficou sabendo, porque o sistema dizia "enviado".
+# Aqui a falta é simulada dentro do processo, chamando a função que a rota chama.
+import backend.danfe as _danfe                       # noqa: E402
+from backend.routers.emissao import _enviar_por_email  # noqa: E402
+
+_original = _danfe.pdf_disponivel
+_danfe.pdf_disponivel = lambda: (False, "Falta a biblioteca que desenha a DANFE em PDF.")
+CAIXA.limpar()
+db = SessionLocal()
+try:
+    sem_pdf = _enviar_por_email(db, db.get(Nota, nota), automatico=False)
+finally:
+    _danfe.pdf_disponivel = _original
+    db.close()
+
+checar("o e-mail ainda sai (o XML é o documento fiscal)", sem_pdf["ok"] is True)
+checar("mas a resposta avisa que foi só o XML",
+       bool(sem_pdf.get("aviso")) and sem_pdf["anexos"] == ["XML"]
+       and "só com o XML" in sem_pdf["mensagem"], sem_pdf["mensagem"][:70])
+so_xml = CAIXA.ultima
+nomes = [a.get_filename() for a in so_xml["mensagem"].iter_attachments()] if so_xml else []
+checar("e de fato foi um anexo só", len(nomes) == 1 and nomes[0].endswith(".xml"),
+       str(nomes))
+marcada = api("GET", f"/api/nfe/{nota}", None, t)["nota"]
+checar("a nota guarda que o cliente recebeu sem a DANFE",
+       "sem a DANFE" in (marcada["email_erro"] or ""), str(marcada["email_erro"])[:60])
+
+# a tela de e-mail precisa avisar ANTES de a próxima nota sair
+_danfe.pdf_disponivel = lambda: (False, "Falta a biblioteca que desenha a DANFE em PDF.")
+try:
+    from backend.routers.correio import _ficha, config_da_empresa   # noqa: E402
+    from backend.models import Empresa                              # noqa: E402
+    db = SessionLocal()
+    aviso_tela = _ficha(config_da_empresa(db, eid), db.get(Empresa, eid))
+    db.close()
+finally:
+    _danfe.pdf_disponivel = _original
+checar("a tela de e-mail avisa que a DANFE não vai sair",
+       aviso_tela["pdf_ok"] is False and "biblioteca" in aviso_tela["pdf_motivo"],
+       str(aviso_tela.get("pdf_motivo"))[:60])
+
+CAIXA.limpar()
+de_volta = api("POST", f"/api/nfe/{nota}/enviar-email?empresa_id={eid}", None, t)
+checar("com a biblioteca no lugar, o PDF volta sozinho",
+       not de_volta.get("aviso") and de_volta["anexos"] == ["XML", "DANFE em PDF"],
+       str(de_volta.get("anexos")))
+limpa = api("GET", f"/api/nfe/{nota}", None, t)["nota"]
+checar("e o aviso some da nota", not limpa["email_erro"], str(limpa["email_erro"]))
+checar("a conferência da biblioteca acha ela instalada aqui",
+       _danfe.pdf_disponivel()[0] is True)
+
+# =========================================================================== #
 print("\n=== 4. Quando dá errado, a mensagem diz o que fazer ===")
 sem_email = api("POST", "/api/parceiros", {
     "empresa_id": eid, "tipo": "CLIENTE", "nome": "CLIENTE SEM E-MAIL",

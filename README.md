@@ -397,6 +397,12 @@ A **senha fica cifrada** no banco (AES-GCM com chave derivada de FIN_SECRET_KEY,
 certificado digital) e **nenhuma rota a devolve**: a tela mostra apenas se existe senha
 guardada. Salvar com o campo em branco mantém a que já estava.
 
+Se a DANFE não puder ser desenhada, **o XML vai assim mesmo** — é ele o documento fiscal —,
+mas o sistema **diz por quê**: o aviso aparece na tela como erro (não como sucesso), fica
+gravado na nota e a aba *E-mail* passa a mostrar em vermelho que a DANFE não vai sair. Foi
+um defeito real: a biblioteca não estava instalada, o e-mail saía só com o XML e o sistema
+dizia "enviado" — silêncio é o pior jeito de falhar.
+
 Vão cópias para o e-mail da empresa e para o do contador, se configurados. O envio
 automático pode ser desligado. **Falha de e-mail não derruba a nota**: ela já está
 autorizada na SEFAZ, então o erro aparece como aviso e a nota guarda o que houve — na lista

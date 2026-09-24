@@ -11,6 +11,12 @@ const Site = {
       texto: 'Aberto, Fechado a Receber, Recebido Parcial, Recebido Total ou Cancelado — a situação muda sozinha conforme o dinheiro entra.' },
     { icone: '⎙', destaque: true, titulo: 'Contrato impresso em PDF',
       texto: 'Uma página A4 com seu logotipo, as partes, dados bancários, valor por extenso e campos de assinatura, pronta para salvar em PDF e enviar.' },
+    { icone: '⛁', destaque: true, titulo: 'Emissão de NF-e',
+      texto: 'NF-e 4.00 assinada com o seu certificado e transmitida à SEFAZ, com DANFE em PDF, envio automático para o cliente por e-mail e as recusas explicadas em português. Em todos os planos.' },
+    { icone: '⌦', titulo: 'Cupom fiscal eletrônico',
+      texto: 'NFC-e para a venda de balcão: uma tela só, QR Code conferível pelo consumidor e impressão na bobina de 80 mm. Nos planos 2 e 4.' },
+    { icone: '☙', titulo: 'GTA — Guia de Trânsito Animal',
+      texto: 'Guarda as guias dos produtores, avisa quando a validade está acabando e imprime a ficha de preparo na ordem das telas do portal do estado. Nos planos 3 e 4.' },
     { icone: '↓', titulo: 'Contas a receber',
       texto: 'Títulos por cliente, vencimento e situação, com baixa individual ou em lote, juros, multa, desconto e estorno.' },
     { icone: '↑', titulo: 'Contas a pagar',
@@ -39,8 +45,18 @@ const Site = {
        + 'Receber assim que as comissões viram contas a receber, Recebido Parcial quando parte do dinheiro '
        + 'entra e Recebido Total quando tudo foi pago. O relatório de contratos mostra todos de uma vez, '
        + 'com o que já entrou, o que falta e o que venceu.' },
+    { p: 'Qual é a diferença entre os planos?',
+      r: 'Os quatro planos têm o mesmo miolo: contrato de assessoria, financeiro inteiro '
+       + '(contas a receber e a pagar, caixa, DRE, balancete e relatórios) e emissão de NF-e. '
+       + 'O que muda são dois módulos: o cupom fiscal eletrônico, para quem vende no balcão, e '
+       + 'a GTA, para quem atende produtor de gado. O Plano 1 não tem nenhum dos dois, o 2 tem '
+       + 'o cupom, o 3 tem a GTA e o 4 tem os dois. Dentro do sistema, cada conta enxerga só '
+       + 'as telas do plano dela.' },
+    { p: 'Posso mudar de plano depois?',
+      r: 'Pode. Enquanto o pagamento não foi confirmado, a troca é imediata em Minha Assinatura. '
+       + 'Com a assinatura já ativa, a mudança vale na renovação — e nada do que você lançou se perde.' },
     { p: 'Como funciona o teste de 48 horas?',
-      r: 'Assim que você conclui o cadastro, a conta fica liberada por 48 horas com todos os recursos. '
+      r: 'Assim que você conclui o cadastro, a conta fica liberada por 48 horas com os recursos do plano escolhido. '
        + 'Você pode lançar seus contratos e títulos reais, emitir relatórios e conferir o DRE. Depois desse '
        + 'prazo o acesso é bloqueado até a confirmação do pagamento — mas nada do que você lançou é perdido.' },
     { p: 'Como pago a assinatura?',
@@ -116,28 +132,31 @@ const Site = {
     Site.desenharPlanos();
   },
 
+  /* Quatro planos. O que muda de um para o outro não é o prazo — é o que a conta
+     pode usar. Por isso cada cartão mostra primeiro o que o plano libera e, só
+     depois, os dois prazos com seus preços. */
   desenharPlanos() {
     const planos = Site.info.planos || [];
+    const usuarios = Site.info.usuarios_incluidos || 3;
     document.getElementById('lista-planos').innerHTML = planos
       .map((p) => `
         <div class="plano ${p.destaque ? 'plano-destaque' : ''}">
-          ${p.destaque ? '<div class="plano-selo">Mais vantajoso</div>' : ''}
+          ${p.destaque ? '<div class="plano-selo">Completo</div>' : ''}
           <h3>${UI.escapar(p.nome)}</h3>
-          <div class="plano-valor">${UI.moeda(p.valor)}</div>
-          <div class="plano-periodo">pagamento único · ${p.meses} meses</div>
-          <div class="plano-mes">equivale a ${UI.moeda(p.valor_mes)} por mês</div>
-          ${p.economia ? `<div class="plano-economia">economia de ${UI.moeda(p.economia)} no ano</div>` : ''}
+          <div class="plano-para">${UI.escapar(p.para)}</div>
           <ul class="plano-itens">
-            <li>Contratos de assessoria e comissões</li>
-            <li>Impressão do contrato em PDF</li>
-            <li>Contas a pagar e a receber sem limite</li>
-            <li>Caixa, bancos e transferências</li>
-            <li>DRE, balancete e razão contábil</li>
-            <li>${Site.info.usuarios_incluidos || 3} usuários inclusos por empresa</li>
+            ${p.modulos.map((m) => `<li><b>${UI.escapar(m.nome)}</b><span>${UI.escapar(m.texto)}</span></li>`).join('')}
+            <li><b>${usuarios} usuários inclusos</b><span>por empresa, com pacotes extras quando precisar.</span></li>
           </ul>
-          <button class="btn ${p.destaque ? 'btn-primario' : ''} btn-bloco" data-plano="${p.codigo}">
-            Assinar ${UI.escapar(p.nome.replace('Plano ', '').toLowerCase())}
-          </button>
+          <div class="plano-prazos">
+            ${p.prazos.map((z) => `
+              <button class="btn ${z.periodo === 'ANUAL' ? 'btn-primario' : ''} btn-bloco plano-prazo"
+                      data-plano="${z.codigo}">
+                <span class="plano-prazo-valor">${UI.moeda(z.valor)}</span>
+                <span class="plano-prazo-nota">assinar ${z.meses} meses · ${UI.moeda(z.valor_mes)}/mês</span>
+              </button>`).join('')}
+          </div>
+          ${p.economia ? `<div class="plano-economia">no anual você economiza ${UI.moeda(p.economia)}</div>` : ''}
         </div>`)
       .join('');
 
@@ -147,7 +166,7 @@ const Site = {
   },
 
   /* -------------------------------------------------------------- criar conta */
-  formularioCadastro(planoEscolhido = 'SEMESTRAL') {
+  formularioCadastro(planoEscolhido = 'P1_SEMESTRAL') {
     const planos = (Site.info?.planos) || [];
     const corpo = document.createElement('div');
     corpo.innerHTML = `
@@ -165,9 +184,10 @@ const Site = {
         ${UI.campo('CNPJ ou CPF', '<input name="documento">')}
         ${UI.campo('Cidade', '<input name="cidade">')}
         ${UI.campo('UF', '<input name="uf" maxlength="2">')}
-        ${UI.campo('Plano pretendido', UI.select('plano', planos.map((p) => ({
-          valor: p.codigo, rotulo: `${p.nome} — ${UI.moeda(p.valor)} (${p.meses} meses)`,
-        })), planoEscolhido, { vazio: false }))}
+        ${UI.campo('Plano pretendido', UI.select('plano', planos.flatMap((p) => p.prazos.map((z) => ({
+          valor: z.codigo,
+          rotulo: `${p.nome} ${z.rotulo.toLowerCase()} — ${UI.moeda(z.valor)} (${z.meses} meses)`,
+        }))), planoEscolhido, { vazio: false }), 'o plano decide quais telas a conta enxerga')}
       </div>
       <div class="mini" style="margin-top:12px">
         Você pode trocar o plano depois, antes de fazer o Pix.

@@ -18,16 +18,34 @@ const Assinaturas = {
     const plano = p.plano;
     const planos = dados.planos || [];
 
+    /* Cada plano é um bloco: o que ele libera e, dentro, os dois prazos. O que
+       muda de um plano para o outro não é o prazo, é o que a conta pode usar —
+       por isso o prazo vem depois, dentro do plano escolhido. */
     const escolha = planos
       .map((op) => `
-        <label class="plano-opcao ${op.codigo === plano.codigo ? 'ativo' : ''}">
-          <input type="radio" name="plano" value="${op.codigo}" ${op.codigo === plano.codigo ? 'checked' : ''}>
-          <div>
-            <div class="forte">${UI.escapar(op.nome)}</div>
-            <div class="mini">${op.meses} meses · ${UI.moeda(op.valor_mes)}/mês</div>
+        <div class="plano-bloco ${op.prazos.some((z) => z.codigo === plano.codigo) ? 'ativo' : ''}">
+          <div class="plano-bloco-topo">
+            <div>
+              <div class="forte">${UI.escapar(op.nome)}</div>
+              <div class="mini">${UI.escapar(op.para)}</div>
+            </div>
+            ${op.destaque ? '<span class="tag tag-pago">completo</span>' : ''}
           </div>
-          <div class="plano-opcao-valor">${UI.moeda(op.valor)}</div>
-        </label>`)
+          <ul class="plano-modulos">
+            ${op.modulos.map((m) => `<li>${UI.escapar(m.nome)}</li>`).join('')}
+          </ul>
+          <div class="planos-opcao">
+            ${op.prazos.map((z) => `
+              <label class="plano-opcao ${z.codigo === plano.codigo ? 'ativo' : ''}">
+                <input type="radio" name="plano" value="${z.codigo}" ${z.codigo === plano.codigo ? 'checked' : ''}>
+                <div>
+                  <div class="forte">${UI.escapar(z.rotulo)}</div>
+                  <div class="mini">${z.meses} meses · ${UI.moeda(z.valor_mes)}/mês</div>
+                </div>
+                <div class="plano-opcao-valor">${UI.moeda(z.valor)}</div>
+              </label>`).join('')}
+          </div>
+        </div>`)
       .join('');
 
     const areaPix = p.configurado
@@ -66,7 +84,7 @@ const Assinaturas = {
 
       ${compacto ? '' : `
       <h3 class="titulo-bloco">1. Escolha o plano</h3>
-      <div class="planos-opcao">${escolha}</div>`}
+      <div class="planos-blocos">${escolha}</div>`}
 
       <h3 class="titulo-bloco">${compacto ? '' : '2. '}Pague por Pix</h3>
       ${areaPix}
@@ -103,6 +121,9 @@ const Assinaturas = {
       radio.onchange = async () => {
         try {
           await Api.post('/api/assinatura/plano', { plano: radio.value });
+          // o plano decide o menu: recarrega a conta e redesenha a barra lateral
+          Estado.usuario = await Api.get('/api/auth/me');
+          App.desenharMenu();
           UI.sucesso('Plano atualizado.');
           aoAtualizar();
         } catch (e) {
@@ -347,6 +368,7 @@ const Assinaturas = {
     const alvo = document.getElementById('pagina');
     alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando assinaturas...</div></div>';
     const dados = await Api.get('/api/admin/assinaturas');
+    Assinaturas._planos = dados.planos || [];
     const r = dados.resumo;
 
     const rotulos = {
@@ -380,7 +402,8 @@ const Assinaturas = {
             <div class="mini">${UI.escapar(a.usuario_email)}</div>` },
         { titulo: 'Empresa', valor: (a) => UI.escapar(a.empresa_nome) },
         { titulo: 'Contato', valor: (a) => `<span class="mini">${UI.escapar(a.usuario_telefone || '-')}</span>` },
-        { titulo: 'Plano', valor: (a) => `${a.plano === 'ANUAL' ? 'Anual' : 'Semestral'}<div class="mini">${UI.moeda(a.valor)}</div>` },
+        { titulo: 'Plano', valor: (a) => `${UI.escapar(a.plano_nome || a.plano)}
+            <div class="mini">${UI.escapar((a.plano_periodo || '').toLowerCase())} · ${UI.moeda(a.valor)}</div>` },
         { titulo: 'Usuários', classe: 'centro', valor: (a) => `${a.limite_usuarios}
             <div class="mini">${a.pacotes_usuarios || 0} pacote(s)${a.pacotes_solicitados
               ? ` · <b>${a.pacotes_solicitados} pendente(s)</b>` : ''}</div>` },
@@ -435,8 +458,16 @@ const Assinaturas = {
     } catch (e) { UI.erro(e.message); }
   },
 
+  /** Os oito códigos (quatro planos x dois prazos) para os selects da administração. */
+  opcoesDePlano() {
+    return (Assinaturas._planos || []).flatMap((p) => p.prazos.map((z) => ({
+      valor: z.codigo,
+      rotulo: `${p.nome} ${z.rotulo.toLowerCase()} — ${UI.moeda(z.valor)}`,
+    })));
+  },
+
   confirmar(assinatura) {
-    const meses = assinatura.plano === 'ANUAL' ? 12 : 6;
+    const meses = (assinatura.plano_periodo || assinatura.plano) === 'ANUAL' ? 12 : 6;
     const corpo = document.createElement('div');
     corpo.innerHTML = `
       <p>Confirmar o recebimento do Pix de <b>${UI.escapar(assinatura.usuario_nome)}</b>
@@ -487,9 +518,8 @@ const Assinaturas = {
           { valor: 'CANCELADA', rotulo: 'Cancelada' },
           { valor: 'BLOQUEADA', rotulo: 'Bloqueada' },
         ], assinatura.status, { vazio: false }))}
-        ${UI.campo('Plano', UI.select('plano', [
-          { valor: 'SEMESTRAL', rotulo: 'Semestral' }, { valor: 'ANUAL', rotulo: 'Anual' },
-        ], assinatura.plano, { vazio: false }))}
+        ${UI.campo('Plano', UI.select('plano', Assinaturas.opcoesDePlano(),
+          assinatura.plano, { vazio: false }), 'o plano decide quais telas a conta enxerga')}
         ${UI.campo('Horas de teste', '<input type="number" name="horas_teste" placeholder="ex.: 48">',
           'preenchido apenas ao reabrir um teste')}
         ${UI.campo('Observação interna', `<input name="observacao" value="${UI.escapar(assinatura.observacao_admin || '')}">`)}
@@ -739,8 +769,11 @@ const Assinaturas = {
       'Recebimento por Pix': ['pix_chave', 'pix_titular', 'pix_banco', 'pix_cidade', 'aviso_pagamento'],
       'Faixa de cotações e painel Mercado do Café': ['cotacoes_ativas', 'cotacoes_minutos', 'mercado_minutos',
         'noticias_minutos', 'mercado_agnocafe'],
-      'Planos e teste': ['plano_semestral_valor', 'plano_semestral_meses', 'plano_anual_valor',
-        'plano_anual_meses', 'horas_teste'],
+      'Preço de cada plano': ['plano1_semestral_valor', 'plano1_anual_valor',
+        'plano2_semestral_valor', 'plano2_anual_valor',
+        'plano3_semestral_valor', 'plano3_anual_valor',
+        'plano4_semestral_valor', 'plano4_anual_valor'],
+      'Prazos e teste': ['plano_semestral_meses', 'plano_anual_meses', 'horas_teste'],
       'Consulta de CNPJ (API do governo)': ['cnpj_provedor', 'cnpj_tipo_consulta', 'cnpj_endpoint',
         'cnpj_consumer_key', 'cnpj_consumer_secret', 'cnpj_cpf_usuario', 'cnpj_incluir_socios'],
       'Consulta de CEP (Correios)': ['cep_provedor', 'cep_endpoint', 'cep_usuario', 'cep_senha',
@@ -755,13 +788,20 @@ const Assinaturas = {
       cep_provedor: ['AUTO', 'CORREIOS', 'VIACEP', 'BRASILAPI', 'DESATIVADO'],
     };
     const sensiveis = ['cnpj_consumer_secret', 'cep_senha'];
+    /* Os preços: "plano3_anual_valor" vira "Plano 3 — anual". O que cada plano
+       libera está escrito na descrição que vem do servidor. */
+    const rotuloDaChave = (c) => {
+      const preco = c.match(/^plano(\d)_(semestral|anual)_valor$/);
+      if (preco) return `Plano ${preco[1]} — ${preco[2]}`;
+      return c.replace(/^(cnpj|cep)_/, '').replaceAll('_', ' ').replace(/^\w/, (l) => l.toUpperCase());
+    };
 
     const bloco = (titulo, chaves) => `
       <div class="cartao">
         <div class="cartao-cabecalho"><h3>${UI.escapar(titulo)}</h3></div>
         <div class="cartao-corpo linha-campos">
           ${chaves.map((c) => UI.campo(
-            c.replace(/^(cnpj|cep)_/, '').replaceAll('_', ' ').replace(/^\w/, (l) => l.toUpperCase()),
+            rotuloDaChave(c),
             opcoes[c]
               ? UI.select(c, opcoes[c].map((v) => ({ valor: v, rotulo: v })),
                   dados.valores[c] ?? '', { vazio: false })

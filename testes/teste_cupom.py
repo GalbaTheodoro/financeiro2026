@@ -80,7 +80,9 @@ print("=== 1. Empresa, produto e o CSC ===")
 sufixo = str(int(time.time()))
 conta = api("POST", "/api/publico/cadastro", {
     "nome": "Galba", "email": f"cupom{sufixo}@teste.com", "senha": "123456",
-    "empresa": "Assessoria AgroDock"})
+    "empresa": "Assessoria AgroDock",
+    # o cupom fiscal só existe nos planos que o incluem
+    "plano": "P2_SEMESTRAL"})
 t, eid = conta["token"], conta["empresa"]["id"]
 api("PUT", f"/api/empresas/{eid}", {
     "razao_social": "ASSESSORIA AGRODOCK LTDA", "nome_fantasia": "AGRODOCK CAFES",

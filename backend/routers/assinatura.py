@@ -159,6 +159,10 @@ def _linha_assinatura(db: Session, a: Assinatura) -> dict:
         situacao_mensagem=situacao.get("mensagem"),
         limite_usuarios=regras.limite_usuarios(db, a),
         valor_pacote=regras.valor_pacote(db, a),
+        plano_nome=situacao.get("plano_nome"),
+        plano_rotulo=situacao.get("plano_rotulo"),
+        plano_periodo=situacao.get("plano_periodo"),
+        modulos=situacao.get("modulos", []),
     )
 
 
@@ -175,6 +179,8 @@ def listar_assinaturas(
     linhas = [_linha_assinatura(db, a) for a in assinaturas]
     return {
         "linhas": linhas,
+        # a tela precisa dos planos para deixar o administrador trocar o de alguém
+        "planos": regras.planos(db),
         "resumo": {
             "total": len(linhas),
             "ativas": sum(1 for l in linhas if l["status"] == "ATIVA"),

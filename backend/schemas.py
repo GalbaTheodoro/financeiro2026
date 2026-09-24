@@ -20,7 +20,8 @@ class CadastroPublicoIn(BaseModel):
     empresa: str | None = None
     cidade: str | None = None
     uf: str | None = None
-    plano: str = "SEMESTRAL"
+    # código do plano com o prazo: P1_SEMESTRAL, P4_ANUAL... (ver backend/planos.py)
+    plano: str = "P1_SEMESTRAL"
 
 
 class EscolherPlanoIn(BaseModel):

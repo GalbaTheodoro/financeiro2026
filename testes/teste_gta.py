@@ -86,7 +86,9 @@ print("=== 1. Conta, empresa e produtores ===")
 sufixo = str(int(time.time()))
 conta = api("POST", "/api/publico/cadastro", {
     "nome": "Galba", "email": f"gta{sufixo}@teste.com", "senha": "123456",
-    "empresa": "Assessoria AgroDock"})
+    "empresa": "Assessoria AgroDock",
+    # a GTA só existe nos planos que a incluem
+    "plano": "P3_SEMESTRAL"})
 t, eid = conta["token"], conta["empresa"]["id"]
 api("PUT", f"/api/empresas/{eid}", {
     "razao_social": "ASSESSORIA AGRODOCK LTDA", "cnpj": "98765432000198",
@@ -308,7 +310,7 @@ checar("guia em preparo pode ser apagada",
 print("\n=== 7. A empresa do vizinho ===")
 outra = api("POST", "/api/publico/cadastro", {
     "nome": "Outro", "email": f"gta-outro{sufixo}@teste.com", "senha": "123456",
-    "empresa": "Outra Assessoria"})
+    "empresa": "Outra Assessoria", "plano": "P3_SEMESTRAL"})
 espiada = api("GET", f"/api/gta/{guia['id']}", None, outra["token"], esperar_erro=True)
 checar("guia de outra conta não abre", espiada.get("_status") in (403, 404),
        str(espiada.get("_status")))

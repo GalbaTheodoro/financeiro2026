@@ -156,7 +156,7 @@ with sync_playwright() as p:
     pagina.wait_for_timeout(900)
     texto = pagina.inner_text("#site").replace("\u00a0", " ")
     for termo in ["contratos de assessoria", "Contas a receber", "Contas a pagar", "DRE",
-                  "Balancete", "Planos", "Como funciona", "R$ 350,00", "R$ 600,00",
+                  "Balancete", "Planos", "Como funciona", "R$ 399,90", "R$ 1.069,90", "Plano 4",
                   "48 horas", "Fechado a Receber", "Recebido Total"]:
         ok = termo.lower() in texto.lower()
         print(f"  [{'OK  ' if ok else 'FALHA'}] site mostra “{termo}”")
@@ -176,7 +176,8 @@ with sync_playwright() as p:
     pagina.fill('input[name=email]', email_novo)
     pagina.fill('input[name=senha]', "123456")
     pagina.fill('input[name=empresa]', "Empresa do Visitante")
-    pagina.select_option('select[name=plano]', "ANUAL")
+    # o plano completo: é ele que faz o menu mostrar cupom fiscal e GTA
+    pagina.select_option('select[name=plano]', "P4_ANUAL")
     pagina.screenshot(path=SAIDA / "01-cadastro.png")
     pagina.click("text=Criar conta e começar")
     pagina.wait_for_selector("#app:not(.oculto)", timeout=15000)
@@ -208,6 +209,55 @@ with sync_playwright() as p:
     if not tem_qr:
         erros.append("QR Code não renderizado")
     pagina.screenshot(path=SAIDA / "03-assinatura.png", full_page=True)
+
+    # ----------------------------------------- o menu é o que o plano libera
+    blocos = pagina.eval_on_selector_all(
+        ".plano-bloco .forte", "els => els.map(e => e.innerText.trim())")
+    ok_quatro = len([b for b in blocos if b.startswith("Plano ")]) == 4
+    print(f"  [{'OK  ' if ok_quatro else 'FALHA'}] tela da assinatura com os quatro planos "
+          f"({[b for b in blocos if b.startswith('Plano ')]})")
+    if not ok_quatro:
+        erros.append("a tela da assinatura não mostrou os quatro planos")
+
+    rotas_menu = lambda: pagina.eval_on_selector_all(   # noqa: E731
+        "#menu .menu-item", "els => els.map(e => e.dataset.rota)")
+    com_tudo = rotas_menu()
+    ok_p4 = "/cupom" in com_tudo and "/gta" in com_tudo
+    print(f"  [{'OK  ' if ok_p4 else 'FALHA'}] no Plano 4 o menu traz cupom fiscal e GTA")
+    if not ok_p4:
+        erros.append("menu do Plano 4 sem cupom ou sem GTA")
+
+    # troca para o Plano 1 pela própria tela e confere que os dois somem
+    pagina.check('input[name=plano][value="P1_SEMESTRAL"]')
+    pagina.wait_for_timeout(1500)
+    so_basico = rotas_menu()
+    ok_p1 = "/cupom" not in so_basico and "/gta" not in so_basico \
+        and "/contratos" in so_basico and "/notas" in so_basico
+    print(f"  [{'OK  ' if ok_p1 else 'FALHA'}] no Plano 1 eles somem do menu, o resto fica "
+          f"({len(so_basico)} itens)")
+    if not ok_p1:
+        erros.append("menu do Plano 1 não escondeu cupom/GTA")
+    pagina.screenshot(path=SAIDA / "03b-menu-plano-1.png", full_page=True)
+
+    # e o endereço digitado à mão também é barrado
+    pagina.goto(f"{BASE}/#/gta")
+    pagina.wait_for_timeout(1200)
+    titulo_atual = pagina.inner_text("#titulo-pagina")
+    ok_barrado = "GTA" not in titulo_atual
+    print(f"  [{'OK  ' if ok_barrado else 'FALHA'}] endereço da GTA digitado à mão é barrado "
+          f"-> {titulo_atual}")
+    if not ok_barrado:
+        erros.append("rota fora do plano abriu ao ser digitada")
+
+    pagina.goto(f"{BASE}/#/assinatura")
+    pagina.wait_for_timeout(1200)
+    pagina.check('input[name=plano][value="P4_ANUAL"]')
+    pagina.wait_for_timeout(1500)
+    voltou = rotas_menu()
+    ok_volta = "/cupom" in voltou and "/gta" in voltou
+    print(f"  [{'OK  ' if ok_volta else 'FALHA'}] voltando ao Plano 4 eles reaparecem")
+    if not ok_volta:
+        erros.append("menu não voltou ao trocar de plano")
 
     # ---------------------------------------------------------- telas do app
     for i, (rota, titulo) in enumerate(TELAS, start=4):

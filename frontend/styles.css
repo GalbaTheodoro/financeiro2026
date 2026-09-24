@@ -582,8 +582,8 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .observacao-passos{margin-top:24px;text-align:center;color:#5c6a62;font-size:13.5px}
 
 /* -------------------------------------------------------------------- planos */
-.planos{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;max-width:820px;margin:0 auto}
-.plano{background:#fff;border:1px solid #e9e4db;border-radius:14px;padding:28px;
+.planos{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:20px;max-width:1180px;margin:0 auto}
+.plano{background:#fff;border:1px solid #e9e4db;border-radius:14px;padding:24px 22px;
   box-shadow:0 6px 20px rgba(14,43,28,.06);display:flex;flex-direction:column;position:relative}
 .plano-destaque{border:2px solid var(--folha);box-shadow:0 18px 44px rgba(21,119,74,.18)}
 .plano-selo{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--dourado);color:#3d2a08;
@@ -597,6 +597,14 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .plano-itens{list-style:none;padding:0;margin:20px 0;display:flex;flex-direction:column;gap:9px;flex:1}
 .plano-itens li{font-size:13.5px;color:#405046;padding-left:23px;position:relative}
 .plano-itens li::before{content:"✓";position:absolute;left:0;color:var(--folha);font-weight:800}
+.plano-para{color:#7d8a82;font-size:13px;line-height:1.45;min-height:38px}
+/* cada item do cartão é um módulo: o nome em negrito e, embaixo, o que ele faz */
+.plano-itens li b{display:block;color:var(--mata);font-size:13.5px}
+.plano-itens li span{display:block;color:#6b7a71;font-size:12.5px;line-height:1.4;margin-top:1px}
+.plano-prazos{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.plano-prazo{display:flex;flex-direction:column;align-items:center;gap:1px;padding:11px 14px;height:auto;line-height:1.25}
+.plano-prazo-valor{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.plano-prazo-nota{font-size:11.5px;opacity:.82;font-weight:600}
 .planos-nota{text-align:center;color:#5c6a62;font-size:13.5px;margin-top:26px}
 
 /* --------------------------------------------------------------------- FAQ */
@@ -684,6 +692,16 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .plano-opcao.ativo{border-color:var(--primaria);background:var(--primaria-clara)}
 .plano-opcao input{width:auto}
 .plano-opcao-valor{margin-left:auto;font-weight:800;font-size:16px}
+/* Escolha do plano: um bloco por plano, com o que ele libera e os dois prazos */
+.planos-blocos{display:grid;gap:14px}
+.plano-bloco{border:1px solid var(--cinza-300);border-radius:12px;padding:14px}
+.plano-bloco.ativo{border-color:var(--primaria);box-shadow:0 0 0 1px var(--primaria) inset}
+.plano-bloco-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+  margin-bottom:8px}
+.plano-modulos{list-style:none;padding:0;margin:0 0 10px;display:flex;flex-wrap:wrap;gap:6px}
+.plano-modulos li{font-size:12px;background:var(--cinza-100);border-radius:999px;
+  padding:3px 10px;color:var(--cinza-500)}
+.plano-modulos li::before{content:"✓ ";color:var(--verde);font-weight:800}
 
 .pix-grade{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start}
 .pix-qr{background:#fff;border:1px solid var(--borda);border-radius:10px;padding:8px;width:190px}

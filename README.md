@@ -103,7 +103,8 @@ com o suporte, em vez de dados de pagamento inventados.
 
 - **Página inicial** apresentando os recursos, como funciona e os planos, com botões de
   **Entrar** e **Criar conta grátis**.
-- **Auto-cadastro**: o visitante informa nome, e-mail, senha, empresa e plano pretendido.
+- **Auto-cadastro**: o visitante informa nome, e-mail, senha, empresa e o plano pretendido
+  (plano e prazo na mesma escolha).
   A conta é criada já com plano de contas, centros de custo e operações padrão.
 - **Teste de 48 horas** liberado na hora, sem cartão. Uma faixa no topo do sistema mostra
   quanto tempo ainda resta.
@@ -113,15 +114,48 @@ com o suporte, em vez de dados de pagamento inventados.
   lançados continuam guardados.
 - O assinante clica em **“Já fiz o Pix”**; você confere o recebimento e clica em
   **Confirmar Pix**, o que **libera o acesso** pelo prazo do plano (6 ou 12 meses).
+- **Cada conta enxerga só o que contratou**: o menu mostra apenas as telas do plano, e o
+  servidor recusa o que está fora dele.
 - **Isolamento entre contas**: cada assinante enxerga somente as próprias empresas e
   usuários; apenas o perfil MASTER administra o sistema.
 
-| Plano | Valor | Duração | Equivale a |
-|---|---|---|---|
-| Semestral | R$ 350,00 | 6 meses | R$ 58,33/mês |
-| Anual | R$ 600,00 | 12 meses | R$ 50,00/mês |
+#### Os quatro planos
 
-Os valores, a duração e as horas de teste são editáveis em **Config. do site**.
+O que muda de um plano para o outro **não é o prazo**: é o que a conta pode usar. Contrato de
+assessoria, financeiro inteiro (contas a receber e a pagar, caixa, DRE, balancete e
+relatórios) e **emissão de NF-e** estão em todos. O que separa os planos são dois módulos:
+**cupom fiscal eletrônico** e **GTA**.
+
+| Plano | Além do miolo | Semestral | Anual |
+|---|---|---|---|
+| Plano 1 | — | R$ 399,90 | R$ 699,90 |
+| Plano 2 | Cupom fiscal | R$ 459,90 | R$ 859,90 |
+| Plano 3 | GTA | R$ 519,90 | R$ 969,90 |
+| Plano 4 | Cupom fiscal **e** GTA | R$ 579,90 | R$ 1.069,90 |
+
+O código gravado na assinatura carrega as duas escolhas juntas — `P3_ANUAL` é *Plano 3 por 12
+meses*. Os oito preços, a duração de cada prazo e as horas de teste são editáveis em
+**Config. do site**.
+
+#### Como o sistema respeita o plano
+
+Cada plano tem uma lista de **módulos**; cada módulo, uma lista de **rotas** do menu. Daí saem
+duas barreiras, e as duas são necessárias:
+
+- no **servidor**, a dependência `exigir_modulo` recusa a chamada com a frase dizendo em que
+  planos aquilo está (`Cupom fiscal eletrônico não faz parte do seu plano. Está no Plano 2 e
+  Plano 4.`) — esconder botão não é segurança, quem souber o endereço chama a rota do mesmo
+  jeito;
+- na **tela**, o menu não mostra o que a conta não tem, e endereço digitado à mão cai no
+  painel com o aviso. A lista de rotas liberadas vem do servidor junto com a situação da
+  assinatura, então trocar de plano redesenha o menu na hora.
+
+Contas de antes dos planos separados (plano gravado como `SEMESTRAL` ou `ANUAL`) contrataram o
+sistema do jeito que ele era: valem como **Plano 4**, e ninguém perde nada na atualização.
+
+Código: `backend/planos.py` (o catálogo: módulos, níveis, preços e rotas), `exigir_modulo` em
+`backend/deps.py` e o menu em `frontend/js/app.js`.
+Teste: `python testes/teste_planos.py`.
 
 ### Faixa de cotações do café (rodapé)
 
@@ -896,6 +930,7 @@ sistema-financeiro/
 │   ├── cupom.py                 Cupom fiscal (NFC-e 65): QR Code, CSC e endereços da SEFAZ
 │   ├── danfe_cupom.py           A folha do cupom, em 80 mm, com o QR Code
 │   ├── gta.py                   GTA: espécies, conferência e ficha de preparo do portal
+│   ├── planos.py                Os quatro planos: módulos, preços e o que cada um libera
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -952,6 +987,7 @@ sistema-financeiro/
     ├── teste_cupom.py           Teste do cupom fiscal: schema oficial e QR Code conferido
     ├── teste_email.py           Teste do envio da nota por e-mail (XML + DANFE em PDF)
     ├── teste_gta.py             Teste da GTA: conferência, validade e ficha de preparo
+    ├── teste_planos.py          Teste dos quatro planos e do que cada conta enxerga
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
@@ -987,6 +1023,7 @@ python testes/teste_base_da_regra.py    # a base do item da nota vem da regra fi
 python testes/teste_email.py        # nota por e-mail, com servidor SMTP de mentira
 python testes/teste_cupom.py        # cupom fiscal (NFC-e): XML no schema e QR Code
 python testes/teste_gta.py          # GTA: conferência, validade, resumo e ficha de preparo
+python testes/teste_planos.py       # os quatro planos, o bloqueio por plano e o menu
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:

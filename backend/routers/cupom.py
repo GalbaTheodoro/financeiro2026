@@ -27,11 +27,15 @@ from sqlalchemy.orm import Session
 
 from .. import correio, cupom as nfce, dfe as motor
 from ..database import get_db
-from ..deps import acesso_liberado, validar_empresa
+from ..deps import exigir_modulo, validar_empresa
 from ..models import ConfigCupom, Empresa, Nota, NotaPagamento, Usuario
 from ..utils import dinheiro, serializar
 
 router = APIRouter(prefix="/api/cupom", tags=["cupom"])
+
+# O cupom fiscal só existe nos planos que o incluem — a porta é fechada aqui,
+# no servidor, não só no menu.
+_do_plano = exigir_modulo("CUPOM")
 
 
 class ConfigCupomIn(BaseModel):
@@ -93,14 +97,14 @@ def _ficha_config(config: ConfigCupom | None, empresa: Empresa) -> dict:
 
 @router.get("/config")
 def ler_config(empresa_id: int, db: Session = Depends(get_db),
-               usuario: Usuario = Depends(acesso_liberado)):
+               usuario: Usuario = Depends(_do_plano)):
     empresa = validar_empresa(db, empresa_id, usuario)
     return _ficha_config(config_do_cupom(db, empresa_id), empresa)
 
 
 @router.put("/config")
 def salvar_config(dados: ConfigCupomIn, db: Session = Depends(get_db),
-                  usuario: Usuario = Depends(acesso_liberado)):
+                  usuario: Usuario = Depends(_do_plano)):
     empresa = validar_empresa(db, dados.empresa_id, usuario)
     config = config_do_cupom(db, dados.empresa_id)
     if config is None:
@@ -134,7 +138,7 @@ def salvar_config(dados: ConfigCupomIn, db: Session = Depends(get_db),
 # --------------------------------------------------------------------------- #
 @router.post("/venda")
 def vender(dados: VendaIn, db: Session = Depends(get_db),
-           usuario: Usuario = Depends(acesso_liberado)):
+           usuario: Usuario = Depends(_do_plano)):
     """Cria o cupom e já transmite. É a tela de balcão em uma chamada só."""
     from ..schemas import NotaEmitidaIn
     from .emissao import _aplicar_itens, criar_rascunho, transmitir
@@ -209,7 +213,7 @@ def vender(dados: VendaIn, db: Session = Depends(get_db),
 
 @router.get("/{nota_id}")
 def abrir(nota_id: int, db: Session = Depends(get_db),
-          usuario: Usuario = Depends(acesso_liberado)):
+          usuario: Usuario = Depends(_do_plano)):
     nota = _cupom(db, nota_id, usuario)
     return {"cupom": serializar(nota, exclude={"xml"}, extras={
         "itens": [serializar(i) for i in nota.itens],
@@ -242,7 +246,7 @@ def _pode_cancelar(nota: Nota) -> tuple[bool, str]:
 
 @router.get("/{nota_id}/impressao", response_class=None)
 def imprimir(nota_id: int, db: Session = Depends(get_db),
-             usuario: Usuario = Depends(acesso_liberado)):
+             usuario: Usuario = Depends(_do_plano)):
     """A folha do cupom, no tamanho da bobina de 80 mm."""
     from fastapi.responses import HTMLResponse
 

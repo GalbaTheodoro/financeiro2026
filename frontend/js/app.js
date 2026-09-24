@@ -1,4 +1,10 @@
-/* Inicialização, menu e roteamento. */
+/* Inicialização, menu e roteamento.
+
+   O menu não é fixo: ele é o que o **plano da conta** libera. O servidor manda,
+   junto com a situação da assinatura, a lista de rotas permitidas (`rotas`), e
+   é ela que decide o que aparece na barra e o que acontece quando alguém digita
+   um endereço à mão. Esconder o item é conforto — quem barra de verdade é o
+   servidor (ver `exigir_modulo` em backend/deps.py). */
 const App = {
   rotas: {
     '/painel': { titulo: 'Painel', subtitulo: 'Visão geral do financeiro', acao: () => Relatorios.painel() },
@@ -17,6 +23,24 @@ const App = {
     '/admin-assinaturas': { titulo: 'Assinaturas', subtitulo: 'Contas cadastradas e confirmação de pagamentos', acao: () => Assinaturas.admin(), master: true },
     '/configuracoes': { titulo: 'Configurações do site', subtitulo: 'Identidade, contatos, Pix e planos', acao: () => Assinaturas.configuracoes(), master: true },
   },
+
+  /** As rotas que o plano da conta libera. Sem lista = tudo (conta interna). */
+  rotasDoPlano() {
+    const assinatura = Estado.usuario?.assinatura;
+    return Array.isArray(assinatura?.rotas) ? assinatura.rotas : null;
+  },
+
+  /** Esta rota faz parte do plano? Cadastros, assinatura e admin são de todos. */
+  noPlano(rota) {
+    const liberadas = App.rotasDoPlano();
+    if (!liberadas) return true;
+    if (!App.ROTAS_DE_PLANO.includes(rota)) return true;
+    return liberadas.includes(rota);
+  },
+
+  /* Só estas rotas dependem do plano; o resto é de toda conta. */
+  ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/notas',
+    '/dfe', '/cupom', '/gta', '/relatorios'],
 
   menu() {
     const itens = [
@@ -52,7 +76,13 @@ const App = {
       { grupo: 'Ajuda' },
       { link: App.MANUAL, icone: '?', rotulo: 'Manual do sistema (PDF)' },
     );
-    return itens;
+    // fora o que o plano não inclui — e o título de grupo que ficou sem nenhum item
+    const doPlano = itens.filter((i) => !i.rota || App.noPlano(i.rota));
+    return doPlano.filter((item, i) => {
+      if (!item.grupo) return true;
+      const proximo = doPlano[i + 1];
+      return proximo && !proximo.grupo;
+    });
   },
 
   /* Manual em PDF (frontend/manual/). Abre numa aba nova e dá para baixar. */
@@ -89,6 +119,11 @@ const App = {
     }
     const rota = App.rotas[caminho] || App.rotas['/painel'];
     if (rota.master && !Api.ehMaster()) return App.irPara('/painel');
+    // endereço digitado à mão para uma tela que o plano não tem
+    if (!App.noPlano(caminho)) {
+      UI.erro(`${rota.titulo} não faz parte do seu plano. Veja em Minha Assinatura.`);
+      return App.irPara(App.primeiraRota());
+    }
 
     document.getElementById('titulo-pagina').textContent = rota.titulo;
     document.getElementById('subtitulo-pagina').textContent = rota.subtitulo;
@@ -108,6 +143,13 @@ const App = {
 
   irPara(rota) {
     location.hash = `#${rota}`;
+  },
+
+  /** Onde a conta cai quando o painel não faz parte do plano dela. */
+  primeiraRota() {
+    if (App.noPlano('/painel')) return '/painel';
+    const item = App.menu().find((i) => i.rota);
+    return item ? item.rota : '/cadastros';
   },
 
   recarregar() {

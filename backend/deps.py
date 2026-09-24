@@ -3,6 +3,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from . import assinaturas as regras
+from . import planos as catalogo
 from .database import get_db
 from .models import Assinatura, Empresa, Usuario
 from .security import ler_token
@@ -170,3 +171,40 @@ async def acesso_liberado(
             if isinstance(corpo, dict) and corpo.get("empresa_id") is not None:
                 conferir(corpo.get("empresa_id"))
     return usuario
+
+
+# --------------------------------------------------------------------------- #
+# O que o plano da conta libera
+# --------------------------------------------------------------------------- #
+def modulos_da_conta(db: Session, usuario: Usuario) -> tuple[str, ...]:
+    """Os módulos que essa conta contratou.
+
+    Conta interna (MASTER) e conta sem assinatura vinculada usam tudo — quem não
+    tem assinatura é a operação do próprio sistema, não um assinante.
+    """
+    if usuario.perfil == "MASTER":
+        return tuple(catalogo.todos_os_modulos())
+    assinatura = assinatura_do_usuario(db, usuario)
+    if assinatura is None:
+        return tuple(catalogo.todos_os_modulos())
+    return catalogo.modulos_do_plano(assinatura.plano)
+
+
+def exigir_modulo(modulo: str):
+    """Dependência que fecha a porta do que o plano não inclui.
+
+    Esconder o botão no menu é conforto, não segurança: quem souber o endereço
+    chama a rota do mesmo jeito. Por isso a barreira de verdade é esta, e a
+    frase já diz em que plano está o que a pessoa procurou.
+    """
+
+    async def dependencia(
+        usuario: Usuario = Depends(acesso_liberado),
+        db: Session = Depends(get_db),
+    ) -> Usuario:
+        if modulo not in modulos_da_conta(db, usuario):
+            raise HTTPException(status.HTTP_403_FORBIDDEN,
+                                catalogo.frase_de_bloqueio(modulo))
+        return usuario
+
+    return dependencia

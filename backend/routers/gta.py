@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from .. import gta as regras
 from ..database import get_db
-from ..deps import acesso_liberado, validar_empresa
+from ..deps import exigir_modulo, validar_empresa
 from ..models import (
     Contrato,
     Empresa,
@@ -41,6 +41,10 @@ from ..models import (
 from ..utils import parse_data, serializar
 
 router = APIRouter(prefix="/api/gta", tags=["gta"])
+
+# A GTA só existe nos planos que a incluem — a porta é fechada aqui, no
+# servidor, não só no menu.
+_do_plano = exigir_modulo("GTA")
 
 
 class CategoriaIn(BaseModel):
@@ -107,7 +111,7 @@ class SituacaoIn(BaseModel):
 # Leitura
 # --------------------------------------------------------------------------- #
 @router.get("/tabelas")
-def tabelas(usuario: Usuario = Depends(acesso_liberado)):
+def tabelas(usuario: Usuario = Depends(_do_plano)):
     """As listas de escolha da tela. Vêm do servidor para não ficarem duplicadas."""
     return regras.tabelas()
 
@@ -145,7 +149,7 @@ def listar(
     situacao: str | None = None,
     busca: str | None = None,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(acesso_liberado),
+    usuario: Usuario = Depends(_do_plano),
 ):
     validar_empresa(db, empresa_id, usuario)
     consulta = db.query(GuiaTransitoAnimal).filter(
@@ -217,13 +221,13 @@ def _resumo(fichas: list[dict]) -> dict:
 
 @router.get("/{guia_id}")
 def abrir(guia_id: int, db: Session = Depends(get_db),
-          usuario: Usuario = Depends(acesso_liberado)):
+          usuario: Usuario = Depends(_do_plano)):
     return {"guia": _ficha(_guia(db, guia_id, usuario))}
 
 
 @router.get("/{guia_id}/preparo")
 def preparo(guia_id: int, db: Session = Depends(get_db),
-            usuario: Usuario = Depends(acesso_liberado)):
+            usuario: Usuario = Depends(_do_plano)):
     """A ficha para levar ao portal do estado, na ordem em que ele pergunta."""
     guia = _guia(db, guia_id, usuario)
     empresa = db.get(Empresa, guia.empresa_id)
@@ -232,7 +236,7 @@ def preparo(guia_id: int, db: Session = Depends(get_db),
 
 @router.get("/{guia_id}/anexo", response_class=None)
 def anexo(guia_id: int, db: Session = Depends(get_db),
-          usuario: Usuario = Depends(acesso_liberado)):
+          usuario: Usuario = Depends(_do_plano)):
     """O PDF da guia que o usuário guardou junto."""
     from fastapi.responses import Response
 
@@ -361,7 +365,7 @@ def _aplicar(db: Session, guia: GuiaTransitoAnimal, dados: GuiaIn) -> None:
 
 @router.post("")
 def criar(dados: GuiaIn, db: Session = Depends(get_db),
-          usuario: Usuario = Depends(acesso_liberado)):
+          usuario: Usuario = Depends(_do_plano)):
     empresa = validar_empresa(db, dados.empresa_id, usuario)
     guia = GuiaTransitoAnimal(empresa_id=empresa.id, usuario_id=usuario.id)
     if not (dados.uf_emissora or "").strip():
@@ -375,7 +379,7 @@ def criar(dados: GuiaIn, db: Session = Depends(get_db),
 
 @router.put("/{guia_id}")
 def salvar(guia_id: int, dados: GuiaIn, db: Session = Depends(get_db),
-           usuario: Usuario = Depends(acesso_liberado)):
+           usuario: Usuario = Depends(_do_plano)):
     guia = _guia(db, guia_id, usuario)
     if dados.empresa_id != guia.empresa_id:
         raise HTTPException(400, "Esta guia é de outra empresa.")
@@ -387,7 +391,7 @@ def salvar(guia_id: int, dados: GuiaIn, db: Session = Depends(get_db),
 
 @router.post("/{guia_id}/situacao")
 def mudar_situacao(guia_id: int, dados: SituacaoIn, db: Session = Depends(get_db),
-                   usuario: Usuario = Depends(acesso_liberado)):
+                   usuario: Usuario = Depends(_do_plano)):
     """Marca a guia como emitida, utilizada ou cancelada — sem reabrir a tela toda.
 
     É o caminho de todo dia: a pessoa emitiu no portal e volta aqui só para
@@ -429,7 +433,7 @@ def mudar_situacao(guia_id: int, dados: SituacaoIn, db: Session = Depends(get_db
 
 @router.delete("/{guia_id}")
 def apagar(guia_id: int, db: Session = Depends(get_db),
-           usuario: Usuario = Depends(acesso_liberado)):
+           usuario: Usuario = Depends(_do_plano)):
     guia = _guia(db, guia_id, usuario)
     if (guia.situacao or "") == "EMITIDA" and guia.numero:
         raise HTTPException(

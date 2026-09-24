@@ -43,10 +43,14 @@ email_b = f"cliente.b{sufixo}@teste.com"
 
 print("\n=== 1. Site público ===")
 info = api("GET", "/api/publico/info")
-planos = {p["codigo"]: p for p in info["planos"]}
-checar("site informa os planos", set(planos) == {"SEMESTRAL", "ANUAL"})
-checar("plano semestral R$ 350", planos["SEMESTRAL"]["valor"] == 350.0, f"R$ {planos['SEMESTRAL']['valor']:.2f}")
-checar("plano anual R$ 600", planos["ANUAL"]["valor"] == 600.0, f"R$ {planos['ANUAL']['valor']:.2f}")
+# os planos agora são quatro, cada um com os dois prazos dentro
+planos = {p["nome"]: p for p in info["planos"]}
+checar("site informa os quatro planos",
+       set(planos) == {"Plano 1", "Plano 2", "Plano 3", "Plano 4"}, str(sorted(planos)))
+checar("Plano 1 semestral R$ 399,90", planos["Plano 1"]["semestral"]["valor"] == 399.90,
+       f"R$ {planos['Plano 1']['semestral']['valor']:.2f}")
+checar("Plano 4 anual R$ 1.069,90", planos["Plano 4"]["anual"]["valor"] == 1069.90,
+       f"R$ {planos['Plano 4']['anual']['valor']:.2f}")
 checar("teste de 48 horas", info["horas_teste"] == 48, f"{info['horas_teste']}h")
 
 print("\n=== 2. Configuração do Pix pelo administrador ===")
@@ -64,7 +68,7 @@ checar("perfil do administrador é MASTER", master["usuario"]["perfil"] == "MAST
 print("\n=== 3. Cadastro pelo site ===")
 conta_a = api("POST", "/api/publico/cadastro", {
     "nome": "Cliente A", "email": email_a, "senha": "123456",
-    "empresa": "Empresa A Ltda", "plano": "SEMESTRAL", "telefone": "(11) 91111-1111",
+    "empresa": "Empresa A Ltda", "plano": "P1_SEMESTRAL", "telefone": "(11) 91111-1111",
 })
 ta = conta_a["token"]
 checar("conta criada com acesso liberado", conta_a["assinatura"]["liberado"] is True)
@@ -87,7 +91,7 @@ checar("assinante consegue lançar durante o teste", lanc["id"] > 0)
 print("\n=== 5. Isolamento entre contas ===")
 conta_b = api("POST", "/api/publico/cadastro", {
     "nome": "Cliente B", "email": email_b, "senha": "123456",
-    "empresa": "Empresa B Ltda", "plano": "ANUAL",
+    "empresa": "Empresa B Ltda", "plano": "P2_ANUAL",
 })
 tb = conta_b["token"]
 empresas_b = api("GET", "/api/empresas", token=tb)
@@ -114,8 +118,13 @@ checar("tela de assinatura continua acessível", minha["situacao"]["motivo"] == 
 checar("dados de pagamento disponíveis mesmo bloqueado", minha["pagamento"]["configurado"] is True)
 
 print("\n=== 7. Troca de plano e informe do Pix ===")
-troca = api("POST", "/api/assinatura/plano", {"plano": "ANUAL"}, ta)
-checar("assinante pode trocar o plano antes de pagar", troca["pagamento"]["plano"]["valor"] == 600.0)
+troca = api("POST", "/api/assinatura/plano", {"plano": "P4_ANUAL"}, ta)
+checar("assinante pode trocar o plano antes de pagar",
+       troca["pagamento"]["plano"]["valor"] == 1069.90,
+       f'R$ {troca["pagamento"]["plano"]["valor"]:.2f}')
+checar("e o que a conta enxerga muda junto",
+       {"CUPOM", "GTA"} <= set(troca["situacao"]["modulos"]),
+       str(troca["situacao"]["modulos"]))
 aviso = api("POST", "/api/assinatura/pagamento", {"observacao": "Pix feito às 10h"}, ta)
 checar("pagamento informado", aviso["ok"] is True)
 ainda = api("GET", f"/api/relatorios/dashboard?empresa_id={eid}", token=ta, esperar_erro=True)

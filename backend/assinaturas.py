@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from . import planos as catalogo
 from .models import Assinatura, Configuracao
 from .utils import adicionar_meses, dinheiro
 
@@ -28,9 +29,9 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
     "pix_titular": ("", "Nome do titular da chave Pix (como aparece no comprovante)", True),
     "pix_cidade": ("SAO PAULO", "Cidade do titular (usada no Pix copia e cola)", False),
     "pix_banco": ("", "Banco da chave Pix (informativo)", True),
-    "plano_semestral_valor": ("350", "Valor do plano semestral (R$)", True),
+    # o preço de cada plano em cada prazo mora em planos.py (oito chaves,
+    # acrescentadas logo abaixo por configuracoes_de_preco)
     "plano_semestral_meses": ("6", "Duração do plano semestral em meses", True),
-    "plano_anual_valor": ("600", "Valor do plano anual (R$)", True),
     "plano_anual_meses": ("12", "Duração do plano anual em meses", True),
     "horas_teste": ("48", "Horas de acesso liberado logo após o cadastro", True),
     "usuarios_incluidos": ("3", "Usuários já inclusos no valor da assinatura (por empresa)", True),
@@ -80,6 +81,10 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
     ),
 }
 
+# Os oito preços (quatro planos x dois prazos) entram aqui vindos de planos.py,
+# para o catálogo ficar num lugar só.
+CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_preco())
+
 
 # --------------------------------------------------------------------------- #
 # Configurações
@@ -116,6 +121,17 @@ def garantir_configuracoes(db: Session) -> int:
             incluidos.valor = "3"
             incluidos.descricao = CONFIGURACOES_PADRAO["usuarios_incluidos"][1]
         db.add(Configuracao(chave=marca, valor="1", descricao="marca interna", publica=False))
+        criadas += 1
+    # Uma vez só: o preço deixou de ser "semestral e anual" e passou a ser um por
+    # plano (set/2026). As duas chaves antigas saem da tela para ninguém editar um
+    # valor que já não é usado por nada.
+    marca_planos = "_precos_por_plano"
+    if marca_planos not in registros:
+        for antiga in ("plano_semestral_valor", "plano_anual_valor"):
+            if antiga in registros:
+                db.delete(registros[antiga])
+        db.add(Configuracao(chave=marca_planos, valor="1", descricao="marca interna",
+                            publica=False))
         criadas += 1
     if criadas:
         db.flush()
@@ -166,42 +182,84 @@ def _numero(texto: str, padrao: float) -> float:
         return padrao
 
 
+def _meses(db: Session) -> dict[str, int]:
+    return {
+        "SEMESTRAL": int(_numero(config(db, "plano_semestral_meses"), 6)),
+        "ANUAL": int(_numero(config(db, "plano_anual_meses"), 12)),
+    }
+
+
+def _preco(db: Session, nivel: int, periodo: str, padrao: float) -> float:
+    return _numero(config(db, catalogo.chave_do_valor(nivel, periodo)), padrao)
+
+
+def _prazo(db: Session, nivel: int, periodo: str, padrao: float, meses: dict) -> dict:
+    """Um prazo de um plano: código, valor, meses e quanto dá por mês."""
+    quantos = max(meses.get(periodo.upper(), 6), 1)
+    valor = _preco(db, nivel, periodo, padrao)
+    return {
+        "codigo": catalogo.codigo(nivel, periodo),
+        "periodo": periodo.upper(),
+        "rotulo": catalogo.PERIODOS[periodo.upper()],
+        "valor": dinheiro(valor),
+        "meses": quantos,
+        "valor_mes": round(valor / quantos, 2),
+    }
+
+
 def planos(db: Session) -> list[dict]:
-    semestral_valor = _numero(config(db, "plano_semestral_valor"), 350)
-    anual_valor = _numero(config(db, "plano_anual_valor"), 600)
-    semestral_meses = int(_numero(config(db, "plano_semestral_meses"), 6))
-    anual_meses = int(_numero(config(db, "plano_anual_meses"), 12))
-    economia = round(semestral_valor * (anual_meses / semestral_meses) - anual_valor, 2)
-    return [
-        {
-            "codigo": "SEMESTRAL",
-            "nome": "Plano Semestral",
-            "valor": dinheiro(semestral_valor),
-            "meses": semestral_meses,
-            "valor_mes": round(semestral_valor / max(semestral_meses, 1), 2),
-            "descricao": f"Acesso completo por {semestral_meses} meses, pagamento único via Pix.",
-            "destaque": False,
-            "economia": 0,
-        },
-        {
-            "codigo": "ANUAL",
-            "nome": "Plano Anual",
-            "valor": dinheiro(anual_valor),
-            "meses": anual_meses,
-            "valor_mes": round(anual_valor / max(anual_meses, 1), 2),
-            "descricao": f"Acesso completo por {anual_meses} meses, pagamento único via Pix.",
-            "destaque": True,
+    """Os quatro planos, cada um com os seus dois prazos e o que libera.
+
+    É daqui que saem a página inicial, a tela de escolha do plano e a lista de
+    módulos que o menu usa para esconder o que a conta não contratou.
+    """
+    meses = _meses(db)
+    saida = []
+    for plano in catalogo.NIVEIS:
+        nivel = plano["nivel"]
+        modulos = catalogo.modulos_do_nivel(nivel)
+        semestral = _prazo(db, nivel, "SEMESTRAL", plano["semestral"], meses)
+        anual = _prazo(db, nivel, "ANUAL", plano["anual"], meses)
+        economia = round(
+            semestral["valor"] * (anual["meses"] / max(semestral["meses"], 1))
+            - anual["valor"], 2)
+        saida.append({
+            "nivel": nivel,
+            "nome": plano["nome"],
+            "para": plano["para"],
+            "modulos": [{"codigo": m, "nome": catalogo.MODULOS[m][0],
+                         "texto": catalogo.MODULOS[m][1]} for m in modulos],
+            "extras": list(plano["extras"]),
+            "prazos": [semestral, anual],
+            "semestral": semestral,
+            "anual": anual,
             "economia": max(economia, 0),
-        },
-    ]
+            # o plano completo é o destacado na página inicial
+            "destaque": nivel == 4,
+        })
+    return saida
 
 
 def plano_por_codigo(db: Session, codigo: str) -> dict:
-    codigo = (codigo or "SEMESTRAL").upper()
-    for plano in planos(db):
-        if plano["codigo"] == codigo:
-            return plano
-    return planos(db)[0]
+    """O plano de um código como ``P3_ANUAL`` — ou dos códigos antigos.
+
+    Devolve tudo achatado (nível, período, valor, meses, módulos), que é o que
+    quem grava a assinatura precisa.
+    """
+    nivel, periodo = catalogo.separar(codigo)
+    lista = planos(db)
+    # separar() sempre devolve um nível que existe; o primeiro é só a rede
+    plano = next((p for p in lista if p["nivel"] == nivel), lista[0])
+    prazo = plano["anual"] if periodo == "ANUAL" else plano["semestral"]
+    return {
+        **prazo,
+        "nivel": plano["nivel"],
+        "nome": plano["nome"],
+        "nome_completo": f'{plano["nome"]} {prazo["rotulo"].lower()}',
+        "modulos": [m["codigo"] for m in plano["modulos"]],
+        "descricao": (f'{plano["nome"]}: acesso por {prazo["meses"]} meses, '
+                      "pagamento único via Pix."),
+    }
 
 
 def horas_teste(db: Session) -> int:
@@ -343,13 +401,24 @@ def criar_assinatura(db: Session, usuario_id: int, empresa_id: int, codigo_plano
 def situacao(db: Session, assinatura: Assinatura | None) -> dict:
     """Diz se a conta pode usar o sistema e por quê."""
     if assinatura is None:
-        return {"liberado": True, "status": "INTERNA", "motivo": "", "titulo": "Conta interna"}
+        # conta interna (MASTER): usa tudo
+        return {"liberado": True, "status": "INTERNA", "motivo": "", "titulo": "Conta interna",
+                "modulos": catalogo.todos_os_modulos(),
+                "rotas": catalogo.rotas_dos_modulos(catalogo.todos_os_modulos())}
 
     agora = datetime.utcnow()
     hoje = date.today()
+    escolhido = plano_por_codigo(db, assinatura.plano)
     dados = {
         "assinatura_id": assinatura.id,
         "plano": assinatura.plano,
+        "plano_nome": escolhido["nome"],
+        "plano_nivel": escolhido["nivel"],
+        "plano_periodo": escolhido["periodo"],
+        "plano_rotulo": escolhido["nome_completo"],
+        # é daqui que o menu sabe o que mostrar
+        "modulos": escolhido["modulos"],
+        "rotas": catalogo.rotas_dos_modulos(escolhido["modulos"]),
         "valor": dinheiro(assinatura.valor),
         "status": assinatura.status,
         "teste_fim": assinatura.teste_fim.isoformat(timespec="seconds") if assinatura.teste_fim else None,

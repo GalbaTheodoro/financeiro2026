@@ -24,6 +24,7 @@ from .routers import (
     dfe,
     emissao,
     fiscal,
+    gta,
     icms,
     lancamentos,
     notas,
@@ -104,6 +105,7 @@ app.include_router(icms.router)
 app.include_router(fiscal.router)
 app.include_router(correio.router)
 app.include_router(cupom.router)
+app.include_router(gta.router)
 app.include_router(dfe.router)
 app.include_router(notas.router)
 app.include_router(emissao.router)

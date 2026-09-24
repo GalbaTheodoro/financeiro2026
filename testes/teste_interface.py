@@ -39,6 +39,8 @@ TELAS = [
     ("cadastros/plano-contas", "Cadastros"),
     ("cadastros/empresas", "Cadastros"),
     ("notas", "Notas Fiscais"),
+    ("cupom", "Cupom Fiscal"),
+    ("gta", "GTA"),
     ("cadastros/usuarios", "Cadastros"),
     ("cadastros/parametros", "Cadastros"),
 ]
@@ -472,6 +474,79 @@ with sync_playwright() as p:
 
     pagina.evaluate("UI.fecharModal()")   # garante que nada fique aberto por cima
     pagina.wait_for_timeout(400)
+
+    # ------------------------------------------- GTA — guia de trânsito animal
+    # A tela não emite nada: ela confere o que o portal do estado vai cobrar e
+    # imprime a ficha de preparo. É isso que se testa aqui.
+    pagina.goto(f"{BASE}/#/gta")
+    pagina.wait_for_timeout(1000)
+    ok_aviso = "não existe webservice de GTA" in pagina.inner_text("#pagina").lower() \
+        or "webservice" in pagina.inner_text("#pagina").lower()
+    print(f"  [{'OK  ' if ok_aviso else 'FALHA'}] tela da GTA explica que quem emite é o portal")
+    if not ok_aviso:
+        erros.append("tela da GTA não explica de onde sai a guia")
+
+    pagina.click("#btn-nova-gta")
+    pagina.wait_for_timeout(700)
+    faltas = pagina.query_selector("#faltas-gta")
+    pagina.select_option('#modal-corpo [name="especie"]', "BOVINO")
+    pagina.wait_for_timeout(300)
+    pagina.click("#btn-add-cat")
+    pagina.wait_for_timeout(300)
+    opcoes_faixa = pagina.eval_on_selector_all(
+        '#modal-corpo [name="cat_faixa_0"] option', "els => els.map(e => e.value)")
+    ok_faixas = "13 a 24 meses" in opcoes_faixa
+    print(f"  [{'OK  ' if ok_faixas else 'FALHA'}] categorias com as faixas do bovino "
+          f"({len(opcoes_faixa)})")
+    if not ok_faixas:
+        erros.append("faixas de idade do bovino não apareceram")
+
+    # trocar a faixa redesenha a tabela das categorias — por isso vem antes da quantidade
+    pagina.select_option('#modal-corpo [name="cat_faixa_0"]', "13 a 24 meses")
+    pagina.wait_for_timeout(300)
+    pagina.fill('#modal-corpo [name="cat_qtd_0"]', "12")
+    pagina.select_option('#modal-corpo [name="finalidade"]', "ABATE")
+    pagina.fill('#modal-corpo [name="origem_nome"]', "JOSE DA SILVA")
+    pagina.fill('#modal-corpo [name="origem_propriedade"]', "FAZENDA BOA ESPERANCA")
+    pagina.fill('#modal-corpo [name="origem_inscricao"]', "0011223344556")
+    pagina.fill('#modal-corpo [name="origem_municipio"]', "Patrocínio")
+    pagina.select_option('#modal-corpo [name="origem_uf"]', "MG")
+    pagina.click('#modal-rodape button:text-is("Salvar")')
+    pagina.wait_for_timeout(1200)
+
+    texto_lista = pagina.inner_text("#lista-gta")
+    ok_lista = "BOA ESPERANCA" in texto_lista.upper() and "12 animais" in texto_lista
+    print(f"  [{'OK  ' if ok_lista else 'FALHA'}] guia gravada aparece na lista com os animais")
+    if not ok_lista:
+        erros.append("guia não apareceu na lista da GTA")
+
+    pagina.click('#lista-gta [data-abrir="0"]')
+    pagina.wait_for_timeout(800)
+    conferencia = pagina.inner_text("#faltas-gta")
+    ok_conferencia = "destino" in conferencia.lower() and "portal" in conferencia.lower()
+    print(f"  [{'OK  ' if ok_conferencia else 'FALHA'}] a conferência cobra o que falta "
+          f"-> {conferencia[:60].replace(chr(10), ' ')}")
+    if not ok_conferencia:
+        erros.append("conferência da GTA não listou as pendências")
+    if faltas is None:
+        erros.append("painel de conferência da GTA não existe no formulário")
+
+    with pagina.context.expect_page() as nova:
+        pagina.click('#modal-rodape button:text-is("Ficha de preparo")')
+    folha = nova.value
+    folha.wait_for_timeout(900)
+    # os títulos das seções vão em maiúscula pelo CSS, então a conferência ignora caixa
+    texto_folha = folha.inner_text("body").lower()
+    ok_folha = "siapec" in texto_folha and "1. origem" in texto_folha \
+        and "não é a gta" in texto_folha and "13 a 24 meses" in texto_folha
+    print(f"  [{'OK  ' if ok_folha else 'FALHA'}] ficha de preparo abre com o portal de Minas")
+    if not ok_folha:
+        erros.append("ficha de preparo da GTA saiu incompleta")
+    folha.screenshot(path=SAIDA / "90-gta-ficha-preparo.png", full_page=True)
+    folha.close()
+    pagina.evaluate("UI.fecharModal()")
+    pagina.wait_for_timeout(400)
+    pagina.screenshot(path=SAIDA / "91-gta.png", full_page=True)
 
     # ------------------------------------------------------ abas de relatório
     pagina.goto(f"{BASE}/#/relatorios")

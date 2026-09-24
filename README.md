@@ -657,6 +657,56 @@ tela em `frontend/js/emissao.js`.
 Teste: `python testes/teste_emissao.py` — monta e confere o XML inteiro **sem tocar na SEFAZ**.
 
 
+### GTA — Guia de Trânsito Animal
+
+**Movimento → GTA (trânsito animal)** guarda e vigia as guias dos produtores atendidos, e
+imprime a **ficha de preparo** para quem vai digitar no portal do estado.
+
+#### Por que o sistema não emite a GTA
+
+Porque **não existe webservice de GTA**. Ela não é documento fiscal eletrônico como a NF-e: é
+documento de defesa sanitária animal, e cada estado tem o seu sistema próprio e fechado, onde
+se entra com login pessoal — em Minas o **SIAPEC**, do IMA; em São Paulo o GEDAVE; em Goiás o
+SIDAGO; no Pará o Sigeagro; em Mato Grosso o INDEA. Quem emite é o **produtor** ou o
+**médico-veterinário habilitado**, com a senha dele. Não há endereço público para um sistema
+de terceiro mandar a guia, e a tela diz isso em cima, para ninguém procurar um botão que não
+pode existir.
+
+O que sobra — e é o que faltava — são duas coisas:
+
+**1. Controle.** Toda GTA fica guardada: origem e destino (produtor, propriedade, inscrição
+estadual, município/UF), espécie, categorias, finalidade, transporte, veterinário, número,
+emissão e validade, com vínculo ao contrato e à nota e o PDF da guia anexado. A situação é
+*em preparo*, *emitida*, *utilizada* ou *cancelada* — e **vencida o sistema calcula sozinho**,
+comparando a validade com o dia de hoje: guia emitida que passou da data aparece como vencida
+sem ninguém marcar nada, e o filtro por *vencida* usa essa conta, não a coluna. Faltando três
+dias ou menos, a linha acende em âmbar com a frase ("Faltam 2 dias para esta guia vencer").
+O cabeçalho conta válidas, vencendo, vencidas, em preparo e com pendência.
+
+**2. Preparo.** A **conferência** aponta, *antes* de abrir o portal, o que o portal vai
+cobrar: propriedade e inscrição estadual dos dois lados (o portal procura a fazenda, não a
+pessoa), finalidade, categorias, placa no rodoviário — e, quando a carga muda de estado, que a
+guia é interestadual e exige veterinário com CRMV. Os animais não entram como um número só:
+vão separados por **sexo e faixa de idade**, como o portal pede, com as faixas certas de cada
+espécie (bovino e bubalino em quatro faixas, suíno em três), e a quantidade total é a soma —
+divergência é apontada. Escolher o produtor no cadastro traz nome, documento, inscrição e
+município sozinho; o que foi digitado à mão manda sobre o cadastro, porque a propriedade pode
+ser outra.
+
+A **ficha de preparo** é a folha A4 para levar ao portal: diz o sistema e o órgão do estado,
+lista as pendências em vermelho no topo, e traz os blocos **na ordem das telas do portal** —
+origem, destino, animais, transporte, responsável técnico e, por último, os campos para anotar
+o número e a validade depois que a guia sair. Campo em branco sai marcado *— em branco —*, em
+vermelho. A folha avisa, em cima, que **não é a GTA**: a guia válida é a que sair do portal.
+
+Apagar guia já emitida no portal é barrado, porque apagar aqui não cancela lá — o caminho é
+cancelar no portal e marcar como cancelada, para o histórico ficar certo.
+
+Código: `backend/gta.py` (tabelas, conferência e ficha), `backend/routers/gta.py`; tela em
+`frontend/js/gta.js`.
+Teste: `python testes/teste_gta.py`.
+
+
 ### Onde pagar cada cliente/fornecedor
 
 Um mesmo parceiro costuma ter mais de uma forma de receber. Na lista de
@@ -845,6 +895,7 @@ sistema-financeiro/
 │   ├── correio.py               Envio de e-mail pela conta da empresa (SMTP), com anexos
 │   ├── cupom.py                 Cupom fiscal (NFC-e 65): QR Code, CSC e endereços da SEFAZ
 │   ├── danfe_cupom.py           A folha do cupom, em 80 mm, com o QR Code
+│   ├── gta.py                   GTA: espécies, conferência e ficha de preparo do portal
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -859,6 +910,9 @@ sistema-financeiro/
 │       ├── dfe.py               DF-e: certificado, busca na SEFAZ, DANFE e importação
 │       ├── notas.py             Notas fiscais: gestão, faturar e desfaturar
 │       ├── emissao.py           Emissão de NF-e: rascunho, transmissão e cancelamento
+│       ├── cupom.py             Cupom fiscal: CSC, venda de balcão e impressão
+│       ├── gta.py               GTA: guias dos produtores, situação e ficha de preparo
+│       ├── correio.py           Conta de e-mail da empresa e envio da nota
 │       ├── cadastros.py         Todos os cadastros
 │       ├── lancamentos.py       Títulos, parcelas e baixas
 │       ├── caixa.py             Extrato, movimentos e transferências
@@ -897,6 +951,7 @@ sistema-financeiro/
     ├── teste_base_da_regra.py   Teste de que a base do item sai da regra, e não da tela
     ├── teste_cupom.py           Teste do cupom fiscal: schema oficial e QR Code conferido
     ├── teste_email.py           Teste do envio da nota por e-mail (XML + DANFE em PDF)
+    ├── teste_gta.py             Teste da GTA: conferência, validade e ficha de preparo
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
@@ -931,6 +986,7 @@ python testes/teste_regras_fiscais.py   # tipos fiscais, tabela de regras e o im
 python testes/teste_base_da_regra.py    # a base do item da nota vem da regra fiscal
 python testes/teste_email.py        # nota por e-mail, com servidor SMTP de mentira
 python testes/teste_cupom.py        # cupom fiscal (NFC-e): XML no schema e QR Code
+python testes/teste_gta.py          # GTA: conferência, validade, resumo e ficha de preparo
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:

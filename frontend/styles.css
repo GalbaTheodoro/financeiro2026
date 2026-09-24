@@ -781,3 +781,12 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
   body.com-cotacoes .sidebar{height:100%}
   .faixa-cotacoes{font-size:12px}
 }
+
+/* ------------------------------------------- GTA (Guia de Trânsito Animal) - */
+/* A conferência: o que o portal do estado vai cobrar, dito antes de a pessoa
+   abrir o portal. Âmbar quando falta alguma coisa, verde quando está pronto. */
+.gta-conferencia{border:1px solid #fcd34d;background:var(--ambar-claro);color:#78350f;
+  border-radius:var(--raio);padding:10px 13px;margin-bottom:12px;font-size:13px;line-height:1.5}
+.gta-conferencia ul{margin:6px 0 0 18px;padding:0}
+.gta-conferencia li{margin-bottom:3px}
+.gta-conferencia.ok{border-color:#a7f3d0;background:var(--verde-claro);color:#065f46}

@@ -1118,6 +1118,125 @@ class NotaPagamento(Base):
 
 
 # --------------------------------------------------------------------------- #
+# GTA — Guia de Trânsito Animal
+# --------------------------------------------------------------------------- #
+class GuiaTransitoAnimal(Base):
+    """A GTA — Guia de Trânsito Animal — de cada carga de animais.
+
+    Por que a guia fica guardada aqui e **não é emitida** pelo sistema
+    -----------------------------------------------------------------
+    A GTA não tem webservice. Cada estado tem o seu sistema fechado (em Minas é
+    o SIAPEC, do IMA; em São Paulo, o GEDAVE; no Pará, o Sigeagro) e quem emite
+    entra lá com login próprio — o produtor ou o médico-veterinário habilitado.
+    Não existe, hoje, um endereço público para o sistema mandar a guia como
+    manda a NF-e.
+
+    Então o que o sistema faz é o que dá para fazer e é o que faltava: guarda
+    **todas as GTAs** dos produtores atendidos, avisa quando a validade está
+    acabando, e imprime a **ficha de preparo** — a folha com tudo já conferido
+    e na ordem das telas do portal, para quem for digitar não errar nem
+    precisar procurar dado.
+
+    Situação
+    --------
+    EMITIDA .... saiu do portal e ainda vale
+    UTILIZADA .. a carga andou, a guia foi usada
+    CANCELADA .. cancelada no portal
+    VENCIDA .... passou da validade sem ser usada (o sistema mostra sozinho,
+                 comparando a data; a coluna só guarda o que o usuário marcou)
+
+    `data_validade` em branco não é erro: guia de preparo (ainda não emitida)
+    não tem validade. Aí a situação vale PREPARO.
+    """
+
+    __tablename__ = "guias_transito_animal"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+
+    # ---- a guia ----
+    numero = Column(String(30), index=True)       # em branco enquanto é só preparo
+    serie = Column(String(10))
+    uf_emissora = Column(String(2))               # o estado do portal que emitiu
+    situacao = Column(String(12), nullable=False, default="PREPARO", index=True)
+    data_emissao = Column(Date, index=True)
+    data_validade = Column(Date, index=True)
+    finalidade = Column(String(40))               # ABATE | ENGORDA | REPRODUCAO | ...
+
+    # ---- origem (quem manda) ----
+    produtor_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    origem_nome = Column(String(160))
+    origem_documento = Column(String(20))
+    origem_inscricao = Column(String(30))         # inscrição estadual da propriedade
+    origem_propriedade = Column(String(160))
+    origem_municipio = Column(String(80))
+    origem_uf = Column(String(2))
+
+    # ---- destino (quem recebe) ----
+    destino_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    destino_nome = Column(String(160))
+    destino_documento = Column(String(20))
+    destino_inscricao = Column(String(30))
+    destino_propriedade = Column(String(160))
+    destino_municipio = Column(String(80))
+    destino_uf = Column(String(2))
+
+    # ---- os animais ----
+    especie = Column(String(40))                  # BOVINO | BUBALINO | SUINO | ...
+    quantidade = Column(Integer, nullable=False, default=0)   # soma das categorias
+
+    # ---- quem assina e quem leva ----
+    veterinario = Column(String(160))
+    crmv = Column(String(30))
+    transportador = Column(String(160))
+    placa = Column(String(10))
+    meio_transporte = Column(String(40))          # RODOVIARIO | A PE | ...
+
+    # ---- ligações com o resto do sistema ----
+    contrato_id = Column(Integer, ForeignKey("contratos.id"), index=True)
+    nota_id = Column(Integer, ForeignKey("notas.id"), index=True)
+
+    observacao = Column(Text)
+    arquivo_nome = Column(String(200))            # nome do PDF que o usuário anexou
+    arquivo = Column(Text)                        # o PDF em base64, quando anexado
+
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow)
+
+    produtor = relationship("Parceiro", foreign_keys=[produtor_id])
+    destino = relationship("Parceiro", foreign_keys=[destino_id])
+    categorias = relationship(
+        "GuiaAnimalCategoria",
+        back_populates="guia",
+        cascade="all, delete-orphan",
+        order_by="GuiaAnimalCategoria.id",
+    )
+
+
+class GuiaAnimalCategoria(Base):
+    """Quantos animais de cada categoria vão na guia.
+
+    No portal os animais não entram como um número só: entram separados por
+    sexo e faixa de idade (ex.: macho de 0 a 12 meses, fêmea acima de 36). A
+    soma de todas as linhas é a `quantidade` da guia, e é ela que o portal
+    confere.
+    """
+
+    __tablename__ = "guia_animal_categorias"
+
+    id = Column(Integer, primary_key=True)
+    guia_id = Column(Integer, ForeignKey("guias_transito_animal.id", ondelete="CASCADE"),
+                     nullable=False, index=True)
+    sexo = Column(String(1), nullable=False, default="M")     # M | F
+    faixa = Column(String(30), nullable=False, default="0 a 12 meses")
+    quantidade = Column(Integer, nullable=False, default=0)
+    observacao = Column(String(120))
+
+    guia = relationship("GuiaTransitoAnimal", back_populates="categorias")
+
+
+# --------------------------------------------------------------------------- #
 # Caixa
 # --------------------------------------------------------------------------- #
 class MovimentoCaixa(Base):

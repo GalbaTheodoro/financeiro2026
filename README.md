@@ -376,6 +376,58 @@ Código: `backend/notas.py` e `backend/routers/notas.py`; teste: `python testes/
   por ele que a nota entra no faturamento como conta a receber;
 - **cancelar** é o evento 110111, com justificativa de 15 letras e dentro do prazo legal.
 
+### Cupom fiscal (NFC-e, modelo 65)
+
+**Movimento → Cupom Fiscal** é a venda de balcão: escolhe o produto, a quantidade, a forma
+de pagamento e pronto — uma tela só, e o cupom sai impresso. É o oposto da NF-e, que é
+montada com calma em cinco etapas: no balcão o consumidor está esperando, então a venda é
+**uma chamada só** ao servidor, que cria e transmite de uma vez.
+
+Por dentro a NFC-e é a mesma NF-e 4.00 — mesmos itens, mesmos impostos (as regras fiscais
+valem igual), mesma assinatura, mesmo lote síncrono. O que muda:
+
+- `mod` 65, `tpImp` 4 (o cupom estreito), `indPres` 1 e `indFinal` 1: é venda **presencial a
+  consumidor final**;
+- `idDest` 1 — **só dentro do estado**. Para outro estado, ou para empresa que vai revender e
+  creditar ICMS, tem de ser NF-e 55; o cupom não resolve;
+- o **destinatário é opcional**: a maioria dos cupons sai sem identificar ninguém. Quem pede
+  "CPF na nota" informa só o documento, sem endereço e sem cadastro de cliente;
+- não leva transporte nem duplicatas, e o **troco** entra no grupo de pagamento;
+- os **webservices são outros** — em Minas, `nfce.fazenda.mg.gov.br`, não `nfe.`;
+- a **numeração é separada** da nota fiscal: modelos diferentes, sequências diferentes.
+
+#### O CSC e o QR Code
+
+O cupom impresso leva um **QR Code** que o consumidor lê para conferir a venda no site da
+SEFAZ. Ele é assinado com o **CSC** (Código de Segurança do Contribuinte), um código que a
+empresa pede no portal da SEFAZ do estado — em Minas, no SIARE. **Sem CSC nenhum cupom é
+aceito**, e por isso a tela avisa antes de a pessoa montar a venda.
+
+O texto do QR Code (versão 2.0, emissão on-line) é::
+
+    <URL da SEFAZ>?p=<chave>|2|<ambiente>|<idToken>|<hash>
+    hash = SHA1("<chave>|2|<ambiente>|<idToken>" + CSC)   em hexadecimal maiúsculo
+
+O CSC entra **só no cálculo** — nunca no XML, nunca na tela. É ele que prova que o cupom é
+verdadeiro, então fica cifrado no banco (AES-GCM, igual ao certificado) e nenhuma rota o
+devolve. Cada ambiente tem o seu: o CSC de homologação não funciona em produção, e os dois
+ficam guardados separados. O teste refaz o hash por conta própria e compara — se o cálculo
+mudar, o teste acusa.
+
+#### O cupom impresso
+
+A folha sai em **80 mm**, do tamanho da bobina, com o que a SEFAZ exige: identificação do
+emitente, o aviso "DANFE NFC-e", os itens, o total, as formas de pagamento e o troco, o
+consumidor (ou "CONSUMIDOR NAO IDENTIFICADO"), a chave de acesso para digitar, o QR Code e o
+protocolo. Imprimir é o botão do próprio navegador — o mesmo caminho da DANFE e do contrato.
+
+O cancelamento usa o mesmo evento 110111 da nota, mas o **prazo é de 30 minutos** em Minas;
+passado isso, a saída é uma devolução. A tela diz se ainda dá tempo.
+
+Código: `backend/cupom.py` (QR Code, endereços e CSC), `backend/danfe_cupom.py` (a folha),
+`backend/routers/cupom.py` e a tela em `frontend/js/cupom.js`.
+Teste: `python testes/teste_cupom.py` — valida o XML no schema oficial e confere o QR Code.
+
 #### Mandar a nota para o cliente por e-mail
 
 Autorizada, a nota **sai sozinha por e-mail** para o cliente, com dois anexos: o **XML**
@@ -791,6 +843,8 @@ sistema-financeiro/
 │   ├── emissao.py               NF-e 4.00: chave, XML, assinatura e webservices por UF
 │   ├── rejeicoes.py             Recusas da SEFAZ explicadas e com o lugar do conserto
 │   ├── correio.py               Envio de e-mail pela conta da empresa (SMTP), com anexos
+│   ├── cupom.py                 Cupom fiscal (NFC-e 65): QR Code, CSC e endereços da SEFAZ
+│   ├── danfe_cupom.py           A folha do cupom, em 80 mm, com o QR Code
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -841,6 +895,7 @@ sistema-financeiro/
     ├── teste_edicao.py          Teste do aviso de "não salvo" e do Salvar em cada etapa
     ├── teste_regras_fiscais.py  Teste do cruzamento cliente x item e do imposto escolhido
     ├── teste_base_da_regra.py   Teste de que a base do item sai da regra, e não da tela
+    ├── teste_cupom.py           Teste do cupom fiscal: schema oficial e QR Code conferido
     ├── teste_email.py           Teste do envio da nota por e-mail (XML + DANFE em PDF)
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
@@ -875,6 +930,7 @@ python testes/teste_edicao.py       # janela não fecha sozinha e Salvar em qual
 python testes/teste_regras_fiscais.py   # tipos fiscais, tabela de regras e o imposto do item
 python testes/teste_base_da_regra.py    # a base do item da nota vem da regra fiscal
 python testes/teste_email.py        # nota por e-mail, com servidor SMTP de mentira
+python testes/teste_cupom.py        # cupom fiscal (NFC-e): XML no schema e QR Code
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:

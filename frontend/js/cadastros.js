@@ -20,6 +20,7 @@ const Cadastros = {
     { id: 'plano-contas', rotulo: 'Plano de Contas', acao: () => Cadastros.contasContabeis() },
     { id: 'empresas', rotulo: 'Empresas', acao: () => Cadastros.empresas() },
     { id: 'email', rotulo: 'E-mail', acao: () => Cadastros.telaEmail() },
+    { id: 'cupom', rotulo: 'Cupom fiscal', acao: () => Cadastros.telaCupom() },
     { id: 'usuarios', rotulo: 'Usuários', acao: () => Cadastros.usuarios() },
     { id: 'parametros', rotulo: 'Parâmetros contábeis', acao: () => Cadastros.parametros() },
   ],
@@ -661,6 +662,102 @@ const Cadastros = {
             Cadastros._configuracaoAtual, Cadastros._registros.find((e) => e.id === empresa.id)) },
       ],
     });
+  },
+
+  /** Aba Cupom fiscal: o CSC e a série.
+
+      O CSC é o código que a SEFAZ dá para assinar o QR Code do cupom. Sem ele
+      nada sai — por isso a tela diz isso com todas as letras, e não deixa a
+      pessoa descobrir só na hora da venda. */
+  async telaCupom() {
+    const alvo = Cadastros.alvo();
+    alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando...</div></div>';
+    let config = {};
+    try {
+      config = await Api.get('/api/cupom/config', { empresa_id: Estado.empresaId });
+    } catch (e) {
+      alvo.innerHTML = `<div class="cartao"><div class="vazio">${UI.escapar(e.message)}</div></div>`;
+      return;
+    }
+    const pronto = config.tem_csc_homologacao || config.tem_csc_producao;
+    alvo.innerHTML = `
+      <div class="cartao">
+        <div class="cartao-cabecalho">
+          <div><h3>Cupom fiscal (NFC-e)</h3>
+            <div class="mini">venda de balcão a consumidor final, dentro do estado</div></div>
+        </div>
+        <div class="cartao-corpo">
+          ${config.uf_atendida ? '' : `<div class="cartao"
+            style="margin-bottom:12px;border-left:4px solid var(--vermelho)">
+            <div class="cartao-corpo"><b>O cupom ainda não está ligado à SEFAZ de
+              ${UI.escapar(config.uf || 'sua UF')}.</b>
+              <div class="mini">Hoje o sistema emite cupom em:
+                ${UI.escapar((config.ufs_com_cupom || []).join(', '))}. Nos outros
+                estados, emita NF-e.</div></div></div>`}
+
+          <div class="cartao" style="border-left:4px solid var(--${pronto ? 'verde' : 'ambar'})">
+            <div class="cartao-corpo">
+              ${pronto
+                ? `<b>CSC cadastrado.</b><div class="mini">Homologação:
+                     ${config.tem_csc_homologacao ? 'sim' : '<b>falta</b>'} ·
+                     Produção: ${config.tem_csc_producao ? 'sim' : '<b>falta</b>'}</div>`
+                : `<b>Falta o CSC desta empresa — sem ele a SEFAZ recusa o cupom.</b>
+                   <div class="mini">O CSC (Código de Segurança do Contribuinte) é o que
+                     assina o QR Code impresso no cupom. Peça no portal da SEFAZ do seu
+                     estado — em Minas, no SIARE. Ele vem com um número de identificação
+                     (o idToken), e os dois são necessários.</div>`}
+              <div class="mini" style="margin-top:6px">Cada ambiente tem o seu código: o de
+                homologação não funciona em produção.</div>
+            </div>
+          </div>
+
+          <div class="secao-campos"><b>Homologação</b><span class="mini">
+            — é onde se testa, sem valor fiscal</span></div>
+          <div class="linha-campos">
+            ${UI.campo('CSC de homologação', `<input type="password" name="csc_homologacao"
+              autocomplete="new-password" placeholder="${config.tem_csc_homologacao
+                ? 'guardado — deixe em branco para manter' : 'cole o código aqui'}">`,
+              'fica cifrado no banco')}
+            ${UI.campo('Identificação (idToken)', `<input name="csc_id_homologacao"
+              inputmode="numeric" value="${UI.escapar(config.csc_id_homologacao || '')}">`,
+              'de 1 a 6 dígitos, vem junto com o CSC')}
+          </div>
+
+          <div class="secao-campos"><b>Produção</b><span class="mini">
+            — é o que vale de verdade</span></div>
+          <div class="linha-campos">
+            ${UI.campo('CSC de produção', `<input type="password" name="csc_producao"
+              autocomplete="new-password" placeholder="${config.tem_csc_producao
+                ? 'guardado — deixe em branco para manter' : 'cole o código aqui'}">`)}
+            ${UI.campo('Identificação (idToken)', `<input name="csc_id_producao"
+              inputmode="numeric" value="${UI.escapar(config.csc_id_producao || '')}">`)}
+          </div>
+
+          <div class="secao-campos"><b>Numeração</b></div>
+          <div class="linha-campos">
+            ${UI.campo('Série do cupom', `<input name="serie" inputmode="numeric"
+              value="${UI.escapar(config.serie || '1')}" style="max-width:120px">`,
+              'a numeração do cupom é separada da nota fiscal')}
+          </div>
+
+          <div class="mini" style="margin-top:10px">O cancelamento do cupom tem prazo de
+            ${config.minutos_para_cancelar} minutos depois da autorização. Passado isso, a
+            saída é uma devolução.</div>
+
+          <div class="espaco" style="margin-top:14px">
+            <button class="btn btn-primario" id="btn-salvar-cupom">Salvar</button>
+          </div>
+        </div>
+      </div>`;
+
+    alvo.querySelector('#btn-salvar-cupom').onclick = async () => {
+      try {
+        await Api.put('/api/cupom/config',
+                      { ...UI.lerFormulario(alvo), empresa_id: Estado.empresaId });
+        UI.sucesso('Configuração do cupom salva.');
+        Cadastros.telaCupom();
+      } catch (e) { UI.erro(e.message); }
+    };
   },
 
   /** Aba E-mail: mostra de relance se o envio está de pé e abre a configuração.

@@ -787,6 +787,38 @@ class Contrato(Base):
 # --------------------------------------------------------------------------- #
 # DF-e — documentos fiscais eletrônicos emitidos contra o CNPJ da empresa
 # --------------------------------------------------------------------------- #
+class ConfigCupom(Base):
+    """O que a empresa precisa para emitir **cupom fiscal** (NFC-e, modelo 65).
+
+    O cupom leva um QR Code que o consumidor lê para conferir a venda no site da
+    SEFAZ. Esse QR Code é assinado com o **CSC** (Código de Segurança do
+    Contribuinte), um código que a empresa pede no portal da SEFAZ do seu estado
+    — em Minas, no SIARE. Sem CSC nenhum cupom é aceito.
+
+    O CSC vem **junto com um número de identificação** (o `idToken`, de 1 a 6
+    dígitos), e os dois entram no QR Code. Cada ambiente tem o seu: o CSC de
+    homologação não funciona em produção e vice-versa — por isso os dois ficam
+    guardados aqui, e a emissão pega o do ambiente da vez.
+
+    O CSC fica **cifrado** no banco (AES-GCM com chave derivada de
+    FIN_SECRET_KEY, igual ao certificado digital) e nenhuma rota o devolve.
+    """
+
+    __tablename__ = "config_cupom"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False,
+                        unique=True, index=True)
+    csc_homologacao = Column(Text)             # cifrado
+    csc_id_homologacao = Column(String(6))
+    csc_producao = Column(Text)                # cifrado
+    csc_id_producao = Column(String(6))
+    serie = Column(String(3), nullable=False, default="1")
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow)
+
+
 class ConfigEmail(Base):
     """Como a empresa envia e-mail pelo sistema (servidor SMTP do e-mail dela).
 
@@ -976,6 +1008,11 @@ class Nota(Base):
     cancelamento_justificativa = Column(String(255))
     cancelamento_protocolo = Column(String(20))
     cancelada_em = Column(DateTime)
+    # cupom fiscal (modelo 65): o consumidor é opcional e não tem cadastro —
+    # quem pede "CPF na nota" informa só o documento, e o troco vai no XML
+    consumidor_documento = Column(String(20))
+    consumidor_nome = Column(String(60))
+    troco = _dinheiro()
     # envio do XML e da DANFE por e-mail para o cliente
     email_enviado_em = Column(DateTime)
     email_destinatarios = Column(String(400))

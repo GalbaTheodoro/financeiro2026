@@ -47,15 +47,17 @@ router = APIRouter(prefix="/api/nfe", tags=["nfe"])
 # Numeração
 # --------------------------------------------------------------------------- #
 def _serie(db: Session, empresa_id: int, serie: str, ambiente: str,
-           criar: bool = True) -> SerieNota | None:
+           criar: bool = True, modelo: str = "55") -> SerieNota | None:
+    """A numeração de um modelo/série/ambiente. Nota (55) e cupom (65) têm
+    sequências separadas — é o que a SEFAZ espera."""
     linha = (
         db.query(SerieNota)
-        .filter(SerieNota.empresa_id == empresa_id, SerieNota.modelo == "55",
+        .filter(SerieNota.empresa_id == empresa_id, SerieNota.modelo == modelo,
                 SerieNota.serie == str(serie), SerieNota.ambiente == ambiente)
         .first()
     )
     if linha is None and criar:
-        linha = SerieNota(empresa_id=empresa_id, modelo="55", serie=str(serie),
+        linha = SerieNota(empresa_id=empresa_id, modelo=modelo, serie=str(serie),
                           ambiente=ambiente, proximo_numero=1)
         db.add(linha)
         db.flush()
@@ -96,12 +98,15 @@ def salvar_serie(dados: SerieNotaIn, db: Session = Depends(get_db),
     return serializar(linha)
 
 
-def _reservar_numero(db: Session, empresa_id: int, serie: str, ambiente: str) -> int:
+def _reservar_numero(db: Session, empresa_id: int, serie: str, ambiente: str,
+                     modelo: str = "55") -> int:
     """Pega o próximo número da série e já avança o contador.
 
-    Só é chamado na hora de transmitir: rascunho não gasta numeração.
+    Só é chamado na hora de transmitir: rascunho não gasta numeração. A nota e o
+    **cupom têm numerações separadas** — são modelos diferentes, cada um com a
+    sua sequência, mesmo que a série tenha o mesmo número.
     """
-    linha = _serie(db, empresa_id, serie, ambiente)
+    linha = _serie(db, empresa_id, serie, ambiente, modelo=modelo)
     numero = int(linha.proximo_numero or 1)
     linha.proximo_numero = numero + 1
     db.flush()
@@ -615,12 +620,18 @@ def abrir(nota_id: int, db: Session = Depends(get_db),
 # --------------------------------------------------------------------------- #
 def _montar(db: Session, nota: Nota, numero: int) -> tuple[str, str, float]:
     empresa = db.get(Empresa, nota.empresa_id)
+    modelo = nota.modelo or "55"
+    cupom = modelo == "65"
     cabecalho = {
         "natureza_operacao": nota.natureza_operacao,
         "tipo_operacao": nota.tipo_operacao or "1",
         "finalidade": nota.finalidade or "1",
-        "consumidor_final": "0",
-        "presenca": "9",
+        "consumidor_final": "1" if cupom else "0",
+        "presenca": "1" if cupom else "9",
+        # cupom: o consumidor é opcional e não tem cadastro
+        "consumidor_documento": nota.consumidor_documento,
+        "consumidor_nome": nota.consumidor_nome,
+        "troco": float(nota.troco or 0),
         "ambiente": nota.ambiente or "2",
         "destinatario_uf": nota.parceiro.uf if nota.parceiro else empresa.uf,
         "frete_modalidade": nota.frete_modalidade or "9",
@@ -637,7 +648,7 @@ def _montar(db: Session, nota: Nota, numero: int) -> tuple[str, str, float]:
         return nfe.montar_nfe(
             empresa, cabecalho, list(nota.itens), nota.parceiro, nota.transportadora,
             duplicatas, list(nota.pagamentos), numero, nota.serie or "1",
-            nota.data_emissao,
+            nota.data_emissao, modelo=modelo,
         )
     except nfe.ErroEmissao as erro:
         raise HTTPException(400, str(erro)) from None
@@ -680,9 +691,20 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
             "para seguir, ou troque para homologação enquanto estiver testando.",
         )
 
-    numero = _reservar_numero(db, nota.empresa_id, nota.serie or "1", ambiente)
+    modelo = nota.modelo or "55"
+    numero = _reservar_numero(db, nota.empresa_id, nota.serie or "1", ambiente, modelo)
     inf, chave, total = _montar(db, nota, numero)
-    assinada = nfe.assinar_nfe(inf, chave_privada, certificado)
+    # o cupom leva o QR Code (infNFeSupl) entre o corpo e a assinatura
+    suplemento = ""
+    if modelo == "65":
+        from .. import cupom as nfce
+        from .cupom import config_do_cupom
+        try:
+            csc, csc_id = nfce.csc_do_ambiente(config_do_cupom(db, nota.empresa_id), ambiente)
+            suplemento = nfce.bloco_suplementar(chave, ambiente, csc, csc_id, empresa.uf)
+        except nfce.ErroCupom as erro:
+            raise HTTPException(400, str(erro)) from None
+    assinada = nfe.assinar_nfe(inf, chave_privada, certificado, suplemento)
 
     nota.numero = str(numero)
     nota.chave = chave
@@ -693,7 +715,7 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
 
     try:
         retorno = nfe.transmitir(chave_privada, certificado, cadeia, empresa.uf,
-                                 ambiente, assinada)
+                                 ambiente, assinada, modelo=modelo)
     except nfe.ErroEmissao as erro:
         # não deu para falar com a SEFAZ: a nota fica como rascunho e o número volta
         nota.status_emissao = "RASCUNHO"
@@ -701,7 +723,7 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
         nota.numero = None
         nota.codigo_sefaz = None
         nota.mensagem_sefaz = str(erro)[:300]
-        serie = _serie(db, nota.empresa_id, nota.serie or "1", ambiente)
+        serie = _serie(db, nota.empresa_id, nota.serie or "1", ambiente, modelo=modelo)
         serie.proximo_numero = numero
         db.commit()
         db.refresh(nota)
@@ -730,7 +752,8 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
         nota.situacao = "DENEGADA" if retorno["denegada"] else "AUTORIZADA"
         # rejeitada: o número é devolvido para não abrir buraco na sequência
         if not retorno["denegada"]:
-            serie = _serie(db, nota.empresa_id, nota.serie or "1", ambiente)
+            serie = _serie(db, nota.empresa_id, nota.serie or "1", ambiente,
+                           modelo=modelo)
             if serie.proximo_numero == numero + 1:
                 serie.proximo_numero = numero
             nota.numero = None
@@ -793,7 +816,7 @@ def cancelar(nota_id: int, dados: CancelarNotaIn, db: Session = Depends(get_db),
         retorno = nfe.cancelar(
             chave_privada, certificado, cadeia, empresa.uf, nota.ambiente or cert.ambiente,
             nota.chave, motor.so_numeros(empresa.cnpj), nota.protocolo,
-            dados.justificativa or "",
+            dados.justificativa or "", modelo=nota.modelo or "55",
         )
     except nfe.ErroEmissao as erro:
         return {

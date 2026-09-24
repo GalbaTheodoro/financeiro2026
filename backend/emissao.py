@@ -211,7 +211,8 @@ def codigo_numerico(numero: int, serie: str) -> int:
 # Blocos da NF-e
 # --------------------------------------------------------------------------- #
 def _ide(empresa, nota, chave: str, numero: int, serie: str, codigo: int,
-         emissao: datetime) -> str:
+         emissao: datetime, modelo: str = "55") -> str:
+    cupom = modelo == "65"
     destino = "1"  # 1 interna, 2 interestadual, 3 exterior
     uf_destino = (nota["destinatario_uf"] or empresa.uf or "").upper()
     if uf_destino and uf_destino != (empresa.uf or "").upper():
@@ -219,24 +220,28 @@ def _ide(empresa, nota, chave: str, numero: int, serie: str, codigo: int,
     # 0 não se aplica | 1 presencial | 2 internet | 3 teleatendimento
     # 4 entrega a domicílio | 5 presencial fora do estabelecimento | 9 outros
     presenca = str(nota.get("presenca") or "9")
+    if cupom:
+        # o cupom é sempre venda presencial a consumidor final, dentro do estado
+        destino, presenca = "1", "1"
     return (
         "<ide>"
         + _tag("cUF", motor.CODIGO_UF.get((empresa.uf or "MG").upper(), "31"), True)
         + _tag("cNF", str(codigo).zfill(8), True)
         + _tag("natOp", _limpar(nota["natureza_operacao"] or "VENDA", 60), True)
-        + _tag("mod", "55", True)
+        + _tag("mod", modelo, True)
         + _tag("serie", str(int(serie)), True)
         + _tag("nNF", numero, True)
         + _tag("dhEmi", emissao.isoformat(), True)
-        + _tag("tpNF", nota["tipo_operacao"] or "1", True)
+        + _tag("tpNF", "1" if cupom else (nota["tipo_operacao"] or "1"), True)
         + _tag("idDest", destino, True)
         + _tag("cMunFG", empresa.codigo_municipio or "3106200", True)
-        + _tag("tpImp", "1", True)        # DANFE retrato
+        # 1 DANFE retrato | 4 DANFE NFC-e (o cupom estreito, de impressora térmica)
+        + _tag("tpImp", "4" if cupom else "1", True)
         + _tag("tpEmis", "1", True)       # emissão normal
         + _tag("cDV", chave[-1], True)
         + _tag("tpAmb", nota["ambiente"], True)
         + _tag("finNFe", nota["finalidade"] or "1", True)
-        + _tag("indFinal", nota["consumidor_final"] or "0", True)
+        + _tag("indFinal", "1" if cupom else (nota["consumidor_final"] or "0"), True)
         + _tag("indPres", presenca, True)
         # NT 2020.006: quando a venda não é presencial, a SEFAZ exige dizer se
         # houve intermediador (marketplace). Sem isto vem a rejeição 434
@@ -278,6 +283,31 @@ def _emit(empresa) -> str:
         + _tag("IE", motor.so_numeros(empresa.inscricao_estadual) or "ISENTO", True)
         + _tag("CRT", empresa.crt or "1", True)
         + "</emit>"
+    )
+
+
+def _dest_cupom(documento: str, nome: str, ambiente: str) -> str:
+    """Destinatário do cupom: **opcional**, e sem endereço.
+
+    A maioria dos cupons sai sem identificar ninguém — é a venda de balcão. Só
+    quando o consumidor pede o CPF na nota é que este bloco aparece, e aí leva
+    só o documento e o nome. Endereço a SEFAZ não exige no cupom.
+    """
+    documento = motor.so_numeros(documento)
+    if not documento:
+        return ""                       # cupom sem identificação do consumidor
+    if len(documento) not in (11, 14):
+        raise ErroEmissao(
+            "O CPF (ou CNPJ) do consumidor está incompleto. Deixe em branco para o cupom "
+            "sair sem identificação, ou digite o documento inteiro.")
+    if ambiente == "2":
+        nome = "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
+    return (
+        "<dest>"
+        + _tag("CNPJ" if len(documento) == 14 else "CPF", documento, True)
+        + (_tag("xNome", _limpar(nome, 60)) if (nome or "").strip() else "")
+        + _tag("indIEDest", "9", True)   # 9 = não contribuinte, o caso do consumidor
+        + "</dest>"
     )
 
 
@@ -649,12 +679,15 @@ def _cobranca(duplicatas, total: float) -> str:
     return "<cobr>" + "".join(partes) + "</cobr>"
 
 
-def _pagamento(pagamentos, total: float) -> str:
+def _pagamento(pagamentos, total: float, troco: float = 0) -> str:
+    """Grupo `pag`. No cupom é ele que diz como o consumidor pagou, e o troco
+    do dinheiro entra aqui — não é desconto nem valor da venda."""
     formas = [p for p in pagamentos if p.origem == "PAGAMENTO"] or None
+    fim = _tag("vTroco", _num(troco)) if troco and troco > 0 else ""
     if formas is None:
         corpo = ("<detPag>" + _tag("indPag", "1", True) + _tag("tPag", "15", True)
                  + _tag("vPag", _num(total), True) + "</detPag>")
-        return f"<pag>{corpo}</pag>"
+        return f"<pag>{corpo}{fim}</pag>"
     partes = []
     for forma in formas:
         partes.append(
@@ -664,7 +697,7 @@ def _pagamento(pagamentos, total: float) -> str:
             + _tag("vPag", _num(forma.valor), True)
             + "</detPag>"
         )
-    return "<pag>" + "".join(partes) + "</pag>"
+    return "<pag>" + "".join(partes) + fim + "</pag>"
 
 
 # --------------------------------------------------------------------------- #
@@ -694,16 +727,23 @@ def _hora_de_emissao(emissao: datetime | None) -> datetime:
 
 def montar_nfe(empresa, nota: dict, itens, parceiro, transportadora,
                duplicatas, pagamentos, numero: int, serie: str,
-               emissao: datetime | None = None) -> tuple[str, str, float]:
-    """Monta o <NFe> sem assinatura. Devolve (xml, chave, valor total)."""
+               emissao: datetime | None = None,
+               modelo: str = "55") -> tuple[str, str, float]:
+    """Monta o <NFe> sem assinatura. Devolve (xml, chave, valor total).
+
+    `modelo` "55" é a nota fiscal; "65" é o **cupom** (NFC-e). O corpo é o mesmo
+    — itens, impostos, totais —; muda o cabeçalho, o destinatário (opcional no
+    cupom) e o que a nota não tem: transporte e duplicatas não vão no cupom.
+    """
     if not itens:
         raise ErroEmissao("A nota está sem itens.")
+    cupom = modelo == "65"
     emissao = _hora_de_emissao(emissao)
     ambiente = nota["ambiente"]
     crt = empresa.crt or "1"
 
     codigo = codigo_numerico(numero, serie)
-    chave = montar_chave(empresa.uf, emissao, empresa.cnpj, "55", serie, numero, codigo)
+    chave = montar_chave(empresa.uf, emissao, empresa.cnpj, modelo, serie, numero, codigo)
 
     corpo_itens = "".join(
         _det(item, i, crt, ambiente) for i, item in enumerate(itens, start=1))
@@ -714,26 +754,43 @@ def montar_nfe(empresa, nota: dict, itens, parceiro, transportadora,
     if complementares:
         inf_adic = "<infAdic>" + _tag("infCpl", complementares, True) + "</infAdic>"
 
+    if cupom:
+        destinatario = _dest_cupom(nota.get("consumidor_documento"),
+                                   nota.get("consumidor_nome"), ambiente)
+        # o cupom não leva transporte nem duplicatas: é venda de balcão, à vista
+        # ou no cartão, e o pagamento vai no grupo <pag>, que é obrigatório
+        meio = "<transp>" + _tag("modFrete", "9", True) + "</transp>"
+        cobranca = ""
+    else:
+        destinatario = _dest(parceiro, ambiente)
+        meio = _transp(nota, transportadora)
+        cobranca = _cobranca(duplicatas, total)
+
     inf = (
         f'<infNFe xmlns="{NS}" Id="NFe{chave}" versao="{VERSAO}">'
-        + _ide(empresa, nota, chave, numero, serie, codigo, emissao)
+        + _ide(empresa, nota, chave, numero, serie, codigo, emissao, modelo)
         + _emit(empresa)
-        + _dest(parceiro, ambiente)
+        + destinatario
         + corpo_itens
         + bloco_total
-        + _transp(nota, transportadora)
-        + _cobranca(duplicatas, total)
-        + _pagamento(pagamentos, total)
+        + meio
+        + cobranca
+        + _pagamento(pagamentos, total, float(nota.get("troco") or 0) if cupom else 0)
         + inf_adic
         + "</infNFe>"
     )
     return inf, chave, total
 
 
-def assinar_nfe(inf_nfe: str, chave_privada, certificado) -> str:
-    """<NFe> com a assinatura digital (mesmo padrão do evento: SHA-1 + C14N)."""
+def assinar_nfe(inf_nfe: str, chave_privada, certificado, suplemento: str = "") -> str:
+    """<NFe> com a assinatura digital (mesmo padrão do evento: SHA-1 + C14N).
+
+    `suplemento` é o `infNFeSupl` do cupom (o QR Code). Ele entra **depois** do
+    infNFe e **antes** da assinatura — é a ordem que o schema exige, e a
+    assinatura continua sendo só sobre o infNFe.
+    """
     assinatura = motor.assinar(inf_nfe, chave_privada, certificado)
-    return f'<NFe xmlns="{NS}">{inf_nfe}{assinatura}</NFe>'
+    return f'<NFe xmlns="{NS}">{inf_nfe}{suplemento}{assinatura}</NFe>'
 
 
 def montar_lote(nfe_assinada: str, lote: int = 1) -> str:
@@ -758,9 +815,17 @@ def _endereco(tabela: dict, uf: str, ambiente: str) -> str:
 
 
 def transmitir(chave_privada, certificado, cadeia, uf: str, ambiente: str,
-               nfe_assinada: str, lote: int = 1) -> dict:
-    """Envia a nota para a SEFAZ e traduz a resposta."""
-    url = _endereco(AUTORIZACAO, uf, ambiente)
+               nfe_assinada: str, lote: int = 1, modelo: str = "55") -> dict:
+    """Envia a nota para a SEFAZ e traduz a resposta.
+
+    O **cupom** (modelo 65) tem webservices próprios — em Minas, `nfce.` no
+    lugar de `nfe.`. Mandar o cupom para o endereço da NF-e não funciona.
+    """
+    if modelo == "65":
+        from . import cupom as nfce
+        url = nfce.url_autorizacao(uf, ambiente)
+    else:
+        url = _endereco(AUTORIZACAO, uf, ambiente)
     # o corpo padrão é o <nfeDadosMsg> solto; algumas SEFAZ pedem o invólucro
     # com o nome da operação — o motor tenta as duas formas
     corpos = motor.corpo_servico(
@@ -816,9 +881,18 @@ def ler_retorno_autorizacao(resposta: str, nfe_assinada: str = "") -> dict:
     }
 
 
+def _url_evento(uf: str, ambiente: str, modelo: str) -> str:
+    """O evento do cupom vai para o webservice de NFC-e, não o da NF-e."""
+    if modelo == "65":
+        from . import cupom as nfce
+        return nfce.url_evento(uf, ambiente)
+    return _endereco(EVENTO, uf, ambiente)
+
+
 def cancelar(chave_privada, certificado, cadeia, uf: str, ambiente: str, chave_nfe: str,
-             cnpj: str, protocolo: str, justificativa: str, sequencia: int = 1) -> dict:
-    """Evento 110111 — cancelamento da NF-e autorizada."""
+             cnpj: str, protocolo: str, justificativa: str, sequencia: int = 1,
+             modelo: str = "55") -> dict:
+    """Evento 110111 — cancelamento da NF-e (ou do cupom) autorizada."""
     justificativa = (justificativa or "").strip()
     if len(justificativa) < 15:
         raise ErroEmissao("A justificativa do cancelamento precisa ter 15 letras ou mais.")
@@ -847,7 +921,7 @@ def cancelar(chave_privada, certificado, cadeia, uf: str, ambiente: str, chave_n
         envelope, "nfeRecepcaoEventoNF")
     try:
         resposta = motor._enviar_variantes(
-            _endereco(EVENTO, uf, ambiente), corpos,
+            _url_evento(uf, ambiente, modelo), corpos,
             "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento",
             motor._contexto_ssl(chave_privada, certificado, cadeia),
         )

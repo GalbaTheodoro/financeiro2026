@@ -384,8 +384,10 @@ imprimir). O PDF é desenhado no layout oficial a partir do próprio XML autoriz
 biblioteca `brazilfiscalreport` — Python puro, então funciona igual no PC e no servidor,
 sem navegador e sem nada instalado.
 
-Quem envia é a **conta de e-mail da própria empresa** (*Cadastros → Empresas → Configurar
-e-mail*): o sistema só conversa com o servidor SMTP dela. Assim o cliente vê a nota vindo
+Quem envia é a **conta de e-mail da própria empresa** (*Cadastros → E-mail*, ou o botão
+*Configurar e-mail* na linha da empresa): o sistema só conversa com o servidor SMTP dela.
+A aba **E-mail** mostra numa olhada se o envio está de pé, por qual endereço sai e qual foi
+o último erro. Assim o cliente vê a nota vindo
 da empresa e responde para ela. A tela tem servidores prontos para Gmail, Microsoft e
 domínio próprio, e um **e-mail de teste** — que é a única forma honesta de saber se a senha
 está certa antes da primeira nota. Gmail e Microsoft exigem **senha de app**; quando o

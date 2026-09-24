@@ -19,6 +19,7 @@ const Cadastros = {
     { id: 'operacoes', rotulo: 'Operações', acao: () => Cadastros.operacoes() },
     { id: 'plano-contas', rotulo: 'Plano de Contas', acao: () => Cadastros.contasContabeis() },
     { id: 'empresas', rotulo: 'Empresas', acao: () => Cadastros.empresas() },
+    { id: 'email', rotulo: 'E-mail', acao: () => Cadastros.telaEmail() },
     { id: 'usuarios', rotulo: 'Usuários', acao: () => Cadastros.usuarios() },
     { id: 'parametros', rotulo: 'Parâmetros contábeis', acao: () => Cadastros.parametros() },
   ],
@@ -662,6 +663,75 @@ const Cadastros = {
     });
   },
 
+  /** Aba E-mail: mostra de relance se o envio está de pé e abre a configuração.
+
+      Existe porque o botão na linha da empresa fica espremido entre os outros e
+      ninguém acha. Aqui a pessoa vê o estado numa olhada. */
+  async telaEmail() {
+    const alvo = Cadastros.alvo();
+    alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando...</div></div>';
+    const empresa = (Estado.empresas || []).find((e) => e.id === Estado.empresaId)
+      || (await Api.get('/api/empresas')).find((e) => e.id === Estado.empresaId);
+    if (!empresa) {
+      alvo.innerHTML = '<div class="cartao"><div class="vazio">Escolha uma empresa '
+        + 'no alto da tela.</div></div>';
+      return;
+    }
+    let config = {};
+    try {
+      config = await Api.get('/api/email/config', { empresa_id: empresa.id });
+    } catch (e) {
+      UI.erro(e.message);
+    }
+    const pronto = config.configurado && config.tem_senha;
+    alvo.innerHTML = `
+      <div class="cartao">
+        <div class="cartao-cabecalho">
+          <div>
+            <h3>Envio de e-mail — ${UI.escapar(empresa.razao_social || '')}</h3>
+            <div class="mini">a nota autorizada sai daqui para o cliente, com o XML e a
+              DANFE em PDF anexados</div>
+          </div>
+          <div class="espaco">
+            <button class="btn btn-primario" id="btn-config-email">
+              ${pronto ? 'Alterar configuração' : 'Configurar agora'}</button>
+          </div>
+        </div>
+        <div class="cartao-corpo">
+          <div class="cartao" style="border-left:4px solid var(--${pronto ? 'verde' : 'ambar'})">
+            <div class="cartao-corpo">
+              ${pronto
+                ? `<b>Pronto para enviar.</b>
+                   <div class="mini">Servidor ${UI.escapar(config.servidor || '')} ·
+                     porta ${UI.escapar(String(config.porta || ''))} ·
+                     ${UI.escapar(config.seguranca || '')}</div>
+                   <div class="mini">Sai como
+                     <b>${UI.escapar(config.remetente_email || '')}</b>${
+                       config.enviar_ao_autorizar === false
+                         ? ' · <b>envio automático desligado</b>'
+                         : ' · envia sozinho quando a SEFAZ autoriza'}</div>
+                   ${config.ultimo_envio_em ? `<div class="mini">Último envio:
+                     ${UI.data(config.ultimo_envio_em)}</div>` : ''}`
+                : `<b>O envio de e-mail ainda não está configurado.</b>
+                   <div class="mini">${config.configurado
+                     ? 'Falta a senha da conta de e-mail.'
+                     : 'Sem isto, a nota autorizada não é enviada para o cliente.'}</div>`}
+              ${config.ultimo_erro ? `<div class="mini" style="margin-top:6px;
+                color:var(--vermelho)">Último erro:
+                ${UI.escapar(config.ultimo_erro)}</div>` : ''}
+            </div>
+          </div>
+          <div class="mini" style="margin-top:10px">
+            Quem envia é a conta de e-mail <b>da própria empresa</b> — o cliente recebe a
+            nota vindo dela e responde para ela. Gmail e Microsoft exigem uma
+            <b>senha de app</b>, gerada nas configurações de segurança da conta.
+          </div>
+        </div>
+      </div>`;
+    alvo.querySelector('#btn-config-email').onclick =
+      () => Cadastros.configurarEmail(empresa);
+  },
+
   /** Configuração de envio de e-mail da empresa.
 
       O sistema não tem servidor de e-mail: quem manda é a conta da própria
@@ -813,6 +883,7 @@ const Cadastros = {
               await gravar();
               UI.sucesso('Configuração de e-mail salva.');
               UI.fecharModal();
+              if (Cadastros._aba === 'email') Cadastros.telaEmail();
             } catch (e) { UI.erro(e.message); }
           },
         },

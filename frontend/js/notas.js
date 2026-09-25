@@ -109,6 +109,48 @@ const Notas = {
     Notas.desenharLista();
   },
 
+  /* O que esta nota fez no estoque. Nota sem item que controla estoque não
+     mostra nada — não é um problema, é só uma nota que não é de mercadoria. */
+  seloEstoque(n) {
+    const e = n.estoque || {};
+    if (e.gerado) {
+      return `<span class="tag tag-pago">No estoque</span>
+        <div class="mini">${UI.data(e.gerado_em)}</div>`;
+    }
+    if (e.pode_gerar) {
+      return `<span class="tag tag-aberto">A gerar</span>
+        <div class="mini">${e.itens} item(ns)</div>`;
+    }
+    return '<span class="mini">—</span>';
+  },
+
+  async gerarEstoque(n) {
+    if (!await UI.confirmar(
+      `Pôr no estoque a mercadoria da nota ${n.numero || ''}? `
+      + `${(n.estoque || {}).itens} item(ns) entram com o custo da nota.`,
+      'Gerar estoque')) return;
+    try {
+      const r = await Api.post(`/api/notas/${n.id}/estoque`, {});
+      UI.sucesso(r.mensagem);
+      Notas.tela();
+    } catch (e) {
+      UI.erro(e.message);
+    }
+  },
+
+  async estornarEstoque(n) {
+    if (!await UI.confirmar(
+      `Estornar o estoque da nota ${n.numero || ''}? O sistema lança os movimentos `
+      + 'de sentido contrário — nada é apagado do extrato.', 'Estornar')) return;
+    try {
+      const r = await Api.post(`/api/notas/${n.id}/estoque/estornar`, {});
+      UI.sucesso(r.mensagem);
+      Notas.tela();
+    } catch (e) {
+      UI.erro(e.message);
+    }
+  },
+
   desenharLista() {
     const linhas = Notas._linhas || [];
     const podeFaturar = (n) => !n.faturada && n.situacao !== 'CANCELADA'
@@ -139,6 +181,7 @@ const Notas = {
             : `<span class="tag ${Notas.TAG_SITUACAO[n.situacao] || ''}">${
                 UI.escapar((n.situacao || '').charAt(0) + (n.situacao || '').slice(1).toLowerCase())}</span>`) },
         { titulo: 'Faturamento', classe: 'centro', valor: (n) => Notas.selo(n) },
+        { titulo: 'Estoque', classe: 'centro', valor: (n) => Notas.seloEstoque(n) },
         { titulo: 'Ações', classe: 'centro',
           valor: (n, i) => `<button class="btn btn-mini" data-ficha="${i}">Abrir</button>
             ${n.tem_xml
@@ -150,6 +193,12 @@ const Notas = {
                       UI.escapar(n.email_destinatarios || '')} — clique para enviar de novo`
                   : 'Enviar o XML e a DANFE para o e-mail do cliente'}">${
                   n.email_enviado_em ? 'Reenviar' : 'E-mail'}</button>` : ''}
+            ${(n.estoque || {}).pode_gerar
+              ? `<button class="btn btn-mini btn-verde" data-estoque="${i}"
+                   title="Põe no estoque a mercadoria desta nota de entrada">+ Estoque</button>` : ''}
+            ${(n.estoque || {}).pode_estornar
+              ? `<button class="btn btn-mini btn-perigo" data-estornar-estoque="${i}"
+                   title="Desfaz o que esta nota fez no estoque">Estornar estoque</button>` : ''}
             ${n.faturada
               ? `<button class="btn btn-mini btn-perigo" data-desfaturar="${i}">Desfaturar</button>`
               : (podeFaturar(n)
@@ -190,6 +239,13 @@ const Notas = {
           b.textContent = rotulo;
         }
       };
+    });
+    alvo.querySelectorAll('[data-estoque]').forEach((b) => {
+      b.onclick = () => Notas.gerarEstoque(linhas[Number(b.dataset.estoque)]);
+    });
+    alvo.querySelectorAll('[data-estornar-estoque]').forEach((b) => {
+      b.onclick = () => Notas.estornarEstoque(
+        linhas[Number(b.dataset.estornarEstoque)]);
     });
     alvo.querySelectorAll('[data-faturar]').forEach((b) => {
       b.onclick = () => Notas.faturar(linhas[Number(b.dataset.faturar)]);

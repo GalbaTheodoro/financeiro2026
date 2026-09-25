@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Manual da GTA — AgroDock</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+@page :first { margin: 0; }
+:root{ --verde:#14532d; --verde2:#1e7a47; --claro:#e8f3ec; --ambar:#8a5a0b; --ambar-claro:#fbf0da; --tinta:#1a2420; --suave:#5b6a61; --linha:#d7e0d9; }
+*{box-sizing:border-box}
+body{font-family:"Segoe UI", "DejaVu Sans", Arial, sans-serif; color:var(--tinta); font-size:10.6pt; line-height:1.5; margin:0}
+h1,h2,h3{color:var(--verde); line-height:1.2; margin:0}
+h1{font-size:22pt; margin-bottom:6mm; padding-bottom:3mm; border-bottom:2px solid var(--verde2)}
+h2{font-size:14pt; margin:7mm 0 2.5mm}
+h2,h3{break-after:avoid; page-break-after:avoid}
+h3{font-size:11.5pt; margin:5mm 0 1.5mm; color:var(--verde2)}
+p{margin:0 0 2.5mm}
+ul,ol{margin:0 0 3mm; padding-left:6mm}
+li{margin-bottom:1.2mm}
+.capitulo{page-break-before:always}
+.capa{height:297mm; width:210mm; background:linear-gradient(160deg,#0f3d22 0%,#14532d 55%,#1e7a47 100%); color:#fff; padding:36mm 22mm; display:flex; flex-direction:column; justify-content:space-between}
+.capa .logo{background:#fff; border-radius:10px; padding:8mm 10mm; width:92mm}
+.capa .logo img{width:100%; display:block}
+.capa h1{color:#fff; border:0; font-size:34pt; margin:0 0 4mm}
+.capa .sub{font-size:14pt; opacity:.9; max-width:135mm}
+.capa .rodape{font-size:10pt; opacity:.85; border-top:1px solid rgba(255,255,255,.35); padding-top:5mm}
+figure{margin:3mm 0 4mm; page-break-inside:avoid}
+figure img{max-width:100%; max-height:118mm; width:auto; margin:0 auto; border:1px solid var(--linha); border-radius:4px; display:block}
+figure.meia img{width:74%; margin:0 auto}
+figure.estreita img{width:50%; margin:0 auto}
+figcaption{font-size:8.8pt; color:var(--suave); margin-top:1.5mm; text-align:center}
+.lado{display:flex; gap:5mm; page-break-inside:avoid}
+.lado figure{flex:1}
+.dica,.atencao,.passo{border-radius:6px; padding:3mm 4mm; margin:3mm 0 4mm; page-break-inside:avoid}
+.dica{background:var(--claro); border-left:4px solid var(--verde2)}
+.atencao{background:var(--ambar-claro); border-left:4px solid var(--ambar)}
+.dica b.t,.atencao b.t{display:block; margin-bottom:1mm}
+table{border-collapse:collapse; width:100%; margin:2mm 0 4mm; font-size:9.6pt; page-break-inside:avoid}
+th,td{border:1px solid var(--linha); padding:1.6mm 2.4mm; text-align:left; vertical-align:top}
+th{background:var(--claro); color:var(--verde)}
+.ui{font-weight:600; background:#eef2ee; border:1px solid var(--linha); border-radius:3px; padding:0 1.4mm; white-space:nowrap}
+.sumario{columns:2; column-gap:10mm; font-size:10.5pt}
+.sumario div{break-inside:avoid; margin-bottom:2.4mm}
+.sumario b{color:var(--verde)}
+.sumario span.d{display:block; color:var(--suave); font-size:9pt; padding-left:6mm}
+.num{display:inline-block !important; min-width:7mm; color:var(--verde2)}
+code{font-family:Consolas, "DejaVu Sans Mono", monospace; font-size:9pt; background:#eef2ee; padding:0 1mm; border-radius:2px}
+.checklist li{list-style:none; margin-left:-6mm}
+.checklist li::before{content:"☐  "; color:var(--verde2)}
+.passo-titulo{background:var(--verde2); color:#fff; border-radius:5px; padding:1.6mm 3mm; font-weight:700; font-size:11pt; margin:6mm 0 2.5mm; page-break-after:avoid}
+.passo-titulo span{opacity:.75; font-weight:600}
+</style>
+</head>
+<body>
+
+<section class="capa">
+  <div class="logo"><img src="img/logo.png" alt="AgroDock"></div>
+  <div>
+    <h1>GTA</h1>
+    <div class="sub">Guia de Trânsito Animal no AgroDock: os cadastros que precisam estar prontos, a conferência antes do portal, a ficha de preparo e o controle da validade — passo a passo.</div>
+  </div>
+  <div class="rodape">Versão de setembro de 2026 · As telas mostradas usam dados de demonstração.</div>
+</section>
+
+<!-- SUMÁRIO ---------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>Sumário</h1>
+  <div class="sumario">
+    <div><b><span class="num">1</span> A GTA e o AgroDock</b><span class="d">O que o sistema faz — e por que ele não emite a guia</span></div>
+    <div><b><span class="num">2</span> Antes de começar</b><span class="d">O plano, a empresa e os cadastros que a guia usa</span></div>
+    <div><b><span class="num">3</span> A tela da GTA</b><span class="d">Os seis números do topo, a lista e os filtros</span></div>
+    <div><b><span class="num">4</span> Passo a passo</b><span class="d">Da guia em preparo até a guia utilizada, em dez passos</span></div>
+    <div><b><span class="num">5</span> A conferência</b><span class="d">Cada aviso, o que ele quer dizer e o que fazer</span></div>
+    <div><b><span class="num">6</span> A ficha de preparo</b><span class="d">A folha que vai junto para o portal</span></div>
+    <div><b><span class="num">7</span> Validade</b><span class="d">O aviso de vencimento e a guia que venceu</span></div>
+    <div><b><span class="num">8</span> Procurar e exportar</b><span class="d">Filtros, busca e a lista em Excel</span></div>
+    <div><b><span class="num">9</span> No celular</b><span class="d">A mesma tela, no telefone, dentro do curral</span></div>
+    <div><b><span class="num">10</span> Tabelas de referência</b><span class="d">Espécies, faixas de idade, finalidades e os portais de cada estado</span></div>
+    <div><b><span class="num">11</span> Dúvidas frequentes</b><span class="d">O que costuma travar e como resolver</span></div>
+  </div>
+</section>
+
+<!-- 1 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>1. A GTA e o AgroDock</h1>
+
+  <p>A <b>GTA — Guia de Trânsito Animal</b> é o documento que acompanha todo animal que sai de uma propriedade para outra: para o abate, para engorda, para um leilão, para exposição. Sem ela a carga não anda, e quem é parado na estrada sem guia responde por isso.</p>
+
+  <h2>Por que o sistema não emite a guia</h2>
+  <p>A GTA não é documento fiscal eletrônico como a nota fiscal: é documento de <b>defesa sanitária animal</b>, e <b>a emissão fica no sistema do estado</b> — fechado, com login pessoal. Em Minas é o <b>SIAPEC</b>, do IMA; em São Paulo o GEDAVE; em Goiás o SIDAGO; no Pará o Sigeagro. Quem emite é o <b>produtor</b> ou o <b>médico-veterinário habilitado</b>, com a senha dele, dentro do portal.</p>
+  <p>Não adianta procurar um botão de “transmitir” no AgroDock: ele não pode existir.</p>
+
+  <h3>“Mas eu vi que existe um webservice de GTA”</h3>
+  <p>E existe mesmo — só que ele não emite guia. É o <code>GtaEmitidaWsService</code> da <b>PGA — Plataforma de Gestão Agropecuária</b>, do Ministério da Agricultura. Repare no nome: GTA <b>emitida</b>. O método principal chama-se <code>gravarGtaEmitida</code>: quem chama <b>já emitiu</b> a guia e está apenas <i>registrando</i> isso. O próprio manual descreve o serviço como “mantém informações da Guia de Trânsito Animal, sem validação das informações do destino”. Nada ali gera número de guia, valida sanidade nem autoriza trânsito.</p>
+  <p>E quem chama esse serviço é o <b>OESA</b> — o Órgão Executor de Sanidade Agropecuária, ou seja, o próprio IMA em Minas, a Adepará no Pará. O fluxo é “dos OESAs para a PGA no MAPA”: é o <b>estado prestando contas ao governo federal</b>, não um canal para o produtor ou a assessoria emitir.</p>
+
+  <div class="dica">
+    <b class="t">O que esse webservice pode abrir um dia</b>
+    O mesmo serviço tem métodos de <b>consulta</b> (<code>obterGtasEmitidaEstadual</code>, <code>obterGtasEmitidaDestino</code>). Com credenciamento, o AgroDock poderia <b>buscar sozinho</b> as guias dos seus produtores — seria para a GTA o que o DF-e já é para a nota fiscal. O credenciamento, porém, é desenhado para OESA: é pergunta para o IMA ou para o gestor do sistema no MAPA.
+  </div>
+
+  <div class="atencao">
+    <b class="t">A guia válida é a que sai do portal.</b>
+    Nada do que está no AgroDock substitui a GTA. O sistema guarda, confere e prepara; a emissão continua sendo no portal do estado, como sempre foi.
+  </div>
+
+  <h2>Então o que o AgroDock faz</h2>
+  <p>As duas coisas que faltavam para quem atende vários produtores:</p>
+  <table>
+    <tr><th style="width:32%">O que faz</th><th>Para que serve</th></tr>
+    <tr><td><b>Guarda e vigia</b></td><td>Todas as guias dos produtores atendidos num lugar só: origem, destino, animais, número, emissão e <b>validade</b>. O sistema avisa quando a validade está acabando e mostra sozinho as que venceram.</td></tr>
+    <tr><td><b>Prepara a digitação</b></td><td>A <b>conferência</b> aponta, <i>antes</i> de abrir o portal, o que o portal vai cobrar. E a <b>ficha de preparo</b> é a folha com tudo conferido, <b>na ordem das telas do portal</b>, para quem for digitar não errar nem ficar procurando dado.</td></tr>
+  </table>
+  <p>Na prática: quem digita no portal deixa de abrir cinco cadastros para achar uma inscrição estadual, e para de descobrir na metade da digitação que falta a placa do caminhão.</p>
+
+  <figure><img src="img/gta-tela.jpg" style="max-height:114mm"><figcaption>A tela da GTA, no menu <b>Movimento → GTA (trânsito animal)</b>. O aviso azul do topo está lá de propósito: é ele que explica de onde a guia sai.</figcaption></figure>
+</section>
+
+<!-- 2 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>2. Antes de começar</h1>
+
+  <h2>2.1. O plano precisa incluir a GTA</h2>
+  <p>A GTA faz parte do <b>Plano 3</b> e do <b>Plano 4</b>. Se o seu plano é o 1 ou o 2, o item <span class="ui">GTA (trânsito animal)</span> simplesmente não aparece no menu. Para mudar, vá em <span class="ui">Minha Assinatura</span> e escolha o plano — enquanto o pagamento não foi confirmado a troca é imediata.</p>
+
+  <table>
+    <tr><th>Plano</th><th>Inclui a GTA?</th></tr>
+    <tr><td>Plano 1 — contrato, financeiro e NF-e</td><td>não</td></tr>
+    <tr><td>Plano 2 — o mesmo, mais cupom fiscal</td><td>não</td></tr>
+    <tr><td><b>Plano 3</b> — o mesmo, mais GTA</td><td><b>sim</b></td></tr>
+    <tr><td><b>Plano 4</b> — cupom fiscal e GTA</td><td><b>sim</b></td></tr>
+  </table>
+
+  <h2>2.2. A empresa</h2>
+  <p>Em <span class="ui">Cadastros → Empresas</span>, confira o <b>estado (UF)</b> da sua empresa. É por ele que o sistema sabe qual portal citar na ficha de preparo — em Minas, SIAPEC/IMA. Se a guia for emitida em outro estado, dá para escolher a <span class="ui">UF emissora</span> dentro da própria guia.</p>
+
+  <h2>2.3. Os produtores — o cadastro que a guia usa de verdade</h2>
+  <p>A guia tem dois lados: de onde os animais saem (<b>origem</b>) e para onde vão (<b>destino</b>). Cada lado é um produtor, e os dois vêm de <span class="ui">Cadastros → Clientes e Fornecedores</span>.</p>
+
+  <figure><img src="img/gta-cadastro-lista.jpg" style="max-height:112mm"><figcaption>Lista de clientes e fornecedores. O botão <span class="ui">Editar</span> abre a ficha.</figcaption></figure>
+
+  <p>Na ficha do produtor, quatro campos são os que a GTA aproveita. Preencher esses quatro agora economiza digitação em toda guia daquele produtor:</p>
+
+  <table>
+    <tr><th style="width:30%">Campo</th><th>Por que a GTA precisa</th></tr>
+    <tr><td><b>Nome / Razão social</b></td><td>É o nome do produtor que vai na guia.</td></tr>
+    <tr><td><b>CPF / CNPJ</b></td><td>Identifica o produtor no portal.</td></tr>
+    <tr><td><b>RG / Inscrição estadual</b></td><td><b>O mais importante.</b> É a <b>inscrição estadual da propriedade</b> — é por ela que o portal acha o cadastro da fazenda. Sem ela a conferência reclama e a digitação trava.</td></tr>
+    <tr><td><b>Cidade e UF</b></td><td>Município e estado da propriedade. É o que diz se o trânsito é dentro do estado ou interestadual.</td></tr>
+  </table>
+
+  <figure><img src="img/gta-cadastro-produtor.jpg" style="max-height:118mm"><figcaption>Ficha do produtor. Os campos <b>CPF/CNPJ</b>, <b>RG/Inscrição estadual</b>, <b>Cidade</b> e <b>UF</b> são os que a guia puxa sozinha.</figcaption></figure>
+
+  <div class="dica">
+    <b class="t">Um produtor com mais de uma fazenda</b>
+    A inscrição estadual é <b>da propriedade</b>, não da pessoa. Quem tem duas fazendas tem duas inscrições. Cadastre o produtor com a inscrição da fazenda que ele mais usa e, na guia, corrija a inscrição e o nome da propriedade quando for a outra — <b>o que você digitar na guia manda sobre o cadastro</b>.
+  </div>
+
+  <h2>2.4. O que não tem cadastro</h2>
+  <p>Três coisas são digitadas direto na guia, porque mudam de carga para carga:</p>
+  <ul>
+    <li><b>O médico-veterinário e o CRMV</b> — quem assina a guia. Obrigatório quando a carga muda de estado.</li>
+    <li><b>O transportador e a placa</b> — no transporte rodoviário o portal pede a placa.</li>
+    <li><b>A propriedade</b> — o nome da fazenda de cada lado.</li>
+  </ul>
+
+  <h2>2.5. Antes da primeira guia — confira</h2>
+  <ul class="checklist">
+    <li>O plano é o 3 ou o 4, e o item <span class="ui">GTA (trânsito animal)</span> aparece no menu.</li>
+    <li>A empresa está com a UF preenchida.</li>
+    <li>O produtor de <b>origem</b> está cadastrado, com inscrição estadual, cidade e UF.</li>
+    <li>O <b>destino</b> (frigorífico, fazenda de engorda, comprador) também está cadastrado.</li>
+    <li>Você tem em mãos: espécie, finalidade, quantos animais por sexo e idade, placa do caminhão e, se a carga sair do estado, o veterinário com CRMV.</li>
+  </ul>
+</section>
+
+<!-- 3 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>3. A tela da GTA</h1>
+
+  <p>Abra pelo menu <span class="ui">Movimento → GTA (trânsito animal)</span>.</p>
+
+  <h2>Os seis números do topo</h2>
+  <figure><img src="img/gta-resumo.jpg" style="max-height:45mm"><figcaption>O resumo muda junto com o filtro: ele conta o que está na lista.</figcaption></figure>
+
+  <table>
+    <tr><th style="width:26%">Número</th><th>O que conta</th></tr>
+    <tr><td><b>Guias</b></td><td>Quantas guias o filtro achou, e o total de animais nelas.</td></tr>
+    <tr><td><b>Válidas</b></td><td>Emitidas e ainda dentro do prazo.</td></tr>
+    <tr><td><b>Vencendo</b></td><td>Faltam <b>3 dias ou menos</b> para a validade acabar. É o número para olhar de manhã.</td></tr>
+    <tr><td><b>Vencidas</b></td><td>Passaram da validade sem serem usadas. O sistema conta sozinho, comparando a data — ninguém precisa marcar nada.</td></tr>
+    <tr><td><b>Em preparo</b></td><td>Guias montadas aqui que ainda não foram ao portal.</td></tr>
+    <tr><td><b>Com pendência</b></td><td>Guias em que a conferência achou algo faltando. Se esse número é zero, dá para digitar todas no portal sem susto.</td></tr>
+  </table>
+
+  <h2>A lista</h2>
+  <figure><img src="img/gta-lista.jpg" style="max-height:118mm"><figcaption>Cada linha traz a guia, a espécie, quantos animais, as datas, os dois lados e a situação.</figcaption></figure>
+
+  <table>
+    <tr><th style="width:26%">Situação</th><th>O que quer dizer</th></tr>
+    <tr><td><b>Em preparo</b></td><td>Montada no AgroDock, ainda não emitida no portal. Não tem número nem validade.</td></tr>
+    <tr><td><b>Emitida</b></td><td>Saiu do portal e ainda vale.</td></tr>
+    <tr><td><b>Vencida</b></td><td>Emitida, mas passou da validade. <b>O sistema mostra sozinho</b> — e o filtro por “Vencida” usa a data, não o que alguém marcou.</td></tr>
+    <tr><td><b>Utilizada</b></td><td>A carga andou, a guia cumpriu o papel.</td></tr>
+    <tr><td><b>Cancelada</b></td><td>Cancelada no portal.</td></tr>
+  </table>
+  <p>Na coluna da situação, quando ainda falta algo, aparece em âmbar quantos <b>pontos a resolver</b> a conferência encontrou.</p>
+</section>
+
+<!-- 4 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>4. Passo a passo</h1>
+  <p>O caminho inteiro, do zero até a guia utilizada. Os passos 1 a 6 são no AgroDock, o 7 é no portal do estado, e o 8 em diante é voltar aqui para anotar.</p>
+
+  <div class="passo-titulo"><span>Passo 1</span> &nbsp;·&nbsp; Criar a guia em preparo</div>
+  <p>Na tela da GTA, clique em <span class="ui">Nova guia</span>. A guia nasce como <b>em preparo</b> — é um rascunho: dá para salvar pela metade, fechar e voltar depois.</p>
+  <figure><img src="img/gta-nova-vazia.jpg" style="max-height:118mm"><figcaption>A guia nova, ainda em branco. A conferência aparece assim que você salva pela primeira vez.</figcaption></figure>
+
+  <div class="passo-titulo"><span>Passo 2</span> &nbsp;·&nbsp; Os animais</div>
+  <ol>
+    <li><b>Espécie</b> — bovino, bubalino, suíno, equino, ovino, caprino… A espécie decide as faixas de idade do passo seguinte.</li>
+    <li><b>Finalidade</b> — abate, engorda, reprodução, cria, recria, exposição, leilão… <b>O portal pergunta isso logo na primeira tela</b>, então vale decidir antes.</li>
+    <li><b>Categorias</b> — clique em <span class="ui">Acrescentar categoria</span> e informe <b>sexo</b>, <b>faixa de idade</b> e <b>quantidade</b>. Uma linha para cada combinação.</li>
+  </ol>
+
+  <div class="atencao">
+    <b class="t">O portal não aceita um número só de animais</b>
+    Ele quer os animais separados por <b>sexo e faixa de idade</b> — 18 machos de 25 a 36 meses, 7 machos acima de 36, e assim por diante. O total da guia é a <b>soma das linhas</b>, e é ele que o portal confere. Por isso o AgroDock pede do mesmo jeito: se digitar aqui e lá bater, a digitação sai de primeira.
+  </div>
+
+  <figure><img src="img/gta-form-animais.jpg" style="max-height:126mm"><figcaption>Bloco dos animais, com a tabela de categorias e o total somado na hora. Em cima, a conferência em âmbar listando o que ainda falta.</figcaption></figure>
+
+  <div class="passo-titulo"><span>Passo 3</span> &nbsp;·&nbsp; Origem e destino</div>
+  <p>Cada lado tem o mesmo conjunto de campos. No campo <span class="ui">No cadastro</span>, escolha o produtor — <b>nome, CPF/CNPJ, inscrição estadual, município e UF vêm sozinhos</b>. Depois complete:</p>
+  <ul>
+    <li><b>Propriedade</b> — o nome da fazenda. <b>O portal procura a propriedade, não a pessoa</b>, então este campo não é enfeite.</li>
+    <li><b>Inscrição estadual</b> — confira se é a da fazenda daquela carga.</li>
+  </ul>
+  <p>Se o produtor não está no cadastro (um comprador de uma vez só, por exemplo), deixe <span class="ui">No cadastro</span> em branco e digite os campos à mão. O que é digitado à mão sempre manda sobre o cadastro.</p>
+
+  <div class="passo-titulo"><span>Passo 4</span> &nbsp;·&nbsp; Transporte e responsável</div>
+  <ul>
+    <li><b>Meio</b> — rodoviário, a pé, ferroviário, aquaviário ou aéreo.</li>
+    <li><b>Transportador e placa</b> — no rodoviário o portal pede a placa. Pode digitar com espaço e minúscula: o sistema guarda <code>HMZ1A23</code>.</li>
+    <li><b>Médico-veterinário e CRMV</b> — quem assina. <b>Obrigatório quando a carga muda de estado.</b></li>
+  </ul>
+  <figure><img src="img/gta-form-completo.jpg" style="max-height:126mm"><figcaption>Guia completa: conferência verde, os dois lados preenchidos e o transporte.</figcaption></figure>
+
+  <div class="passo-titulo"><span>Passo 5</span> &nbsp;·&nbsp; Conferir antes de abrir o portal</div>
+  <p>O quadro no alto do formulário é a <b>conferência</b>. Ele lista, em português, o que o portal vai cobrar. Enquanto houver item na lista, o quadro fica âmbar.</p>
+  <figure><img src="img/gta-conferencia.jpg" style="max-height:44mm"><figcaption>Conferência com pendências: cada linha diz o que falta e por quê.</figcaption></figure>
+  <p>Quando não falta mais nada, ele fica verde:</p>
+  <figure class="meia"><img src="img/gta-conferencia-ok.jpg"><figcaption>Pode imprimir a ficha e digitar no portal.</figcaption></figure>
+  <p>O capítulo 5 tem a lista de todos os avisos e o que fazer em cada um.</p>
+
+  <div class="passo-titulo"><span>Passo 6</span> &nbsp;·&nbsp; Imprimir a ficha de preparo</div>
+  <p>Clique em <span class="ui">Ficha de preparo</span> — no rodapé do formulário ou na linha da lista. Abre uma folha A4 pronta para imprimir ou salvar em PDF. É ela que vai junto para o portal.</p>
+
+  <div class="passo-titulo"><span>Passo 7</span> &nbsp;·&nbsp; Digitar no portal do estado</div>
+  <p>Agora sim, no portal — em Minas, <b>SIAPEC</b> (<code>sistemas.ima.mg.gov.br</code>), com o login do produtor ou do veterinário. Com a ficha ao lado, é só seguir de cima para baixo: os blocos estão <b>na ordem em que o portal pergunta</b> — origem, destino, animais, transporte, responsável técnico.</p>
+
+  <div class="passo-titulo"><span>Passo 8</span> &nbsp;·&nbsp; Voltar e anotar o que saiu</div>
+  <p>Emitiu? Volte ao AgroDock, abra a guia e preencha o bloco <b>Depois de emitir no portal</b>:</p>
+  <ul>
+    <li><b>Número da GTA</b> e <b>série</b>, como saíram no portal;</li>
+    <li><b>UF emissora</b> — de qual portal a guia saiu;</li>
+    <li><b>Emissão</b> e, principalmente, <b>Validade</b> — <b>é essa data que o sistema vigia</b>.</li>
+  </ul>
+  <p>Depois clique em <span class="ui">Marcar como emitida</span>. O sistema não deixa marcar sem o número e sem a validade — e avisa qual dos dois falta.</p>
+  <figure><img src="img/gta-anotar.jpg" style="max-height:126mm"><figcaption>O fim do formulário: os campos do que saiu do portal e o botão <span class="ui">Marcar como emitida</span>.</figcaption></figure>
+
+  <div class="passo-titulo"><span>Passo 9</span> &nbsp;·&nbsp; Guardar o PDF da guia</div>
+  <p>No campo <span class="ui">PDF da guia</span>, anexe o arquivo que o portal gerou (até 4 MB). Depois, o botão <span class="ui">Baixar o PDF guardado</span> devolve o arquivo quando alguém pedir — sem procurar em pasta de downloads nem em conversa de WhatsApp.</p>
+
+  <div class="passo-titulo"><span>Passo 10</span> &nbsp;·&nbsp; Quando a carga andar</div>
+  <p>Abra a guia e clique em <span class="ui">A carga andou</span>: a situação passa a <b>Utilizada</b> e ela sai da conta das válidas e do aviso de vencimento. Se a guia tiver sido cancelada no portal, use <span class="ui">Cancelada no portal</span> — assim o histórico fica certo.</p>
+
+  <div class="atencao">
+    <b class="t">Apagar não cancela</b>
+    Guia já emitida com número <b>não pode ser apagada</b> aqui, e o sistema barra: apagar no AgroDock não cancela nada no portal. O caminho é cancelar lá e marcar como cancelada aqui.
+  </div>
+</section>
+
+<!-- 5 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>5. A conferência — cada aviso</h1>
+  <p>A conferência é o que economiza tempo de verdade: ela aponta o problema <b>antes</b> de você abrir o portal, quando ainda é barato resolver.</p>
+  <div class="dica">
+    <b class="t">O número “Com pendência” do topo</b>
+    Ele conta quantas guias ainda têm algum aviso. É o jeito rápido de saber se dá para sentar e digitar tudo de uma vez no portal.
+  </div>
+
+  <table>
+    <tr><th style="width:44%">O aviso</th><th>O que fazer</th></tr>
+    <tr><td>Falta a espécie dos animais</td><td>Escolha no campo <span class="ui">Espécie</span>. Ela decide as faixas de idade.</td></tr>
+    <tr><td>Falta a finalidade do transporte</td><td>Abate, engorda, reprodução… O portal pergunta na primeira tela.</td></tr>
+    <tr><td>Falta o nome do produtor de origem / destino</td><td>Escolha o produtor em <span class="ui">No cadastro</span> ou digite o nome.</td></tr>
+    <tr><td>Falta o nome da propriedade de origem / destino</td><td>Digite o nome da fazenda. O portal procura a propriedade, não a pessoa.</td></tr>
+    <tr><td>Falta a inscrição estadual da propriedade</td><td>É por ela que o portal acha o cadastro. Se o produtor está cadastrado, preencha o campo <b>RG/Inscrição estadual</b> na ficha dele que ela passa a vir sozinha.</td></tr>
+    <tr><td>Falta o município e o estado</td><td>Complete cidade e UF do lado que estiver faltando.</td></tr>
+    <tr><td>Falta dizer quantos animais vão, separados por sexo e idade</td><td>Acrescente ao menos uma categoria com quantidade maior que zero.</td></tr>
+    <tr><td>A quantidade total não bate com a soma das categorias</td><td>Confira as linhas: o total da guia é sempre a soma delas.</td></tr>
+    <tr><td>Uma categoria está sem o sexo do animal</td><td>Escolha macho ou fêmea na linha.</td></tr>
+    <tr><td>A faixa de idade “…” não é uma das que o portal usa para …</td><td>Aconteceu porque a espécie foi trocada depois das categorias. Escolha a faixa certa na lista (capítulo 10).</td></tr>
+    <tr><td>Falta a placa do caminhão</td><td>No transporte rodoviário o portal pede. Se for outro meio, troque o campo <span class="ui">Meio</span>.</td></tr>
+    <tr><td>O trânsito é de … para … — guia interestadual</td><td>Não é erro, é aviso: o portal vai exigir os exames sanitários em dia e, em geral, a assinatura do veterinário.</td></tr>
+    <tr><td>Falta o médico-veterinário e o CRMV</td><td>Aparece junto com o aviso de interestadual: sem eles a guia não sai.</td></tr>
+    <tr><td>Está marcada como emitida mas está sem número / sem data de validade</td><td>Complete o bloco <b>Depois de emitir no portal</b>.</td></tr>
+  </table>
+
+</section>
+
+<!-- 6 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>6. A ficha de preparo</h1>
+
+  <p>É a folha A4 que vai junto para o portal. Ela traz, no cabeçalho, <b>o sistema e o órgão do estado</b> — em Minas, SIAPEC / IMA, com o endereço — e o aviso de que <b>aquela folha não é a GTA</b>.</p>
+
+  <p>Depois vêm as pendências (em vermelho, se houver) e os blocos <b>na ordem das telas do portal</b>:</p>
+  <ol>
+    <li>Origem — de onde os animais saem</li>
+    <li>Destino — para onde vão</li>
+    <li>Os animais, com a tabela de categorias</li>
+    <li>Transporte</li>
+    <li>Responsável técnico</li>
+    <li>Depois de emitir, volte e anote aqui</li>
+  </ol>
+
+  <p>Campo em branco sai marcado <b>— em branco —</b>, em vermelho: é impossível não ver. E o bloco 6 sai com <b>linhas em branco</b> para anotar à caneta o número e a validade na hora em que a guia sair — depois é só passar para o sistema.</p>
+
+  <figure><img src="img/gta-ficha.jpg" style="max-height:170mm"><figcaption>Ficha de preparo de uma guia pronta: tudo conferido e o bloco 6 esperando o número que vai sair do portal.</figcaption></figure>
+
+  <div class="dica">
+    <b class="t">Imprimir ou salvar em PDF</b>
+    A folha abre numa aba nova, já na caixa de impressão do navegador. Para guardar em vez de imprimir, escolha <b>Salvar como PDF</b> no destino da impressão. Se nada abrir, o navegador bloqueou a janela — libere os pop-ups do site.
+  </div>
+</section>
+
+<!-- 7 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>7. Validade — o que o sistema vigia</h1>
+
+  <p>Guia vencida é carga parada. Por isso a validade é o campo mais vigiado da tela.</p>
+
+  <table>
+    <tr><th style="width:34%">Quando</th><th>O que aparece</th></tr>
+    <tr><td>Faltam mais de 3 dias</td><td>A data aparece normal, sem aviso.</td></tr>
+    <tr><td>Faltam 3 dias ou menos</td><td>A data fica <b>âmbar</b> e vem a frase: “Faltam 2 dias para esta guia vencer.” A guia entra no número <b>Vencendo</b>.</td></tr>
+    <tr><td>Vence hoje</td><td>“Esta guia vence hoje — a carga tem de sair hoje.”</td></tr>
+    <tr><td>Passou da data</td><td>A situação vira <b>Vencida</b> sozinha, em vermelho: “Esta guia venceu há 3 dias. Se a carga ainda não andou, é preciso emitir outra no portal.”</td></tr>
+    <tr><td>Já utilizada ou cancelada</td><td>A data fica quieta: a guia acabou, não há mais o que vigiar.</td></tr>
+  </table>
+
+  <div class="dica">
+    <b class="t">Rotina de dois minutos</b>
+    Abra a GTA de manhã e olhe dois números: <b>Vencendo</b> e <b>Vencidas</b>. Se os dois estiverem em zero, não há carga em risco. Se <b>Vencendo</b> acusar, clique no filtro <span class="ui">Situação → Emitida</span> e avise o produtor.
+  </div>
+
+  <p>Uma guia vencida <b>não se conserta</b>: a validade é do portal. Se a carga ainda não andou, é preciso emitir outra lá e cadastrar a nova aqui. A vencida fica no histórico, que é como tem de ser.</p>
+</section>
+
+<!-- 8 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>8. Procurar, filtrar e exportar</h1>
+
+  <table>
+    <tr><th style="width:26%">Filtro</th><th>Para que serve</th></tr>
+    <tr><td><b>De / Até</b></td><td>Período pela <b>data de emissão</b>. Guia em preparo, que ainda não tem data, fica de fora quando você usa este filtro.</td></tr>
+    <tr><td><b>Produtor</b></td><td>Todas as guias de um produtor — de origem <i>ou</i> de destino.</td></tr>
+    <tr><td><b>Espécie</b></td><td>Bovino, suíno, equino…</td></tr>
+    <tr><td><b>Situação</b></td><td>Em preparo, emitida, utilizada, cancelada ou vencida. <b>“Vencida” usa a data</b>, não o que foi marcado à mão.</td></tr>
+    <tr><td><b>Procurar</b></td><td>Número da guia, nome do produtor ou nome da fazenda — dos dois lados.</td></tr>
+  </table>
+
+  <p>Os seis números do topo <b>acompanham o filtro</b>: filtrando por um produtor, eles passam a contar só as guias dele.</p>
+
+  <p>O botão <span class="ui">Exportar</span> baixa a lista que está na tela em CSV, para abrir no Excel — serve para mandar ao produtor o que ele tem de guia no período.</p>
+</section>
+
+<!-- 9 ---------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>9. No celular</h1>
+
+  <p>É a mesma tela, ajustada ao telefone — útil no curral, na hora de conferir o que está saindo.</p>
+
+  <div class="lado">
+    <figure class="estreita" style="flex:0 0 52%"><img src="img/gta-celular.jpg" style="max-height:120mm; width:auto"><figcaption>A GTA no celular.</figcaption></figure>
+    <div style="flex:1">
+      <ul>
+        <li>O menu vira gaveta, no botão ☰; a marca <b>AgroDock</b> fica ao lado, e o nome da tela na linha de baixo.</li>
+        <li>Os seis números ficam em duas colunas.</li>
+        <li>Cada guia vira um <b>cartão</b>, com o nome da coluna ao lado do valor — nada de rolar tabela para o lado.</li>
+        <li>O formulário abre em tela cheia, com os campos no tamanho do dedo.</li>
+        <li>A ficha de preparo abre igual e dá para mandar por e-mail ou WhatsApp direto do celular.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 10 --------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>10. Tabelas de referência</h1>
+
+  <h2>Espécies e faixas de idade</h2>
+  <p>As faixas mudam com a espécie porque é assim que os portais pedem.</p>
+  <table>
+    <tr><th style="width:34%">Espécie</th><th>Faixas de idade</th></tr>
+    <tr><td>Bovino, bubalino</td><td>0 a 12 meses · 13 a 24 meses · 25 a 36 meses · acima de 36 meses</td></tr>
+    <tr><td>Suíno</td><td>0 a 3 meses · 4 a 8 meses · acima de 8 meses</td></tr>
+    <tr><td>Equino, muar, ovino, caprino</td><td>até 12 meses · acima de 12 meses</td></tr>
+    <tr><td>Aves, abelhas, peixes</td><td>qualquer idade</td></tr>
+  </table>
+
+  <h2>Finalidades</h2>
+  <p>Abate · Engorda · Reprodução · Cria · Recria · Exposição · Leilão · Esporte · Retorno · Quarentena · Outras</p>
+
+  <h2>Meios de transporte</h2>
+  <p>Rodoviário · A pé · Ferroviário · Aquaviário · Aéreo</p>
+
+  <h2>Onde cada estado emite</h2>
+  <p>É este nome que sai no cabeçalho da ficha de preparo, conforme a <span class="ui">UF emissora</span> da guia.</p>
+  <table>
+    <tr><th style="width:20%">Estado</th><th style="width:40%">Órgão</th><th>Sistema</th></tr>
+    <tr><td><b>Minas Gerais</b></td><td>IMA — Instituto Mineiro de Agropecuária</td><td><b>SIAPEC</b> — sistemas.ima.mg.gov.br</td></tr>
+    <tr><td>São Paulo</td><td>CDA — Coordenadoria de Defesa Agropecuária</td><td>GEDAVE</td></tr>
+    <tr><td>Goiás</td><td>Agrodefesa</td><td>SIDAGO</td></tr>
+    <tr><td>Pará</td><td>Adepará</td><td>Sigeagro</td></tr>
+    <tr><td>Mato Grosso</td><td>Indea-MT</td><td>SIGDEA/INDEA</td></tr>
+    <tr><td>Mato Grosso do Sul</td><td>Iagro</td><td>e-Siapec</td></tr>
+    <tr><td>Bahia</td><td>ADAB</td><td>SIAPEC-BA</td></tr>
+    <tr><td>Espírito Santo</td><td>Idaf-ES</td><td>SigDef</td></tr>
+    <tr><td>Paraná</td><td>Adapar</td><td>GTA Eletrônica</td></tr>
+    <tr><td>Rio Grande do Sul</td><td>SEAPDR-RS</td><td>SDA</td></tr>
+    <tr><td>Santa Catarina</td><td>Cidasc</td><td>SIGEN+</td></tr>
+  </table>
+  <p>Se a UF não estiver na lista, a ficha sai dizendo “órgão de defesa agropecuária do estado” — o resto funciona igual.</p>
+</section>
+
+<!-- 11 --------------------------------------------------------------- -->
+<section class="capitulo">
+  <h1>11. Dúvidas frequentes</h1>
+
+  <h3>O sistema emite a GTA?</h3>
+  <p>Não. A guia sai do portal do estado, com o login do produtor ou do veterinário. O AgroDock guarda, confere e prepara a digitação.</p>
+
+  <h3>Mas existe um webservice de GTA, não existe?</h3>
+  <p>Existe — e não serve para emitir. O <code>GtaEmitidaWsService</code>, da PGA (Ministério da Agricultura), <b>registra</b> guia já emitida e é usado pelo <b>órgão estadual</b> para prestar contas ao governo federal. O capítulo 1 explica isso por extenso.</p>
+
+  <h3>Não vejo a GTA no menu.</h3>
+  <p>O seu plano é o 1 ou o 2. A GTA está no Plano 3 e no Plano 4 — troque em <span class="ui">Minha Assinatura</span>.</p>
+
+  <h3>A conferência insiste que falta a inscrição estadual, mas o produtor está cadastrado.</h3>
+  <p>O campo no cadastro é o <b>RG / Inscrição estadual</b>. Se ele estiver vazio, a guia não tem de onde puxar. Preencha na ficha do produtor (<span class="ui">Cadastros → Clientes e Fornecedores → Editar</span>) e escolha o produtor de novo na guia — ou digite a inscrição direto na guia.</p>
+
+  <h3>Mudei a espécie e as categorias sumiram.</h3>
+  <p>É de propósito: as faixas de idade de bovino não servem para suíno. Acrescente as categorias de novo, já com as faixas certas.</p>
+
+  <h3>A guia é para outro estado. Muda alguma coisa?</h3>
+  <p>Muda. A conferência avisa que é <b>interestadual</b> e passa a exigir <b>veterinário e CRMV</b>. O portal também vai cobrar os exames sanitários em dia — isso é com o produtor e o veterinário, o sistema só lembra.</p>
+
+  <h3>Marquei como emitida e o sistema não deixou.</h3>
+  <p>Falta o <b>número</b> ou a <b>validade</b>. São os dois dados que fazem a guia existir para o controle: sem validade não há o que vigiar.</p>
+
+  <h3>A guia venceu. Dá para estender a data?</h3>
+  <p>Não. A validade é do portal — mudar a data aqui só criaria uma mentira no controle. Se a carga não andou, emita outra guia no portal e cadastre a nova.</p>
+
+  <h3>Apaguei sem querer uma guia em preparo.</h3>
+  <p>Guia em preparo pode ser apagada e não volta — mas ela não tinha valor nenhum fora do sistema, era um rascunho. Monte outra. Guia já emitida com número o sistema <b>não deixa</b> apagar.</p>
+
+  <h3>Posso usar a ficha de preparo como documento?</h3>
+  <p>Não. Ela diz isso no próprio cabeçalho. É folha de conferência para quem vai digitar — o documento é a GTA que sair do portal.</p>
+
+  <h3>Dá para ligar a guia a um contrato ou a uma nota fiscal?</h3>
+  <p>Sim, a guia guarda esse vínculo. É útil quando a mesma carga tem contrato e nota no sistema.</p>
+</section>
+
+</body>
+</html>

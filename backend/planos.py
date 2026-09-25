@@ -34,6 +34,22 @@ do menu. Daí saem as duas barreiras, e as duas são necessárias:
   dizendo qual plano tem aquilo — porque esconder botão não é segurança;
 * na **tela**, o menu simplesmente não mostra o que a conta não tem.
 
+Quem monta a grade
+------------------
+A lista acima também é só o **padrão de fábrica**. Quem manda são duas coisas,
+nesta ordem, e só o administrador do site (MASTER) mexe nas duas:
+
+1. **a grade do plano** — *Configurações do site → Menus de cada plano*. Marcar
+   o cupom no Plano 1 vale para **todos** os assinantes do Plano 1 e muda a
+   página inicial junto. Fica guardado em ``plano1_modulos`` e companhia;
+2. **a exceção de um cliente** — *Assinaturas → Gerenciar → Acessos combinados*.
+   É a negociação: fechou o Plano 1 mas ficou combinado dar a nota fiscal, então
+   aquela conta ganha ``NFE`` como **extra**, sem mudar de plano nem de valor. O
+   caminho contrário existe pelos **bloqueados**. Fica guardado na própria
+   assinatura (``modulos_extras`` / ``modulos_bloqueados``).
+
+Quem junta as duas pontas é ``assinaturas.modulos_da_assinatura``.
+
 Contas antigas
 --------------
 Quem assinou quando existia só ``SEMESTRAL``/``ANUAL`` contratou o sistema
@@ -58,8 +74,8 @@ MODULOS: dict[str, tuple[str, str]] = {
     ),
     "NFE": (
         "Emissão de NF-e",
-        "NF-e 4.00 assinada e transmitida à SEFAZ, DANFE, envio por e-mail e busca "
-        "dos documentos emitidos contra o CNPJ.",
+        "NF-e 4.00 assinada e transmitida à SEFAZ, DANFE, envio por e-mail, busca "
+        "dos documentos emitidos contra o CNPJ e controle de estoque.",
     ),
     "CUPOM": (
         "Cupom fiscal eletrônico",
@@ -80,7 +96,7 @@ BASE: tuple[str, ...] = ("CONTRATOS", "FINANCEIRO", "NFE")
 ROTAS: dict[str, tuple[str, ...]] = {
     "CONTRATOS": ("/contratos",),
     "FINANCEIRO": ("/painel", "/receber", "/pagar", "/caixa", "/relatorios"),
-    "NFE": ("/notas", "/dfe"),
+    "NFE": ("/notas", "/dfe", "/estoque"),
     "CUPOM": ("/cupom",),
     "GTA": ("/gta",),
 }
@@ -111,6 +127,13 @@ NIVEL_PADRAO = 1
 
 
 def modulos_do_nivel(nivel: int) -> tuple[str, ...]:
+    """O que o plano libera **de fábrica**.
+
+    É só o padrão: o administrador do site monta a grade de menus de cada plano
+    em *Configurações do site*, e quem manda de verdade é
+    ``assinaturas.modulos_do_nivel(db, nivel)``, que lê o que está guardado e
+    cai aqui quando ninguém mexeu.
+    """
     for plano in NIVEIS:
         if plano["nivel"] == nivel:
             return BASE + tuple(plano["extras"])
@@ -197,6 +220,38 @@ def frase_de_bloqueio(modulo: str) -> str:
 # --------------------------------------------------------------------------- #
 # Configurações: uma chave de preço para cada plano e prazo
 # --------------------------------------------------------------------------- #
+def chave_dos_modulos(nivel: int) -> str:
+    """A chave onde fica a grade de menus daquele plano."""
+    return f"plano{nivel}_modulos"
+
+
+def separar_modulos(texto: str | None) -> tuple[str, ...]:
+    """Lê "CONTRATOS,NFE" e devolve só os códigos que existem, sem repetir."""
+    saida: list[str] = []
+    for pedaco in (texto or "").replace(";", ",").split(","):
+        codigo_modulo = pedaco.strip().upper()
+        if codigo_modulo in MODULOS and codigo_modulo not in saida:
+            saida.append(codigo_modulo)
+    # devolve na ordem do catálogo, para a tela não dançar
+    return tuple(m for m in MODULOS if m in saida)
+
+
+def juntar_modulos(modulos) -> str:
+    return ",".join(separar_modulos(",".join(modulos or ())))
+
+
+def configuracoes_de_modulos() -> dict[str, tuple[str, str, bool]]:
+    """As quatro chaves da grade de menus, no formato do CONFIGURACOES_PADRAO."""
+    return {
+        chave_dos_modulos(p["nivel"]): (
+            juntar_modulos(modulos_do_nivel(p["nivel"])),
+            f"Menus que o {p['nome']} libera",
+            True,
+        )
+        for p in NIVEIS
+    }
+
+
 def chave_do_valor(nivel: int, periodo: str) -> str:
     return f"plano{nivel}_{(periodo or 'semestral').lower()}_valor"
 

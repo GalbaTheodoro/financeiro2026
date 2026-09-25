@@ -22,6 +22,7 @@ from ..schemas import (
     InformarPagamentoIn,
     PacotesUsuariosIn,
     StatusAssinaturaIn,
+    AcessosContaIn,
 )
 from ..utils import moeda_br, serializar
 
@@ -163,7 +164,78 @@ def _linha_assinatura(db: Session, a: Assinatura) -> dict:
         plano_rotulo=situacao.get("plano_rotulo"),
         plano_periodo=situacao.get("plano_periodo"),
         modulos=situacao.get("modulos", []),
+        modulos_do_plano=situacao.get("modulos_do_plano", []),
+        modulos_extras=situacao.get("modulos_extras", []),
+        modulos_bloqueados=situacao.get("modulos_bloqueados", []),
     )
+
+
+@router.get("/admin/modulos")
+def listar_modulos(db: Session = Depends(get_db), _: Usuario = Depends(somente_master)):
+    """O catálogo de menus e a grade de cada plano — é o que a tela de configurações desenha."""
+    from .. import planos as catalogo
+
+    return {
+        "modulos": [
+            {"codigo": codigo, "nome": nome, "texto": texto,
+             "rotas": list(catalogo.ROTAS.get(codigo, ()))}
+            for codigo, (nome, texto) in catalogo.MODULOS.items()
+        ],
+        "planos": [
+            {"nivel": p["nivel"], "nome": p["nome"],
+             "chave": catalogo.chave_dos_modulos(p["nivel"]),
+             "modulos": list(regras.modulos_do_nivel(db, p["nivel"])),
+             "padrao": list(catalogo.modulos_do_nivel(p["nivel"]))}
+            for p in catalogo.NIVEIS
+        ],
+    }
+
+
+@router.post("/admin/assinaturas/{assinatura_id}/modulos")
+def acessos_da_conta(assinatura_id: int, dados: AcessosContaIn,
+                     db: Session = Depends(get_db),
+                     _: Usuario = Depends(somente_master)):
+    """Liga e desliga menus **desta conta**, fora do que o plano dá.
+
+    É a negociação: o cliente fechou o Plano 1 mas ficou combinado dar a nota
+    fiscal. O módulo entra como **extra** e ele passa a ver a tela — o plano e o
+    valor cobrado continuam os mesmos. Tirar um menu que o plano dava é o
+    caminho contrário, pelos **bloqueados**.
+    """
+    from .. import planos as catalogo
+
+    assinatura = db.get(Assinatura, assinatura_id)
+    if not assinatura:
+        raise HTTPException(404, "Assinatura não encontrada")
+    nivel, _periodo = catalogo.separar(assinatura.plano)
+    do_plano = regras.modulos_do_nivel(db, nivel)
+
+    extras = catalogo.separar_modulos(",".join(dados.extras or []))
+    bloqueados = catalogo.separar_modulos(",".join(dados.bloqueados or []))
+    repetido = [m for m in extras if m in bloqueados]
+    if repetido:
+        nomes = ", ".join(catalogo.MODULOS[m][0] for m in repetido)
+        raise HTTPException(
+            400, f"{nomes} está ao mesmo tempo liberado e bloqueado. Escolha um dos dois.")
+    # extra que o plano já dá não é extra: não guarda, para a tela não mentir
+    extras = tuple(m for m in extras if m not in do_plano)
+    bloqueados = tuple(m for m in bloqueados if m in do_plano)
+
+    assinatura.modulos_extras = catalogo.juntar_modulos(extras) or None
+    assinatura.modulos_bloqueados = catalogo.juntar_modulos(bloqueados) or None
+    if dados.observacao is not None:
+        assinatura.observacao_admin = (dados.observacao or "").strip() or None
+    db.commit()
+    db.refresh(assinatura)
+    liberados = regras.modulos_da_assinatura(db, assinatura)
+    return {
+        "ok": True,
+        "linha": _linha_assinatura(db, assinatura),
+        "mensagem": (
+            f"Acesso combinado: a conta enxerga "
+            f"{', '.join(catalogo.MODULOS[m][0] for m in liberados) or 'nenhum menu'}."
+        ),
+    }
 
 
 @router.get("/admin/assinaturas")

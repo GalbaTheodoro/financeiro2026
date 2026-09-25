@@ -21,10 +21,10 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import (correio, danfe, dfe as motor, emissao as nfe, fiscal,
+from .. import (correio, danfe, dfe as motor, emissao as nfe, estoque, fiscal,
                 notas as regras, rejeicoes)
 from ..database import get_db
-from ..deps import acesso_liberado, validar_empresa
+from ..deps import acesso_liberado, exigir_modulo, validar_empresa
 from ..models import (
     Contrato,
     Empresa,
@@ -40,7 +40,11 @@ from ..schemas import CancelarNotaIn, NotaEmitidaIn, SerieNotaIn, TransmitirNota
 from ..utils import dinheiro, parse_data, serializar
 from .dfe import _abrir_certificado, _certificado_da_empresa
 
-router = APIRouter(prefix="/api/nfe", tags=["nfe"])
+# O menu deste módulo pode ser tirado de um plano (ou de um cliente) na área
+# do administrador. Quem fecha a porta de verdade é a dependência abaixo:
+# esconder o botão no menu não impede ninguém de chamar a rota pelo endereço.
+router = APIRouter(prefix="/api/nfe", tags=["nfe"],
+                   dependencies=[Depends(exigir_modulo("NFE"))])
 
 
 # --------------------------------------------------------------------------- #
@@ -681,6 +685,13 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
     nota = _nota_emitida(db, nota_id, usuario)
     if nota.status_emissao == "AUTORIZADA":
         raise HTTPException(400, "Esta nota já está autorizada.")
+
+    # Estoque: a falta de saldo barra AQUI, antes de tudo — nota autorizada não
+    # volta atrás, e conferir saldo é mais barato que abrir o certificado.
+    faltas = estoque.conferir_venda(db, nota)
+    if faltas:
+        raise HTTPException(400, "Falta estoque para esta nota. " + " ".join(faltas))
+
     empresa = db.get(Empresa, nota.empresa_id)
     cert, chave_privada, certificado, cadeia = _abrir_certificado(db, nota.empresa_id)
     ambiente = nota.ambiente or cert.ambiente or "2"
@@ -762,9 +773,17 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
     db.commit()
     db.refresh(nota)
 
-    # autorizada: manda o XML e a DANFE para o cliente. Falha de e-mail NÃO
-    # derruba a transmissão — a nota já está autorizada na SEFAZ, e o que ficar
-    # para trás o usuário reenvia pelo botão da lista de notas.
+    # autorizada: baixa o estoque dos itens que controlam saldo. Isso é o que faz
+    # o controle andar sozinho — quem vende não precisa lembrar de dar baixa.
+    baixa = None
+    if retorno["autorizada"]:
+        baixa = estoque.saida_da_nota(db, nota, usuario.id)
+        db.commit()
+        db.refresh(nota)
+
+    # manda o XML e a DANFE para o cliente. Falha de e-mail NÃO derruba a
+    # transmissão — a nota já está autorizada na SEFAZ, e o que ficar para trás
+    # o usuário reenvia pelo botão da lista de notas.
     envio = None
     if retorno["autorizada"]:
         envio = _enviar_por_email(db, nota, automatico=True)
@@ -782,6 +801,7 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
             nota, rejeicoes.explicar(retorno["codigo"], retorno["mensagem"]),
             retorno["mensagem"], retorno["denegada"]),
         "email": envio,
+        "estoque": baixa,
         "nota": _ficha(db, nota)["nota"],
     }
 
@@ -839,11 +859,23 @@ def cancelar(nota_id: int, dados: CancelarNotaIn, db: Session = Depends(get_db),
     nota.cancelamento_justificativa = (dados.justificativa or "").strip()[:255]
     nota.cancelamento_protocolo = retorno["protocolo"]
     nota.cancelada_em = retorno["registrado_em"] or datetime.utcnow()
+    # a mercadoria volta para o estoque: a venda deixou de existir
+    devolvido = None
+    if nota.estoque_em:
+        try:
+            devolvido = estoque.estornar_nota(
+                db, nota, usuario.id,
+                motivo=f"Devolução ao estoque: nota {nota.numero or ''} cancelada")
+        except estoque.ErroEstoque:
+            devolvido = None
     db.commit()
     db.refresh(nota)
     return {
         "ok": True,
         "mensagem": f"Nota {nota.numero} cancelada na SEFAZ "
-                    f"({retorno['cstat']} — {retorno['motivo']}).",
+                    f"({retorno['cstat']} — {retorno['motivo']})."
+                    + (f" {len(devolvido['movimentos'])} produto(s) voltaram ao estoque."
+                       if devolvido and devolvido["movimentos"] else ""),
+        "estoque": devolvido,
         "nota": _ficha(db, nota)["nota"],
     }

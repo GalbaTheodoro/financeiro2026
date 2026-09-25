@@ -300,6 +300,13 @@ class Assinatura(Base):
     # limite de usuários definido à mão pelo administrador do site (vazio = padrão
     # do plano: usuários inclusos + pacotes)
     limite_usuarios = Column(Integer)
+    # Exceções de menu combinadas com o cliente, só o administrador do site mexe.
+    # É o "fechou o Plano 1 mas eu dei a nota fiscal": o módulo entra em
+    # `modulos_extras` e a conta passa a enxergar aquela tela, sem mudar de plano.
+    # `modulos_bloqueados` faz o contrário — tira um menu que o plano dava.
+    # Os dois são listas separadas por vírgula (ver backend/planos.py).
+    modulos_extras = Column(String(200))
+    modulos_bloqueados = Column(String(200))
     pagamento_informado_em = Column(DateTime)
     pagamento_observacao = Column(String(300))
     pix_identificador = Column(String(40))
@@ -569,10 +576,80 @@ class Produto(Base):
     # classificação usada para achar a regra fiscal da nota (ver TipoFiscal)
     tipo_fiscal_id = Column(Integer, ForeignKey("tipos_fiscais.id"), index=True)
 
+    # ---- estoque ----
+    # Só entra no controle de estoque o produto marcado aqui. Comissão, frete e
+    # serviço continuam saindo em nota sem mexer em saldo nenhum.
+    controla_estoque = Column(Boolean, nullable=False, default=False)
+    # saldo e custo médio são mantidos pelo motor (backend/estoque.py) a cada
+    # movimento — ficam aqui para a lista não ter de somar o extrato inteiro
+    estoque_atual = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    custo_medio = Column(Numeric(15, 6, asdecimal=False), nullable=False, default=0)
+    estoque_minimo = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    # a unidade em que o saldo é contado: a do primeiro movimento. Movimento em
+    # outra unidade é recusado, senão o saldo vira uma soma de saca com quilo.
+    estoque_unidade = Column(String(10))
+    estoque_atualizado_em = Column(DateTime)
+
     ativo = Column(Boolean, nullable=False, default=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     unidade = relationship("Unidade")
+
+
+class MovimentoEstoque(Base):
+    """Cada entrada e cada saída de mercadoria. O saldo é a soma disto.
+
+    Por que guardar o saldo e o custo médio na linha
+    ------------------------------------------------
+    Cada movimento grava **como o estoque ficou depois dele** (`saldo` e
+    `custo_medio`). Assim o extrato mostra a evolução sem recalcular tudo, e um
+    erro antigo fica visível em vez de sumir numa soma.
+
+    O custo médio é o **ponderado**: na entrada,
+
+        novo = (saldo x custo_medio + quantidade x custo_unitario)
+               / (saldo + quantidade)
+
+    e na saída o custo que sai é o custo médio do momento — o custo médio em si
+    não muda. É o método que a legislação aceita e o que a maioria das empresas
+    usa.
+
+    `origem` diz de onde veio o movimento:
+
+        NOTA           nota fiscal de entrada, pelo botão "Gerar estoque"
+        SAIDA          NF-e de saída, baixada sozinha ao ser autorizada
+        CUPOM          cupom fiscal (NFC-e), idem
+        AJUSTE         acerto feito à mão na tela de estoque
+        SALDO_INICIAL  o que já existia quando o controle começou
+        ESTORNO        devolução de um movimento (nota cancelada, por exemplo)
+    """
+
+    __tablename__ = "movimentos_estoque"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    produto_id = Column(Integer, ForeignKey("produtos.id"), nullable=False, index=True)
+    data = Column(Date, nullable=False, default=date.today, index=True)
+    tipo = Column(String(1), nullable=False)          # E (entrada) | S (saída)
+    quantidade = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    unidade = Column(String(10))
+    custo_unitario = Column(Numeric(15, 6, asdecimal=False), nullable=False, default=0)
+    custo_total = _dinheiro()
+    # como o estoque ficou depois deste movimento
+    saldo = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    custo_medio = Column(Numeric(15, 6, asdecimal=False), nullable=False, default=0)
+
+    origem = Column(String(15), nullable=False, default="AJUSTE", index=True)
+    nota_id = Column(Integer, ForeignKey("notas.id"), index=True)
+    nota_item_id = Column(Integer)
+    documento = Column(String(40))                    # número da nota, no extrato
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"))
+    historico = Column(String(200))
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    produto = relationship("Produto")
+    parceiro = relationship("Parceiro")
 
 
 class AliquotaIcms(Base):
@@ -1018,6 +1095,13 @@ class Nota(Base):
     email_destinatarios = Column(String(400))
     email_erro = Column(String(300))
 
+    # ---- estoque ----
+    # Quando esta nota mexeu no estoque. Na nota de entrada é o botão "Gerar
+    # estoque"; na nota de saída e no cupom, a baixa automática da autorização.
+    # Vazio = a nota ainda não entrou no controle (ou já foi estornada).
+    estoque_em = Column(DateTime)
+    estoque_por_id = Column(Integer, ForeignKey("usuarios.id"))
+
     observacao = Column(Text)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
@@ -1125,11 +1209,12 @@ class GuiaTransitoAnimal(Base):
 
     Por que a guia fica guardada aqui e **não é emitida** pelo sistema
     -----------------------------------------------------------------
-    A GTA não tem webservice. Cada estado tem o seu sistema fechado (em Minas é
-    o SIAPEC, do IMA; em São Paulo, o GEDAVE; no Pará, o Sigeagro) e quem emite
-    entra lá com login próprio — o produtor ou o médico-veterinário habilitado.
-    Não existe, hoje, um endereço público para o sistema mandar a guia como
-    manda a NF-e.
+    A emissão da GTA fica no sistema do estado (em Minas o SIAPEC, do IMA; em
+    São Paulo o GEDAVE; no Pará o Sigeagro), onde quem emite entra com login
+    próprio — o produtor ou o médico-veterinário habilitado. O webservice
+    federal que existe (``GtaEmitidaWsService``, da PGA/MAPA) é do órgão
+    estadual para o governo federal e só registra guia **já emitida**: não há,
+    hoje, por onde o sistema mandar a guia como manda a NF-e.
 
     Então o que o sistema faz é o que dá para fazer e é o que faltava: guarda
     **todas as GTAs** dos produtores atendidos, avisa quando a validade está

@@ -1,8 +1,10 @@
 /* GTA — Guia de Trânsito Animal.
 
-   Aqui o sistema **não emite** a guia: a GTA não tem webservice. Quem emite é o
-   produtor ou o médico-veterinário, dentro do sistema fechado do estado (em
-   Minas o SIAPEC, do IMA). Então esta tela faz as duas coisas que faltavam:
+   Aqui o sistema **não emite** a guia: a emissão fica no sistema do estado (em
+   Minas o SIAPEC, do IMA), com o login do produtor ou do médico-veterinário. O
+   webservice federal que existe — o da PGA, do Ministério — é do órgão estadual
+   para o governo federal e só registra guia já emitida (ver `backend/gta.py`).
+   Então esta tela faz as duas coisas que faltavam:
 
      1. guarda e vigia todas as guias — quem mandou, para onde, quantos animais,
         até quando vale (e avisa quando está vencendo);
@@ -17,6 +19,9 @@ const GTA = {
   _resumo: {},
   _categorias: [],
   _filtros: { de: '', ate: '', produtor_id: '', especie: '', situacao: '', busca: '' },
+
+  /* Manual só desta tela, com o passo a passo e os cadastros necessários. */
+  MANUAL: '/static/manual/Manual-GTA.pdf',
 
   CORES: {
     PREPARO: 'tag-aberto',
@@ -62,15 +67,20 @@ const GTA = {
       <div class="cartao" style="margin-bottom:12px;border-left:4px solid var(--azul)">
         <div class="cartao-corpo">
           <b>A GTA é emitida no portal do estado, não aqui.</b>
-          <div class="mini">Não existe webservice de GTA: quem emite é o produtor ou o
-            médico-veterinário, com o login dele, no sistema do órgão de defesa
-            (em Minas, o SIAPEC/IMA). O que o sistema faz é guardar as guias, avisar
-            de validade e imprimir a <b>ficha de preparo</b> — a folha já conferida,
-            na ordem das telas do portal.</div>
+          <div class="mini">Não existe webservice para <b>emitir</b> GTA: quem emite é o
+            produtor ou o médico-veterinário, com o login dele, no sistema do órgão de
+            defesa (em Minas, o SIAPEC/IMA). O webservice da PGA, do Ministério, é do
+            órgão estadual para o governo federal — ele só registra guia já emitida.
+            O que o sistema faz é guardar as guias, avisar de validade e imprimir a
+            <b>ficha de preparo</b> — a folha já conferida, na ordem das telas do
+            portal.</div>
+          <a class="btn btn-mini" style="margin-top:8px;display:inline-block"
+             href="${GTA.MANUAL}" target="_blank" rel="noopener"
+             download="Manual-GTA.pdf">Manual da GTA (PDF)</a>
         </div>
       </div>
 
-      <div class="grade g4" style="margin-bottom:12px">
+      <div class="grade g6" style="margin-bottom:12px">
         ${GTA.cartao('Guias', r.total, `${r.animais || 0} animais`, 'azul')}
         ${GTA.cartao('Válidas', r.validas, 'emitidas e dentro do prazo', 'verde')}
         ${GTA.cartao('Vencendo', r.vencendo, `faltam até ${GTA._tabelas.dias_de_aviso} dias`,
@@ -149,7 +159,9 @@ const GTA = {
 
   celulaValidade(g) {
     if (!g.data_validade) return '<span class="mini">sem validade</span>';
-    const faltam = g.dias_para_vencer;
+    // guia que já foi usada ou cancelada acabou: a data não precisa gritar
+    const acabou = ['UTILIZADA', 'CANCELADA'].includes(g.situacao_mostrada || g.situacao);
+    const faltam = acabou ? null : g.dias_para_vencer;
     const cor = faltam === null ? ''
       : faltam < 0 ? 'var(--vermelho)'
       : faltam <= (GTA._tabelas.dias_de_aviso || 3) ? 'var(--ambar)' : '';
@@ -262,7 +274,7 @@ const GTA = {
     });
 
     GTA.desenharCategorias();
-    GTA.mostrarFaltas(g.faltas || []);
+    GTA.mostrarFaltas(g.faltas || [], !g.id);
     corpo.querySelector('[name="especie"]').onchange = () => {
       GTA._categorias = [];
       GTA.desenharCategorias();
@@ -356,9 +368,17 @@ const GTA = {
     }));
   },
 
-  mostrarFaltas(faltas) {
+  mostrarFaltas(faltas, nova = false) {
     const area = document.getElementById('faltas-gta');
     if (!area) return;
+    // guia nova ainda não passou pela conferência: dizer "tudo conferido" aqui
+    // seria mentira — a conferência só sabe o que falta depois de salvar
+    if (nova && !faltas.length) {
+      area.innerHTML = `<div class="gta-conferencia neutra">
+        <b>Preencha os dados da guia.</b> Ao salvar, a conferência mostra aqui o que o
+        portal do estado ainda vai cobrar.</div>`;
+      return;
+    }
     if (!faltas.length) {
       area.innerHTML = `<div class="gta-conferencia ok">
         <b>Está tudo conferido.</b> Dá para imprimir a ficha e digitar no portal.</div>`;
@@ -373,10 +393,40 @@ const GTA = {
     const botoes = [{ rotulo: 'Fechar', acao: () => UI.fecharModal() }];
     if (g.id) {
       botoes.push({ rotulo: 'Ficha de preparo', acao: () => GTA.preparo(g.id) });
+      // o caminho de todo dia: emitiu no portal e volta aqui só para anotar
+      const situacao = g.situacao_mostrada || g.situacao;
+      if (situacao === 'PREPARO') {
+        botoes.push({ rotulo: 'Marcar como emitida', classe: 'btn-verde',
+                      acao: () => GTA.marcar(g, 'EMITIDA') });
+      } else if (situacao === 'EMITIDA' || situacao === 'VENCIDA') {
+        botoes.push({ rotulo: 'A carga andou', classe: 'btn-verde',
+                      acao: () => GTA.marcar(g, 'UTILIZADA') });
+        botoes.push({ rotulo: 'Cancelada no portal',
+                      acao: () => GTA.marcar(g, 'CANCELADA') });
+      }
       botoes.push({ rotulo: 'Apagar', classe: 'btn-perigo', acao: () => GTA.apagar(g) });
     }
     botoes.push({ rotulo: 'Salvar', classe: 'btn-primario', acao: () => GTA.salvar(g) });
     return botoes;
+  },
+
+  /** Muda a situação sem perder o que está digitado: confere, marca e salva. */
+  async marcar(g, situacao) {
+    const corpo = document.getElementById('modal-corpo');
+    const d = UI.lerFormulario(corpo);
+    if (situacao === 'EMITIDA') {
+      if (!(d.numero || '').trim()) {
+        return UI.erro('Para marcar como emitida, informe o número da guia que saiu '
+          + 'do portal.');
+      }
+      if (!d.data_validade) {
+        return UI.erro('Para marcar como emitida, informe até quando a guia vale — '
+          + 'é essa data que o sistema vigia.');
+      }
+      if (!d.data_emissao) corpo.querySelector('[name="data_emissao"]').value = UI.hoje();
+    }
+    corpo.querySelector('[name="situacao"]').value = situacao;
+    await GTA.salvar(g, { fechar: true });
   },
 
   async lerArquivo(campo) {
@@ -394,7 +444,7 @@ const GTA = {
     return { arquivo: base64, arquivo_nome: arquivo.name };
   },
 
-  async salvar(g) {
+  async salvar(g, { fechar = false } = {}) {
     const corpo = document.getElementById('modal-corpo');
     GTA.lerCategorias();
     const dados = UI.lerFormulario(corpo);
@@ -417,10 +467,16 @@ const GTA = {
       UI.sucesso('Guia salva.');
       await GTA.carregar();
       GTA.mostrarFaltas(retorno.guia.faltas || []);
-      if (!g.id) UI.fecharModal();
+      if (!g.id || fechar) UI.fecharModal();
+      else GTA.botoesDaGuia(retorno.guia);
     } catch (e) {
       UI.erro(e.message);
     }
+  },
+
+  /** Depois de salvar, os botões acompanham a situação nova da guia. */
+  botoesDaGuia(guia) {
+    UI.trocarBotoes(GTA.botoes(guia), document.getElementById('modal-corpo'));
   },
 
   async apagar(g) {

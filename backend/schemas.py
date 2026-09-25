@@ -28,6 +28,14 @@ class EscolherPlanoIn(BaseModel):
     plano: str
 
 
+class AcessosContaIn(BaseModel):
+    """Menus ligados e desligados só para esta conta (negociação com o cliente)."""
+
+    extras: list[str] = []
+    bloqueados: list[str] = []
+    observacao: str | None = None
+
+
 class InformarPagamentoIn(BaseModel):
     observacao: str | None = None
 
@@ -304,6 +312,10 @@ class ProdutoIn(BaseModel):
     codigo_beneficio: str | None = None
     observacao_fiscal: str | None = None
     tipo_fiscal_id: int | None = None    # classificação usada nas regras fiscais
+    # estoque: só o produto marcado entra no controle (ver backend/estoque.py).
+    # O saldo e o custo médio NÃO vêm da tela — quem move estoque é o motor.
+    controla_estoque: bool = False
+    estoque_minimo: float = 0
     ativo: bool = True
 
 

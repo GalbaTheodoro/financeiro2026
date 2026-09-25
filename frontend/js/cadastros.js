@@ -1244,6 +1244,13 @@ const Cadastros = {
           return tipo ? UI.escapar(tipo.nome)
             : '<span class="mini negativo">sem tipo — não acha regra</span>';
         } },
+        { titulo: 'Estoque', classe: 'direita', valor: (r) => {
+          if (!r.estoque) return '<span class="mini">não controla</span>';
+          const e = r.estoque;
+          const cor = e.negativo ? 'negativo' : e.abaixo_do_minimo ? 'alerta' : '';
+          return `<span class="forte ${cor}">${UI.numero(e.saldo, 0)} ${UI.escapar(e.unidade || '')}</span>
+            <div class="mini">custo médio ${UI.moeda(e.custo_medio)}</div>`;
+        } },
         { titulo: 'Situação', classe: 'centro', valor: (r) => (r.ativo ? '<span class="tag tag-pago">Ativo</span>' : '<span class="tag tag-cancelado">Inativo</span>') },
       ],
       campos: [
@@ -1287,6 +1294,14 @@ const Cadastros = {
         { nome: 'peso_bruto', rotulo: 'Peso bruto (kg)', tipo: 'dinheiro', padrao: 0 },
         { nome: 'ex_tipi', rotulo: 'EX da TIPI' },
         { nome: 'observacao_fiscal', rotulo: 'Observação fiscal', largura: 2 },
+        { tipo: 'secao', rotulo: 'Estoque',
+          dica: 'a entrada vem do botão na nota de entrada; a saída é baixada sozinha '
+            + 'quando a SEFAZ autoriza a nota de saída ou o cupom' },
+        { nome: 'controla_estoque', rotulo: 'Controle', tipo: 'checkbox',
+          textoCheck: 'Este produto controla estoque',
+          dica: 'deixe desmarcado em comissão, frete e serviço' },
+        { nome: 'estoque_minimo', rotulo: 'Estoque mínimo', tipo: 'dinheiro', padrao: 0,
+          dica: 'abaixo disso a tela de estoque acende o aviso; 0 = sem aviso' },
         { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox', textoCheck: 'Produto ativo' },
       ],
     });

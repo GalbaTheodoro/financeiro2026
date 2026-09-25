@@ -506,7 +506,20 @@ const Assinaturas = {
     });
   },
 
-  gerenciar(assinatura) {
+  /** "P3_ANUAL" -> 3. Código antigo (só SEMESTRAL/ANUAL) responde 4, como no servidor. */
+  nivelDoPlano(codigo) {
+    const achado = String(codigo || '').match(/^P(\d)_/);
+    return achado ? Number(achado[1]) : 4;
+  },
+
+  /** O catálogo de menus, buscado uma vez por sessão. */
+  async gradeDeMenus() {
+    if (!Assinaturas._grade) Assinaturas._grade = await Api.get('/api/admin/modulos');
+    return Assinaturas._grade;
+  },
+
+  async gerenciar(assinatura) {
+    const grade = await Assinaturas.gradeDeMenus();
     const corpo = document.createElement('div');
     corpo.innerHTML = `
       <div class="linha-campos">
@@ -523,11 +536,52 @@ const Assinaturas = {
         ${UI.campo('Horas de teste', '<input type="number" name="horas_teste" placeholder="ex.: 48">',
           'preenchido apenas ao reabrir um teste')}
         ${UI.campo('Observação interna', `<input name="observacao" value="${UI.escapar(assinatura.observacao_admin || '')}">`)}
+      </div>
+
+      <div class="cartao" style="margin-top:14px">
+        <div class="cartao-cabecalho">
+          <div><h3>Acessos combinados</h3>
+            <div class="mini">marque o que <b>esta conta</b> enxerga. O plano e o valor
+              cobrado não mudam — serve para a negociação: fechou o Plano 1 e ficou
+              combinado dar a Nota fiscal, então marque a Nota fiscal aqui.</div></div>
+        </div>
+        <div class="cartao-corpo sem-padding">
+          <div class="tabela-wrap"><table><thead><tr>
+            <th>Menu</th><th class="centro">Enxerga</th><th>De onde vem</th>
+          </tr></thead><tbody id="acessos-conta"></tbody></table></div>
+        </div>
       </div>`;
+
+    /* A linha mostra a origem do acesso, senão o administrador não sabe se
+       aquele "sim" vem do plano ou de uma combinação antiga. */
+    const desenharAcessos = () => {
+      const plano = corpo.querySelector('[name="plano"]').value;
+      const nivel = Assinaturas.nivelDoPlano(plano);
+      const doPlano = (grade.planos.find((p) => p.nivel === nivel) || {}).modulos || [];
+      const extras = assinatura.modulos_extras || [];
+      const bloqueados = assinatura.modulos_bloqueados || [];
+      corpo.querySelector('#acessos-conta').innerHTML = grade.modulos.map((m) => {
+        const noPlano = doPlano.includes(m.codigo);
+        const marcado = noPlano ? !bloqueados.includes(m.codigo) : extras.includes(m.codigo);
+        const origem = noPlano
+          ? (marcado ? 'vem do plano' : '<span class="alerta">o plano dá, foi tirado desta conta</span>')
+          : (marcado ? '<span class="positivo">fora do plano, liberado só para esta conta</span>'
+                     : 'não está no plano');
+        return `<tr>
+          <td><b>${UI.escapar(m.nome)}</b><div class="mini">${UI.escapar(m.texto)}</div></td>
+          <td class="centro"><input type="checkbox" name="acesso_${m.codigo}" ${marcado ? 'checked' : ''}></td>
+          <td class="mini">${origem}</td>
+        </tr>`;
+      }).join('');
+    };
+    desenharAcessos();
+    // trocou o plano: a coluna "de onde vem" tem de acompanhar antes de salvar
+    corpo.querySelector('[name="plano"]').onchange = desenharAcessos;
 
     UI.abrirModal({
       titulo: `Conta de ${assinatura.usuario_nome}`,
       corpo,
+      largo: true,
       botoes: [
         { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
         {
@@ -535,6 +589,17 @@ const Assinaturas = {
           classe: 'btn-primario',
           acao: async () => {
             const d = UI.lerFormulario(corpo);
+            /* As exceções são calculadas contra o plano escolhido agora, não
+               contra o antigo: quem sobe de plano não fica com "extra" de um
+               menu que o plano novo já dá. */
+            const nivel = Assinaturas.nivelDoPlano(d.plano);
+            const doPlano = (grade.planos.find((p) => p.nivel === nivel) || {}).modulos || [];
+            const extras = grade.modulos
+              .filter((m) => d[`acesso_${m.codigo}`] && !doPlano.includes(m.codigo))
+              .map((m) => m.codigo);
+            const bloqueados = grade.modulos
+              .filter((m) => !d[`acesso_${m.codigo}`] && doPlano.includes(m.codigo))
+              .map((m) => m.codigo);
             try {
               await Api.post(`/api/admin/assinaturas/${assinatura.id}/status`, {
                 status: d.status,
@@ -542,8 +607,11 @@ const Assinaturas = {
                 horas_teste: d.horas_teste ? Number(d.horas_teste) : null,
                 observacao: d.observacao,
               });
+              const r = await Api.post(`/api/admin/assinaturas/${assinatura.id}/modulos`, {
+                extras, bloqueados,
+              });
               UI.fecharModal();
-              UI.sucesso('Assinatura atualizada.');
+              UI.sucesso(r.mensagem || 'Assinatura atualizada.');
               Assinaturas.admin();
             } catch (e) {
               UI.erro(e.message);
@@ -763,6 +831,7 @@ const Assinaturas = {
   async configuracoes() {
     const alvo = document.getElementById('pagina');
     const dados = await Api.get('/api/admin/configuracoes');
+    const grade = await Api.get('/api/admin/modulos');
     const grupos = {
       'Identidade do site': ['nome_produto', 'slogan', 'empresa_titular'],
       'Contato exibido no site': ['contato_whatsapp', 'contato_email'],
@@ -811,21 +880,66 @@ const Assinaturas = {
         </div>
       </div>`;
 
+    /* O quadro de menus: uma linha por menu, uma coluna por plano. É aqui que o
+       Plano 1 ganha ou perde a nota fiscal, e o site e o menu de todo assinante
+       daquele plano mudam junto. */
+    const quadroDeMenus = () => `
+      <div class="cartao">
+        <div class="cartao-cabecalho">
+          <div><h3>Menus de cada plano</h3>
+            <div class="mini">marque o que cada plano libera — vale para todos os
+              assinantes daquele plano e muda a página inicial junto</div></div>
+        </div>
+        <div class="cartao-corpo sem-padding">
+          <div class="tabela-wrap"><table><thead><tr>
+            <th>Menu</th>
+            ${grade.planos.map((p) => `<th class="centro">${UI.escapar(p.nome)}</th>`).join('')}
+          </tr></thead><tbody>
+            ${grade.modulos.map((m) => `<tr>
+              <td><b>${UI.escapar(m.nome)}</b>
+                <div class="mini">${UI.escapar(m.texto)}</div>
+                <div class="mini">telas: ${m.rotas.map((r) => UI.escapar(r)).join(', ') || '—'}</div></td>
+              ${grade.planos.map((p) => `<td class="centro">
+                <input type="checkbox" name="mod_${p.nivel}_${m.codigo}"
+                  ${p.modulos.includes(m.codigo) ? 'checked' : ''}></td>`).join('')}
+            </tr>`).join('')}
+          </tbody></table></div>
+          <div class="mini" style="padding:12px 18px">
+            Plano sem nenhum menu marcado é aceito — a conta entra e só enxerga os
+            Cadastros e a Minha Assinatura. Para abrir um menu <b>só para um cliente</b>,
+            sem mexer no plano dele, use <b>Assinaturas → Gerenciar → Acessos combinados</b>.
+          </div>
+        </div>
+      </div>`;
+
     alvo.innerHTML = `
       <form id="form-config">
         <div class="cartao"><div class="cartao-corpo espaco">
           <div class="mini">Estes dados aparecem no site e na tela de pagamento dos assinantes.</div>
           <button type="button" class="btn btn-primario direita" id="btn-salvar-config">Salvar configurações</button>
         </div></div>
-        ${Object.entries(grupos).map(([t, c]) => bloco(t, c)).join('')}
+        ${bloco('Preço de cada plano', grupos['Preço de cada plano'])}
+        ${quadroDeMenus()}
+        ${Object.entries(grupos)
+          .filter(([titulo]) => titulo !== 'Preço de cada plano')
+          .map(([titulo, chaves]) => bloco(titulo, chaves)).join('')}
       </form>`;
 
     alvo.querySelector('#btn-salvar-config').onclick = async () => {
       const valores = UI.lerFormulario(alvo.querySelector('#form-config'));
+      // as caixas do quadro viram uma lista por plano: mod_1_NFE -> plano1_modulos
+      grade.planos.forEach((p) => {
+        valores[`plano${p.nivel}_modulos`] = grade.modulos
+          .filter((m) => valores[`mod_${p.nivel}_${m.codigo}`])
+          .map((m) => m.codigo).join(',');
+      });
+      Object.keys(valores).forEach((k) => { if (k.startsWith('mod_')) delete valores[k]; });
       try {
         await Api.put('/api/admin/configuracoes', { valores });
         UI.sucesso('Configurações salvas.');
         Site.info = null;
+        Assinaturas._grade = null;  // a grade mudou: a tela Gerenciar tem de reler
+        Assinaturas.configuracoes();
       } catch (e) {
         UI.erro(e.message);
       }

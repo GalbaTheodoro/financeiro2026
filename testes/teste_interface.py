@@ -41,6 +41,8 @@ TELAS = [
     ("notas", "Notas Fiscais"),
     ("cupom", "Cupom Fiscal"),
     ("gta", "GTA"),
+    ("estoque", "Estoque"),
+    ("estoque/extrato", "Estoque"),
     ("cadastros/usuarios", "Cadastros"),
     ("cadastros/parametros", "Cadastros"),
 ]
@@ -530,8 +532,11 @@ with sync_playwright() as p:
     # imprime a ficha de preparo. É isso que se testa aqui.
     pagina.goto(f"{BASE}/#/gta")
     pagina.wait_for_timeout(1000)
-    ok_aviso = "não existe webservice de GTA" in pagina.inner_text("#pagina").lower() \
-        or "webservice" in pagina.inner_text("#pagina").lower()
+    aviso_gta = pagina.inner_text("#pagina").lower()
+    # o aviso tem de dizer as duas coisas: que a emissão é no portal do estado e
+    # que o webservice que existe (o da PGA) não emite guia nenhuma
+    ok_aviso = ("webservice para emitir" in aviso_gta and "siapec" in aviso_gta
+                and "pga" in aviso_gta and "já emitida" in aviso_gta)
     print(f"  [{'OK  ' if ok_aviso else 'FALHA'}] tela da GTA explica que quem emite é o portal")
     if not ok_aviso:
         erros.append("tela da GTA não explica de onde sai a guia")
@@ -665,6 +670,52 @@ with sync_playwright() as p:
     if not ok_config:
         erros.append("tela de configurações incompleta")
     pagina.screenshot(path=SAIDA / "22-configuracoes.png", full_page=True)
+
+    # ------------------------------- quadro de menus por plano (só o MASTER vê)
+    quadro = pagina.evaluate("""() => {
+        const marcada = (n) => document.querySelector(`[name="${n}"]`)?.checked;
+        return {
+            titulo: document.querySelector('#pagina').innerText.includes('Menus de cada plano'),
+            caixas: document.querySelectorAll('[name^="mod_"]').length,
+            nfe_no_1: marcada('mod_1_NFE'),
+            gta_no_1: marcada('mod_1_GTA'),
+            gta_no_4: marcada('mod_4_GTA'),
+        };
+    }""")
+    ok_quadro = (quadro["titulo"] and quadro["caixas"] == 20 and quadro["nfe_no_1"]
+                 and quadro["gta_no_1"] is False and quadro["gta_no_4"] is True)
+    print(f"  [{'OK  ' if ok_quadro else 'FALHA'}] quadro de menus por plano {quadro}")
+    if not ok_quadro:
+        erros.append("quadro de menus por plano incompleto")
+
+    # ------------------------- acessos combinados de um cliente (a negociação)
+    pagina.goto(f"{BASE}/#/admin-assinaturas")
+    pagina.wait_for_timeout(1200)
+    pagina.click("[data-gerenciar]")
+    pagina.wait_for_timeout(900)
+    acessos = pagina.evaluate("""() => {
+        const corpo = document.querySelector('#modal-corpo');
+        const caixas = [...corpo.querySelectorAll('[name^="acesso_"]')].map((c) => ({
+            codigo: c.name.replace('acesso_', ''),
+            marcada: c.checked,
+            origem: c.closest('tr').lastElementChild.innerText.trim(),
+        }));
+        return { titulo: corpo.innerText.includes('Acessos combinados'), caixas };
+    }""")
+    # a coluna "de onde vem" tem de contar a mesma história que a caixa marcada
+    coerente = all(
+        c["marcada"] == (c["origem"] == "vem do plano"
+                         or "liberado só para esta conta" in c["origem"])
+        for c in acessos["caixas"])
+    nfe = next((c for c in acessos["caixas"] if c["codigo"] == "NFE"), None)
+    ok_acessos = (acessos["titulo"] and len(acessos["caixas"]) == 5 and coerente
+                  and nfe and nfe["marcada"] and nfe["origem"] == "vem do plano")
+    print(f"  [{'OK  ' if ok_acessos else 'FALHA'}] acessos combinados por cliente {acessos}")
+    if not ok_acessos:
+        erros.append("bloco de acessos combinados incompleto")
+    pagina.screenshot(path=SAIDA / "23-acessos-combinados.png", full_page=True)
+    pagina.evaluate("UI.fecharModal()")
+    pagina.wait_for_timeout(400)
 
     # ------------------------------------------- busca de CNPJ no cadastro
     pagina.goto(f"{BASE}/#/cadastros/parceiros")

@@ -15,6 +15,7 @@ const App = {
     '/notas': { titulo: 'Notas Fiscais', subtitulo: 'Gestão das notas: itens, cliente/fornecedor, faturar e desfaturar', acao: () => Notas.tela() },
     '/cupom': { titulo: 'Cupom Fiscal', subtitulo: 'Venda de balcão: NFC-e em uma tela só, com impressão em 80 mm', acao: () => Cupom.tela() },
     '/gta': { titulo: 'GTA — Guia de Trânsito Animal', subtitulo: 'Controle das guias dos produtores e ficha de preparo para o portal do estado', acao: () => GTA.tela() },
+    '/estoque': { titulo: 'Estoque', subtitulo: 'Saldo e custo médio de cada produto — a entrada vem da nota, a saída é baixada sozinha', acao: (aba) => Estoque.tela(aba) },
     '/dfe': { titulo: 'DF-e — Documentos fiscais', subtitulo: 'Notas emitidas contra o CNPJ da empresa: XML, DANFE, manifestação e importação', acao: (aba) => DFe.tela(aba) },
     '/relatorios': { titulo: 'Relatórios', subtitulo: 'DRE, balancete e relatórios gerenciais', acao: () => Relatorios.tela() },
     '/cadastros': { titulo: 'Cadastros', subtitulo: 'Todos os cadastros do sistema em um só lugar', acao: (aba) => Cadastros.hub(aba) },
@@ -40,7 +41,7 @@ const App = {
 
   /* Só estas rotas dependem do plano; o resto é de toda conta. */
   ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/notas',
-    '/dfe', '/cupom', '/gta', '/relatorios'],
+    '/dfe', '/estoque', '/cupom', '/gta', '/relatorios'],
 
   menu() {
     const itens = [
@@ -53,6 +54,7 @@ const App = {
       { rota: '/notas', icone: '⛁', rotulo: 'Notas Fiscais' },
       { rota: '/cupom', icone: '⌦', rotulo: 'Cupom Fiscal' },
       { rota: '/gta', icone: '☙', rotulo: 'GTA (trânsito animal)' },
+      { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },
       { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (buscar na SEFAZ)' },
       { grupo: 'Análise' },
       { rota: '/relatorios', icone: '▦', rotulo: 'Relatórios' },
@@ -116,6 +118,9 @@ const App = {
     } else if (caminho.startsWith('/dfe')) {
       aba = caminho.split('/')[2] || null;
       caminho = '/dfe';
+    } else if (caminho.startsWith('/estoque')) {
+      aba = caminho.split('/')[2] || null;
+      caminho = '/estoque';
     }
     const rota = App.rotas[caminho] || App.rotas['/painel'];
     if (rota.master && !Api.ehMaster()) return App.irPara('/painel');

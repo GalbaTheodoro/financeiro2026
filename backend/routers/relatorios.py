@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..deps import acesso_liberado
+from ..deps import exigir_modulo
 from ..models import (
     Banco,
     CentroCusto,
@@ -22,8 +22,12 @@ from ..models import (
 from ..relatorios_dre import GRUPOS_DRE, ROTULO, SINAL, SUBTOTAIS
 from ..utils import dinheiro, parse_data
 
+# O menu deste módulo pode ser tirado de um plano (ou de um cliente) na área
+# do administrador. Quem fecha a porta de verdade é a dependência abaixo:
+# esconder o botão no menu não impede ninguém de chamar a rota pelo endereço.
 router = APIRouter(
-    prefix="/api/relatorios", tags=["relatorios"], dependencies=[Depends(acesso_liberado)]
+    prefix="/api/relatorios", tags=["relatorios"],
+    dependencies=[Depends(exigir_modulo("FINANCEIRO"))],
 )
 
 

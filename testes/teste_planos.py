@@ -61,12 +61,16 @@ def checar(descricao, condicao, extra=""):
 sufixo = str(int(time.time()))
 
 
-def conta(plano):
-    """Cria uma conta nova já nesse plano e devolve (token, empresa_id)."""
-    marca = plano.lower().replace("_", "")
+def conta(plano, apelido=""):
+    """Cria uma conta nova já nesse plano e devolve (token, empresa_id).
+
+    O ``apelido`` só serve para criar uma segunda conta no mesmo plano sem
+    repetir o e-mail.
+    """
+    marca = plano.lower().replace("_", "") + apelido
     dados = api("POST", "/api/publico/cadastro", {
         "nome": "Galba", "email": f"{marca}{sufixo}@teste.com", "senha": "123456",
-        "empresa": f"Assessoria {plano}", "plano": plano})
+        "empresa": f"Assessoria {plano} {apelido}".strip(), "plano": plano})
     return dados["token"], dados["empresa"]["id"]
 
 
@@ -272,6 +276,126 @@ try:
     db.commit()
 finally:
     db.close()
+
+# =========================================================================== #
+print("\n=== 7. O administrador edita quais menus cada plano libera ===")
+tm = api("POST", "/api/auth/login",
+         {"email": "admin@financeiro.local", "senha": "admin123"})["token"]
+
+grade = api("GET", "/api/admin/modulos", None, tm)
+checar("o catálogo de menus tem os cinco módulos",
+       {m["codigo"] for m in grade["modulos"]}
+       == {"CONTRATOS", "FINANCEIRO", "NFE", "CUPOM", "GTA"},
+       str([m["codigo"] for m in grade["modulos"]]))
+checar("e cada módulo diz quais telas ele abre",
+       "/notas" in next(m for m in grade["modulos"] if m["codigo"] == "NFE")["rotas"])
+checar("a grade vem com os quatro planos", len(grade["planos"]) == 4)
+p1_grade = next(p for p in grade["planos"] if p["nivel"] == 1)
+checar("a grade do Plano 1 é a de fábrica enquanto ninguém mexeu",
+       p1_grade["modulos"] == p1_grade["padrao"] == ["CONTRATOS", "FINANCEIRO", "NFE"],
+       str(p1_grade["modulos"]))
+
+pa, ea = conta("P1_ANUAL", "grade")
+checar("a conta nova de Plano 1 não abre o cupom",
+       api("GET", f"/api/cupom/config?empresa_id={ea}", None, pa,
+           esperar_erro=True).get("_status") == 403)
+
+# o administrador põe o cupom no Plano 1 — vale para todo assinante desse plano
+api("PUT", "/api/admin/configuracoes",
+    {"valores": {"plano1_modulos": "CONTRATOS,FINANCEIRO,NFE,CUPOM"}}, tm)
+checar("editar a grade coloca o cupom no Plano 1", "CUPOM" in modulos(pa), str(modulos(pa)))
+checar("e o menu da conta passa a trazer o cupom", "/cupom" in rotas(pa))
+checar("o servidor abre a tela do cupom para ela",
+       "serie" in api("GET", f"/api/cupom/config?empresa_id={ea}", None, pa))
+checar("a página inicial anuncia o cupom no Plano 1",
+       "CUPOM" in [m["codigo"] for m in
+                   next(p for p in api("GET", "/api/publico/info")["planos"]
+                        if p["nome"] == "Plano 1")["modulos"]])
+checar("e a grade mostra que aquele plano saiu do padrão",
+       next(p for p in api("GET", "/api/admin/modulos", None, tm)["planos"]
+            if p["nivel"] == 1)["modulos"] != p1_grade["padrao"])
+
+# e tira a nota fiscal do mesmo plano
+api("PUT", "/api/admin/configuracoes",
+    {"valores": {"plano1_modulos": "CONTRATOS,FINANCEIRO"}}, tm)
+checar("tirar a NF-e da grade fecha a tela de notas",
+       api("GET", f"/api/notas?empresa_id={ea}", None, pa,
+           esperar_erro=True).get("_status") == 403)
+checar("e o estoque, que mora no mesmo módulo, fecha junto",
+       "/estoque" not in rotas(pa), str(rotas(pa)))
+
+api("PUT", "/api/admin/configuracoes", {"valores": {"plano1_modulos": ""}}, tm)
+checar("plano sem nenhum menu marcado é aceito", modulos(pa) == [], str(modulos(pa)))
+checar("a conta continua entrando, só sem os menus do plano",
+       api("GET", "/api/auth/me", None, pa)["assinatura"]["liberado"] is True)
+
+api("PUT", "/api/admin/configuracoes",
+    {"valores": {"plano1_modulos": "CONTRATOS,FINANCEIRO,NFE"}}, tm)
+checar("devolver a grade de fábrica devolve os menus",
+       sorted(modulos(pa)) == ["CONTRATOS", "FINANCEIRO", "NFE"], str(modulos(pa)))
+
+# =========================================================================== #
+print("\n=== 8. Exceção combinada com um cliente ===")
+pb, eb = conta("P1_SEMESTRAL", "excecao")
+id_b = api("GET", "/api/auth/me", None, pb)["assinatura"]["assinatura_id"]
+checar("a conta começa sem exceção nenhuma",
+       api("GET", "/api/auth/me", None, pb)["assinatura"]["modulos_extras"] == [])
+
+# "fechou o Plano 1 mas ficou combinado dar a nota fiscal" — aqui é a GTA, que
+# o Plano 1 não tem de jeito nenhum
+r = api("POST", f"/api/admin/assinaturas/{id_b}/modulos",
+        {"extras": ["GTA"], "bloqueados": []}, tm)
+checar("liberar a GTA só para essa conta funciona", r.get("ok") is True,
+       str(r.get("mensagem"))[:80])
+checar("a conta passa a enxergar a GTA", "GTA" in modulos(pb), str(modulos(pb)))
+checar("o menu dela traz a GTA", "/gta" in rotas(pb))
+checar("e a tela abre de verdade no servidor",
+       "guias" in api("GET", f"/api/gta?empresa_id={eb}", None, pb))
+situacao_b = api("GET", "/api/auth/me", None, pb)["assinatura"]
+checar("a exceção fica registrada como extra",
+       situacao_b["modulos_extras"] == ["GTA"]
+       and "GTA" not in situacao_b["modulos_do_plano"], str(situacao_b["modulos_extras"]))
+checar("o plano dela continua sendo o Plano 1",
+       situacao_b["plano_nome"] == "Plano 1" and situacao_b["valor"] == 399.90)
+checar("e o vizinho de plano não ganhou nada",
+       "GTA" not in modulos(pa), str(modulos(pa)))
+
+# o caminho contrário: tirar um menu que o plano dá
+api("POST", f"/api/admin/assinaturas/{id_b}/modulos",
+    {"extras": ["GTA"], "bloqueados": ["NFE"]}, tm)
+checar("bloquear a NF-e dessa conta fecha a tela",
+       api("GET", f"/api/notas?empresa_id={eb}", None, pb,
+           esperar_erro=True).get("_status") == 403)
+checar("e a GTA combinada continua aberta",
+       "guias" in api("GET", f"/api/gta?empresa_id={eb}", None, pb))
+
+conflito = api("POST", f"/api/admin/assinaturas/{id_b}/modulos",
+               {"extras": ["CUPOM"], "bloqueados": ["CUPOM"]}, tm, esperar_erro=True)
+checar("liberar e bloquear o mesmo menu é recusado",
+       conflito.get("_status") == 400 and "mesmo tempo" in str(conflito.get("detail")),
+       str(conflito.get("detail"))[:70])
+
+api("POST", f"/api/admin/assinaturas/{id_b}/modulos",
+    {"extras": ["CONTRATOS", "GTA"], "bloqueados": ["CUPOM"]}, tm)
+depois = api("GET", "/api/auth/me", None, pb)["assinatura"]
+checar("extra que o plano já dá não é guardado como exceção",
+       depois["modulos_extras"] == ["GTA"], str(depois["modulos_extras"]))
+checar("bloqueio de menu que o plano não dá também não é guardado",
+       depois["modulos_bloqueados"] == [], str(depois["modulos_bloqueados"]))
+
+api("POST", f"/api/admin/assinaturas/{id_b}/modulos", {"extras": [], "bloqueados": []}, tm)
+checar("limpar as exceções devolve a conta ao plano",
+       sorted(modulos(pb)) == ["CONTRATOS", "FINANCEIRO", "NFE"], str(modulos(pb)))
+checar("e a GTA fecha outra vez",
+       api("GET", f"/api/gta?empresa_id={eb}", None, pb,
+           esperar_erro=True).get("_status") == 403)
+
+negado = api("POST", f"/api/admin/assinaturas/{id_b}/modulos",
+             {"extras": ["GTA"], "bloqueados": []}, pb, esperar_erro=True)
+checar("só o administrador do site mexe nisso — o assinante recebe 403",
+       negado.get("_status") == 403, str(negado.get("detail"))[:60])
+checar("e o assinante nem lê o catálogo de menus",
+       api("GET", "/api/admin/modulos", None, pb, esperar_erro=True).get("_status") == 403)
 
 # =========================================================================== #
 print("\n" + "=" * 60)

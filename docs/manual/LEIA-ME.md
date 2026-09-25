@@ -15,6 +15,20 @@ O PDF que o site oferece para download fica em `frontend/manual/Manual-AgroDock.
   (DF-e, DANFE e os dados fiscais do produto) — tiram as capturas (precisa de `playwright`).
 - `pdf.py` — gera `Manual-AgroDock.pdf` a partir do `manual.html`.
 
+## Manual só da GTA
+
+Além do manual geral existe um manual **só da GTA**, que é o oferecido para download na
+própria tela da GTA (`frontend/manual/Manual-GTA.pdf`):
+
+- `manual-gta.html` — texto do manual da GTA.
+- `gta_demo.py` — cria a assessoria no plano completo, os produtores e seis guias em
+  situações diferentes (em preparo, emitida, vencendo, vencida, utilizada) — é o que faz
+  as telas mostrarem o aviso de validade e a conferência com pendências.
+- `gta_shots.py` — tira as capturas (`img/gta-*.jpg`).
+- `pdf_gta.py` — gera `frontend/manual/Manual-GTA.pdf`.
+
+Ordem: `servidor_demo.py` → `gta_demo.py` → `gta_shots.py` → `pdf_gta.py`.
+
 Os scripts usam o caminho `/home/claude/manual`; ajuste para a sua pasta antes de rodar.
 Depois de gerar, copie o PDF para `frontend/manual/` e rode `publicar.bat`.
 A pasta `docs/` não vai para o Vercel (`.vercelignore`).

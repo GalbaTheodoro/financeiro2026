@@ -2,9 +2,9 @@
 
 Por que não existe "transmitir GTA"
 -----------------------------------
-A GTA **não tem webservice**. Ela não é um documento fiscal eletrônico como a
-NF-e: é um documento de defesa sanitária animal, e cada estado tem o seu
-sistema próprio e fechado, onde se entra com login pessoal:
+A GTA não é documento fiscal eletrônico como a NF-e: é documento de defesa
+sanitária animal, e **a emissão fica no sistema do estado**, fechado, onde se
+entra com login pessoal:
 
     Minas Gerais ..... SIAPEC / IMA      (ima.mg.gov.br)
     São Paulo ........ GEDAVE            (defesaagropecuaria.sp.gov.br)
@@ -13,9 +13,33 @@ sistema próprio e fechado, onde se entra com login pessoal:
     Mato Grosso ...... INDEA             (indea.mt.gov.br)
 
 Quem emite é o **produtor** ou o **médico-veterinário habilitado**, dentro do
-portal, com a senha dele. Não há endereço público para um sistema de terceiro
-mandar a guia — e não adianta procurar: o que existe são convênios fechados,
-estado a estado, para grandes frigoríficos.
+portal, com a senha dele.
+
+O webservice que existe — e não serve para emitir
+-------------------------------------------------
+Existe, sim, um webservice federal de GTA: o **``GtaEmitidaWsService``** da
+**PGA — Plataforma de Gestão Agropecuária**, do Ministério da Agricultura
+(SOAP, em ``pga.agricultura.gov.br/sispga_ws/GtaEmitidaWsService?wsdl``, e
+``pgahom...`` em homologação).
+
+Só que repare no nome: GTA **emitida**. O método principal é
+``gravarGtaEmitida`` — quem chama já emitiu a guia e está *registrando* isso; o
+manual descreve o serviço como "mantém informações da Guia de Trânsito Animal,
+sem validação das informações do destino". Nada ali gera número de guia, valida
+sanidade nem autoriza trânsito.
+
+E quem chama é o **OESA** (Órgão Executor de Sanidade Agropecuária) — o IMA em
+Minas, a Adepará no Pará. O fluxo é "dos OESAs para a PGA no MAPA": o estado
+prestando contas ao governo federal, não um canal para o produtor ou a
+assessoria emitir.
+
+Os métodos de consulta (``obterGtasEmitidaEstadual``, ``obterGtasEmitidaDestino``,
+``obterGtasEmitidaChave``) seriam **muito úteis** aqui — dariam para a GTA o que
+o DF-e dá para a nota fiscal: buscar sozinho as guias em vez de digitá-las. Mas
+o credenciamento é desenhado para OESA; enquanto não houver acesso, este módulo
+não fala com serviço nenhum.
+
+Fonte: Manual do Web Service da PGA (sites.google.com/agro.gov.br/manual-ws-pga).
 
 Então este módulo faz as duas coisas que sobram, e que são as que faltavam:
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from .. import contabil
+from .. import contabil, estoque
 from ..database import get_db
 from ..deps import (
     acesso_liberado,
@@ -668,6 +668,8 @@ _crud_simples(
     extras=lambda p: {
         "unidade_nome": f"{p.unidade.codigo} - {p.unidade.nome}" if p.unidade else None,
         "peso_conversao": p.unidade.peso_conversao if p.unidade else 0,
+        # saldo e custo médio são só leitura: quem os move é o motor de estoque
+        "estoque": estoque.ficha_produto(p) if p.controla_estoque else None,
     },
 )
 

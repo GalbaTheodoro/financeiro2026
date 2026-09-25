@@ -81,9 +81,10 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
     ),
 }
 
-# Os oito preços (quatro planos x dois prazos) entram aqui vindos de planos.py,
-# para o catálogo ficar num lugar só.
+# Os oito preços (quatro planos x dois prazos) e a grade de menus de cada plano
+# entram aqui vindos de planos.py, para o catálogo ficar num lugar só.
 CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_preco())
+CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_modulos())
 
 
 # --------------------------------------------------------------------------- #
@@ -207,6 +208,61 @@ def _prazo(db: Session, nivel: int, periodo: str, padrao: float, meses: dict) ->
     }
 
 
+# --------------------------------------------------------------------------- #
+# Que menus cada plano libera — e as exceções combinadas com cada cliente
+# --------------------------------------------------------------------------- #
+def modulos_do_nivel(db: Session, nivel: int) -> tuple[str, ...]:
+    """A grade de menus do plano, como o administrador do site montou.
+
+    Lê a configuração direto da linha (e não pelo ``config()``) de propósito:
+    plano **sem nenhum menu** é uma escolha possível, e o ``config()`` trocaria
+    o vazio pelo padrão de fábrica.
+    """
+    chave = catalogo.chave_dos_modulos(nivel)
+    registro = db.query(Configuracao).filter(Configuracao.chave == chave).first()
+    if registro is not None and registro.valor is not None:
+        return catalogo.separar_modulos(registro.valor)
+    return catalogo.modulos_do_nivel(nivel)
+
+
+def modulos_da_assinatura(db: Session, assinatura: Assinatura | None) -> tuple[str, ...]:
+    """O que a conta enxerga: o plano dela, mais o que foi combinado, menos o que foi tirado.
+
+    É aqui que mora o "fechou o Plano 1 mas eu dei a nota fiscal": o módulo
+    entra em ``modulos_extras`` e a conta passa a ver a tela, **sem trocar de
+    plano** — o valor cobrado continua o do plano.
+    """
+    if assinatura is None:
+        return tuple(catalogo.todos_os_modulos())
+    nivel, _ = catalogo.separar(assinatura.plano)
+    do_plano = list(modulos_do_nivel(db, nivel))
+    for extra in catalogo.separar_modulos(assinatura.modulos_extras):
+        if extra not in do_plano:
+            do_plano.append(extra)
+    bloqueados = catalogo.separar_modulos(assinatura.modulos_bloqueados)
+    liberados = [m for m in do_plano if m not in bloqueados]
+    # devolve na ordem do catálogo, para a tela não dançar
+    return tuple(m for m in catalogo.MODULOS if m in liberados)
+
+
+def planos_com_modulo(db: Session, modulo: str) -> list[str]:
+    """Os nomes dos planos que hoje incluem esse módulo."""
+    return [p["nome"] for p in catalogo.NIVEIS
+            if modulo in modulos_do_nivel(db, p["nivel"])]
+
+
+def frase_de_bloqueio(db: Session, modulo: str) -> str:
+    """O que a tela mostra quando a conta pede uma coisa que não contratou."""
+    nome = catalogo.MODULOS.get(modulo, (modulo, ""))[0]
+    quais = planos_com_modulo(db, modulo)
+    if not quais:
+        return (f"{nome} não está disponível em nenhum plano no momento. "
+                "Fale com o suporte.")
+    lista = quais[0] if len(quais) == 1 else f"{', '.join(quais[:-1])} e {quais[-1]}"
+    return (f"{nome} não faz parte do seu plano. Está no {lista}. "
+            "Para mudar, vá em Minha Assinatura.")
+
+
 def planos(db: Session) -> list[dict]:
     """Os quatro planos, cada um com os seus dois prazos e o que libera.
 
@@ -217,7 +273,7 @@ def planos(db: Session) -> list[dict]:
     saida = []
     for plano in catalogo.NIVEIS:
         nivel = plano["nivel"]
-        modulos = catalogo.modulos_do_nivel(nivel)
+        modulos = modulos_do_nivel(db, nivel)
         semestral = _prazo(db, nivel, "SEMESTRAL", plano["semestral"], meses)
         anual = _prazo(db, nivel, "ANUAL", plano["anual"], meses)
         economia = round(
@@ -229,7 +285,7 @@ def planos(db: Session) -> list[dict]:
             "para": plano["para"],
             "modulos": [{"codigo": m, "nome": catalogo.MODULOS[m][0],
                          "texto": catalogo.MODULOS[m][1]} for m in modulos],
-            "extras": list(plano["extras"]),
+            "extras": [m for m in modulos if m not in catalogo.BASE],
             "prazos": [semestral, anual],
             "semestral": semestral,
             "anual": anual,
@@ -409,6 +465,7 @@ def situacao(db: Session, assinatura: Assinatura | None) -> dict:
     agora = datetime.utcnow()
     hoje = date.today()
     escolhido = plano_por_codigo(db, assinatura.plano)
+    modulos = modulos_da_assinatura(db, assinatura)
     dados = {
         "assinatura_id": assinatura.id,
         "plano": assinatura.plano,
@@ -416,9 +473,12 @@ def situacao(db: Session, assinatura: Assinatura | None) -> dict:
         "plano_nivel": escolhido["nivel"],
         "plano_periodo": escolhido["periodo"],
         "plano_rotulo": escolhido["nome_completo"],
-        # é daqui que o menu sabe o que mostrar
-        "modulos": escolhido["modulos"],
-        "rotas": catalogo.rotas_dos_modulos(escolhido["modulos"]),
+        # é daqui que o menu sabe o que mostrar — já com as exceções da conta
+        "modulos": list(modulos),
+        "rotas": catalogo.rotas_dos_modulos(modulos),
+        "modulos_do_plano": escolhido["modulos"],
+        "modulos_extras": list(catalogo.separar_modulos(assinatura.modulos_extras)),
+        "modulos_bloqueados": list(catalogo.separar_modulos(assinatura.modulos_bloqueados)),
         "valor": dinheiro(assinatura.valor),
         "status": assinatura.status,
         "teste_fim": assinatura.teste_fim.isoformat(timespec="seconds") if assinatura.teste_fim else None,

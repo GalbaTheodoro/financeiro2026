@@ -12,10 +12,11 @@ POST   /api/gta/{id}/situacao  marca emitida / utilizada / cancelada
 GET    /api/gta/{id}/preparo   a ficha para levar ao portal
 GET    /api/gta/{id}/anexo     baixa o PDF da guia, quando anexado
 
-**Não existe "transmitir".** A GTA não tem webservice: quem emite é o produtor
-ou o médico-veterinário, dentro do sistema fechado do estado (em Minas o SIAPEC,
-do IMA). O que este módulo faz é guardar as guias, avisar de validade e
-preparar a digitação. O porquê está escrito por extenso em ``backend/gta.py``.
+**Não existe "transmitir".** A emissão da GTA fica no sistema do estado (em
+Minas o SIAPEC, do IMA), com o login do produtor ou do médico-veterinário. O
+webservice federal que existe — o ``GtaEmitidaWsService`` da PGA, do MAPA — é do
+**órgão estadual para o governo federal** e só registra guia **já emitida**, não
+emite nenhuma. O porquê está escrito por extenso em ``backend/gta.py``.
 """
 from __future__ import annotations
 

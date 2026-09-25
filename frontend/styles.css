@@ -119,6 +119,8 @@ label.campo .dica{font-weight:400;color:var(--cinza-500);font-size:11px}
 .g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
 .g3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+/* seis números (o resumo da GTA) fecham certinho em três colunas */
+.g6{grid-template-columns:repeat(3,1fr)}
 .linha-campos{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 /* separador dentro do formulário: título que atravessa a linha toda */
 .secao-campos{grid-column:1/-1;margin:6px 0 -4px;padding-top:10px;border-top:1px solid var(--borda);
@@ -133,6 +135,7 @@ label.campo .dica{font-weight:400;color:var(--cinza-500);font-size:11px}
 .kpi-valor{font-size:23px;font-weight:700;margin-top:5px;letter-spacing:-.02em}
 .kpi-nota{font-size:12px;color:var(--cinza-500);margin-top:3px}
 .positivo{color:var(--verde)} .negativo{color:var(--vermelho)} .neutro{color:var(--cinza-700)}
+.alerta{color:var(--ambar)}
 .kpi.destaque-azul{border-left:4px solid var(--primaria)}
 .kpi.destaque-verde{border-left:4px solid var(--verde)}
 .kpi.destaque-vermelho{border-left:4px solid var(--vermelho)}
@@ -159,7 +162,7 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 
 /* ---------------------------------------------------------------- etiquetas */
 .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.03em}
+  text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
 .tag-aberto{background:var(--azul-claro);color:var(--azul-escuro)}
 .tag-parcial{background:var(--ambar-claro);color:var(--ambar)}
 .tag-a-receber{background:#eef2ff;color:#4338ca}
@@ -342,6 +345,7 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
    linha. Em duas colunas eles fecham um quadrado certinho. */
 @media (min-width:761px) and (max-width:1180px){
   .grade.g4{grid-template-columns:repeat(2,1fr)}
+  .grade.g6{grid-template-columns:repeat(2,1fr)}
 }
 
 @media (max-width:760px){
@@ -368,7 +372,7 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   .cartao-corpo.espaco > .btn{flex:1 1 44%}
   .cartao-corpo{padding:14px}
   .grade{gap:10px}
-  .g2,.g3,.g4{grid-template-columns:1fr 1fr}
+  .g2,.g3,.g4,.g6{grid-template-columns:1fr 1fr}
   .kpi{padding:12px 13px}
   .kpi-valor{font-size:19px}
   .kpi-rotulo{font-size:10.5px}
@@ -866,6 +870,7 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
 .gta-conferencia ul{margin:6px 0 0 18px;padding:0}
 .gta-conferencia li{margin-bottom:3px}
 .gta-conferencia.ok{border-color:#a7f3d0;background:var(--verde-claro);color:#065f46}
+.gta-conferencia.neutra{border-color:var(--cinza-300);background:var(--cinza-50);color:var(--cinza-700)}
 /* Em monitor largo o conteúdo para de esticar: a folga vai para as laterais, e
    igual nas três faixas — o aviso, a barra de cima e a página —, para a borda
    direita do seletor de empresa cair no mesmo lugar da borda dos cartões. */

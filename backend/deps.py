@@ -177,17 +177,16 @@ async def acesso_liberado(
 # O que o plano da conta libera
 # --------------------------------------------------------------------------- #
 def modulos_da_conta(db: Session, usuario: Usuario) -> tuple[str, ...]:
-    """Os módulos que essa conta contratou.
+    """Os módulos que essa conta enxerga.
 
-    Conta interna (MASTER) e conta sem assinatura vinculada usam tudo — quem não
-    tem assinatura é a operação do próprio sistema, não um assinante.
+    Sai do plano dela, com as exceções que o administrador do site combinou —
+    ver ``assinaturas.modulos_da_assinatura``. Conta interna (MASTER) e conta
+    sem assinatura vinculada usam tudo: quem não tem assinatura é a operação do
+    próprio sistema, não um assinante.
     """
     if usuario.perfil == "MASTER":
         return tuple(catalogo.todos_os_modulos())
-    assinatura = assinatura_do_usuario(db, usuario)
-    if assinatura is None:
-        return tuple(catalogo.todos_os_modulos())
-    return catalogo.modulos_do_plano(assinatura.plano)
+    return regras.modulos_da_assinatura(db, assinatura_do_usuario(db, usuario))
 
 
 def exigir_modulo(modulo: str):
@@ -204,7 +203,7 @@ def exigir_modulo(modulo: str):
     ) -> Usuario:
         if modulo not in modulos_da_conta(db, usuario):
             raise HTTPException(status.HTTP_403_FORBIDDEN,
-                                catalogo.frase_de_bloqueio(modulo))
+                                regras.frase_de_bloqueio(db, modulo))
         return usuario
 
     return dependencia

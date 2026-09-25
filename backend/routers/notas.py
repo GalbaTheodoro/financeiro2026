@@ -26,14 +26,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import dfe as motor, notas as regras
+from .. import dfe as motor, estoque, notas as regras
 from ..database import get_db
-from ..deps import acesso_liberado, validar_empresa
+from ..deps import acesso_liberado, exigir_modulo, validar_empresa
 from ..models import Lancamento, Nota, Parceiro, Usuario
 from ..schemas import AjustarNotaIn, FaturarLoteIn, FaturarNotaIn
 from ..utils import dinheiro, endereco_linha, parse_data, serializar
 
-router = APIRouter(prefix="/api/notas", tags=["notas"])
+# O menu deste módulo pode ser tirado de um plano (ou de um cliente) na área
+# do administrador. Quem fecha a porta de verdade é a dependência abaixo:
+# esconder o botão no menu não impede ninguém de chamar a rota pelo endereço.
+router = APIRouter(prefix="/api/notas", tags=["notas"],
+                   dependencies=[Depends(exigir_modulo("NFE"))])
 
 SITUACOES = ["AUTORIZADA", "CANCELADA", "DENEGADA"]
 
@@ -68,9 +72,25 @@ def _resumo_titulo(db: Session, nota: Nota) -> dict | None:
     }
 
 
+def _resumo_estoque(db: Session, nota: Nota, entrada: bool) -> dict:
+    """O que a tela precisa saber sobre o estoque desta nota."""
+    itens = estoque.itens_com_estoque(db, nota)
+    return {
+        "gerado": bool(nota.estoque_em),
+        "gerado_em": (nota.estoque_em.isoformat(timespec="seconds")
+                      if nota.estoque_em else None),
+        "itens": len(itens),
+        # o botão só aparece na nota de entrada com item que controla estoque
+        "pode_gerar": bool(entrada and itens and not nota.estoque_em),
+        "pode_estornar": bool(nota.estoque_em),
+    }
+
+
 def linha(db: Session, nota: Nota, cnpj_empresa: str) -> dict:
     titulo = _resumo_titulo(db, nota)
+    entrada = regras.sentido(nota, cnpj_empresa) == "Entrada"
     return serializar(nota, exclude={"xml"}, extras={
+        "estoque": _resumo_estoque(db, nota, entrada),
         "emitente_documento": motor.formatar_documento(nota.emitente_cnpj),
         "chave_formatada": motor.formatar_chave(nota.chave),
         "manifestacao_nome": motor.ROTULO_EVENTO.get(nota.manifestacao or "", ""),
@@ -314,6 +334,48 @@ def desfaturar(nota_id: int, db: Session = Depends(get_db),
             "foi apagada. A nota na SEFAZ continua como estava."
         ),
     }
+
+
+# --------------------------------------------------------------------------- #
+# Estoque da nota
+# --------------------------------------------------------------------------- #
+@router.post("/{nota_id}/estoque")
+def gerar_estoque(nota_id: int, db: Session = Depends(get_db),
+                  usuario: Usuario = Depends(acesso_liberado)):
+    """Põe no estoque a mercadoria da nota de entrada.
+
+    É manual de propósito: nota de entrada chega da SEFAZ o tempo todo, e nem
+    toda ela é mercadoria que a empresa guarda. A baixa da venda, essa sim, é
+    automática — acontece quando a SEFAZ autoriza a nota de saída.
+    """
+    nota = _nota_da_conta(db, nota_id, usuario)
+    cnpj = regras.cnpj_da_empresa(db, nota.empresa_id)
+    if regras.sentido(nota, cnpj) != "Entrada":
+        raise HTTPException(
+            400, "Esta nota é de saída: o estoque dela é baixado sozinho quando a SEFAZ "
+                 "autoriza a nota.")
+    try:
+        retorno = estoque.entrada_da_nota(db, nota, usuario.id)
+    except estoque.ErroEstoque as erro:
+        raise HTTPException(400, str(erro)) from None
+    db.commit()
+    db.refresh(nota)
+    return {"ok": True, "nota": linha(db, nota, cnpj), **retorno}
+
+
+@router.post("/{nota_id}/estoque/estornar")
+def estornar_estoque(nota_id: int, db: Session = Depends(get_db),
+                     usuario: Usuario = Depends(acesso_liberado)):
+    """Desfaz o que a nota fez no estoque, com movimentos de sentido contrário."""
+    nota = _nota_da_conta(db, nota_id, usuario)
+    try:
+        retorno = estoque.estornar_nota(db, nota, usuario.id)
+    except estoque.ErroEstoque as erro:
+        raise HTTPException(400, str(erro)) from None
+    db.commit()
+    db.refresh(nota)
+    return {"ok": True, "nota": linha(db, nota, regras.cnpj_da_empresa(db, nota.empresa_id)),
+            **retorno}
 
 
 @router.post("/faturar-lote")

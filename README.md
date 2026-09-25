@@ -137,6 +137,27 @@ O código gravado na assinatura carrega as duas escolhas juntas — `P3_ANUAL` �
 meses*. Os oito preços, a duração de cada prazo e as horas de teste são editáveis em
 **Config. do site**.
 
+A tabela acima é o **padrão de fábrica**. Quem monta a grade de verdade é você, em dois níveis
+— e os dois são exclusivos do seu usuário (MASTER):
+
+**1. Os menus de cada plano** — *Config. do site → Menus de cada plano*. Um quadro com um menu
+por linha e um plano por coluna: marcar o cupom no Plano 1 abre o cupom para **todos** os
+assinantes do Plano 1 na hora, e a apresentação do plano na página inicial muda junto. Plano
+sem nenhum menu marcado é aceito (a conta entra e só enxerga Cadastros e Minha Assinatura).
+
+**2. A exceção de um cliente** — *Assinaturas → Gerenciar → Acessos combinados*. É a
+negociação: o cliente fechou o **Plano 1** mas ficou combinado dar a **nota fiscal**, então
+você marca a nota fiscal só para ele. O plano e o valor cobrado continuam os mesmos, e o
+vizinho de plano não ganha nada. O caminho contrário — tirar da conta um menu que o plano dá —
+é a mesma tela, desmarcando. A coluna *de onde vem* diz, linha por linha, se aquele acesso veio
+do plano ou de uma combinação.
+
+Guardado assim: a grade de cada plano fica nas configurações do site (`plano1_modulos`…), a
+exceção fica na própria assinatura (`modulos_extras` e `modulos_bloqueados`), e quem junta as
+duas pontas é `assinaturas.modulos_da_assinatura`. Trocar o cliente de plano recalcula as
+exceções contra o plano novo, então quem sobe de plano não fica com "extra" do que o plano
+novo já dá.
+
 #### Como o sistema respeita o plano
 
 Cada plano tem uma lista de **módulos**; cada módulo, uma lista de **rotas** do menu. Daí saem
@@ -145,7 +166,8 @@ duas barreiras, e as duas são necessárias:
 - no **servidor**, a dependência `exigir_modulo` recusa a chamada com a frase dizendo em que
   planos aquilo está (`Cupom fiscal eletrônico não faz parte do seu plano. Está no Plano 2 e
   Plano 4.`) — esconder botão não é segurança, quem souber o endereço chama a rota do mesmo
-  jeito;
+  jeito. Todos os cinco módulos têm essa porta, inclusive contrato, financeiro e NF-e: agora
+  que a grade é editável, qualquer um deles pode ser tirado de um plano ou de um cliente;
 - na **tela**, o menu não mostra o que a conta não tem, e endereço digitado à mão cai no
   painel com o aviso. A lista de rotas liberadas vem do servidor junto com a situação da
   assinatura, então trocar de plano redesenha o menu na hora.
@@ -691,6 +713,60 @@ tela em `frontend/js/emissao.js`.
 Teste: `python testes/teste_emissao.py` — monta e confere o XML inteiro **sem tocar na SEFAZ**.
 
 
+### Estoque
+
+**Movimento → Estoque** responde duas perguntas: *quantos eu tenho* e *quanto vale o que
+está parado*. O estoque aqui não é um número que alguém digita — é a **soma dos
+movimentos**, e cada movimento diz de onde veio.
+
+Só entra no controle o produto marcado com **controla estoque** no cadastro. Comissão,
+frete e serviço continuam saindo em nota sem mexer em saldo nenhum — é o que impede o
+relatório de virar um amontoado.
+
+| De onde vem | Como acontece |
+|---|---|
+| **Entrada** | O botão **+ Estoque** na linha da nota de entrada. É manual de propósito: nota de entrada chega da SEFAZ o tempo todo e nem toda ela é mercadoria que a empresa guarda. |
+| **Saída** | **Sozinha**, no momento em que a SEFAZ autoriza a NF-e de saída ou o cupom fiscal. Autorizou, saiu do estoque. |
+| **Devolução** | Nota cancelada devolve o que tinha tirado. |
+| **Acerto** | A tela de estoque, para inventário, perda e saldo inicial — sempre com o motivo escrito. |
+
+#### O custo médio
+
+Ponderado, que é o método que a legislação aceita. Na entrada:
+
+    novo = (saldo × custo_medio + quantidade × custo_da_entrada) / (saldo + quantidade)
+
+Na saída, o custo que sai é o custo médio do momento — o custo médio em si não muda. É isso
+que faz a tela responder "quanto vale o que está parado" e dá base para a margem da venda.
+
+O custo da entrada é o valor do item na nota: **valor − desconto + frete**. IPI e ST ficam
+de fora, porque nem sempre compõem custo e dependem do regime da empresa; quem precisar
+desse detalhe ajusta pela tela.
+
+#### O que o sistema não deixa passar
+
+- **Venda maior que o saldo é barrada** antes de a nota ir para a SEFAZ, com a frase
+  dizendo o produto, quanto tem e quanto a nota quer. Nota autorizada não volta atrás, então
+  descobrir depois não adiantaria nada. A conferência acontece antes até de abrir o
+  certificado, e a nota barrada **não gasta número da série**.
+- **Somar saca com quilo** é recusado: o saldo é contado na unidade do primeiro movimento, e
+  movimento em outra unidade explica o que fazer em vez de estragar o saldo em silêncio.
+- **Acerto sem motivo** é recusado — é o motivo que explica o movimento daqui a seis meses.
+- **Estorno não apaga**: lança os movimentos de sentido contrário, e o extrato mostra os dois.
+  Quem apaga movimento apaga a história.
+- **Saldo inicial** só vale para produto ainda sem movimento; depois disso o caminho é o
+  acerto, que deixa rastro.
+
+A tela tem **Posição** (saldo, custo médio e valor por produto, com aviso de estoque mínimo e
+de saldo negativo) e **Extrato** (os movimentos, com o saldo e o custo médio **depois de cada
+um** — assim um erro antigo fica visível em vez de sumir numa soma).
+
+Código: `backend/estoque.py` (o motor), `backend/routers/estoque.py`, o botão em
+`backend/routers/notas.py` e a baixa em `backend/routers/emissao.py`; tela em
+`frontend/js/estoque.js`.
+Teste: `python testes/teste_estoque.py`.
+
+
 ### GTA — Guia de Trânsito Animal
 
 **Movimento → GTA (trânsito animal)** guarda e vigia as guias dos produtores atendidos, e
@@ -698,13 +774,26 @@ imprime a **ficha de preparo** para quem vai digitar no portal do estado.
 
 #### Por que o sistema não emite a GTA
 
-Porque **não existe webservice de GTA**. Ela não é documento fiscal eletrônico como a NF-e: é
-documento de defesa sanitária animal, e cada estado tem o seu sistema próprio e fechado, onde
-se entra com login pessoal — em Minas o **SIAPEC**, do IMA; em São Paulo o GEDAVE; em Goiás o
-SIDAGO; no Pará o Sigeagro; em Mato Grosso o INDEA. Quem emite é o **produtor** ou o
-**médico-veterinário habilitado**, com a senha dele. Não há endereço público para um sistema
-de terceiro mandar a guia, e a tela diz isso em cima, para ninguém procurar um botão que não
-pode existir.
+A GTA não é documento fiscal eletrônico como a NF-e: é documento de defesa sanitária animal, e
+**a emissão fica no sistema do estado**, fechado, onde se entra com login pessoal — em Minas o
+**SIAPEC**, do IMA; em São Paulo o GEDAVE; em Goiás o SIDAGO; no Pará o Sigeagro; em Mato
+Grosso o INDEA. Quem emite é o **produtor** ou o **médico-veterinário habilitado**, com a
+senha dele. A tela diz isso em cima, para ninguém procurar um botão que não pode existir.
+
+**Existe um webservice federal — e ele não emite.** É o `GtaEmitidaWsService` da **PGA —
+Plataforma de Gestão Agropecuária**, do Ministério da Agricultura (SOAP, em
+`pga.agricultura.gov.br/sispga_ws/GtaEmitidaWsService?wsdl`). Repare no nome: GTA
+**emitida**. O método principal é `gravarGtaEmitida` — quem chama já emitiu a guia e está
+*registrando* isso; o manual descreve o serviço como "mantém informações da Guia de Trânsito
+Animal, sem validação das informações do destino". Nada ali gera número de guia nem autoriza
+trânsito. E quem chama é o **OESA** (o órgão estadual: IMA, Adepará, Indea…): o fluxo é "dos
+OESAs para a PGA no MAPA", o estado prestando contas ao governo federal.
+
+Os métodos de **consulta** desse mesmo serviço (`obterGtasEmitidaEstadual`,
+`obterGtasEmitidaDestino`, `obterGtasEmitidaChave`) seriam muito úteis aqui — dariam para a
+GTA o que o DF-e dá para a nota fiscal: buscar as guias sozinho em vez de digitá-las. Mas o
+credenciamento é desenhado para OESA; enquanto não houver acesso, o módulo não fala com
+serviço nenhum. Fonte: manual do WS da PGA, em `sites.google.com/agro.gov.br/manual-ws-pga`.
 
 O que sobra — e é o que faltava — são duas coisas:
 
@@ -735,6 +824,10 @@ vermelho. A folha avisa, em cima, que **não é a GTA**: a guia válida é a que
 
 Apagar guia já emitida no portal é barrado, porque apagar aqui não cancela lá — o caminho é
 cancelar no portal e marcar como cancelada, para o histórico ficar certo.
+
+A tela tem um **manual só da GTA** em PDF (`frontend/manual/Manual-GTA.pdf`), com os
+cadastros necessários e o passo a passo inteiro — da guia em preparo até a guia utilizada.
+A fonte dele está em `docs/manual/` (ver o LEIA-ME de lá).
 
 Código: `backend/gta.py` (tabelas, conferência e ficha), `backend/routers/gta.py`; tela em
 `frontend/js/gta.js`.
@@ -941,6 +1034,7 @@ sistema-financeiro/
 │   ├── cupom.py                 Cupom fiscal (NFC-e 65): QR Code, CSC e endereços da SEFAZ
 │   ├── danfe_cupom.py           A folha do cupom, em 80 mm, com o QR Code
 │   ├── gta.py                   GTA: espécies, conferência e ficha de preparo do portal
+│   ├── estoque.py               Estoque: movimentos, custo médio e conferência da venda
 │   ├── planos.py                Os quatro planos: módulos, preços e o que cada um libera
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
@@ -998,6 +1092,7 @@ sistema-financeiro/
     ├── teste_cupom.py           Teste do cupom fiscal: schema oficial e QR Code conferido
     ├── teste_email.py           Teste do envio da nota por e-mail (XML + DANFE em PDF)
     ├── teste_gta.py             Teste da GTA: conferência, validade e ficha de preparo
+    ├── teste_estoque.py         Teste do estoque: custo médio, baixa na venda e bloqueio
     ├── teste_planos.py          Teste dos quatro planos e do que cada conta enxerga
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
@@ -1034,6 +1129,7 @@ python testes/teste_base_da_regra.py    # a base do item da nota vem da regra fi
 python testes/teste_email.py        # nota por e-mail, com servidor SMTP de mentira
 python testes/teste_cupom.py        # cupom fiscal (NFC-e): XML no schema e QR Code
 python testes/teste_gta.py          # GTA: conferência, validade, resumo e ficha de preparo
+python testes/teste_estoque.py      # estoque: custo médio, entrada pela nota e baixa na venda
 python testes/teste_planos.py       # os quatro planos, o bloqueio por plano e o menu
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)

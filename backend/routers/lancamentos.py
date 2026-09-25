@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import contabil
 from ..database import get_db
-from ..deps import acesso_liberado, validar_empresa
+from ..deps import acesso_liberado, exigir_modulo, validar_empresa
 from ..models import (
     Baixa,
     Banco,
@@ -29,7 +29,11 @@ from ..models import (
 from ..schemas import BaixaIn, BaixaLoteIn, LancamentoIn
 from ..utils import adicionar_meses, dinheiro, parse_data, serializar, somar
 
-router = APIRouter(prefix="/api", tags=["lancamentos"])
+# O menu deste módulo pode ser tirado de um plano (ou de um cliente) na área
+# do administrador. Quem fecha a porta de verdade é a dependência abaixo:
+# esconder o botão no menu não impede ninguém de chamar a rota pelo endereço.
+router = APIRouter(prefix="/api", tags=["lancamentos"],
+                   dependencies=[Depends(exigir_modulo("FINANCEIRO"))])
 
 TOLERANCIA = 0.02
 

@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, joinedload
 from .. import contabil
 from ..icms import calcular_icms
 from ..database import get_db
-from ..deps import acesso_liberado, validar_empresa
+from ..deps import acesso_liberado, exigir_modulo, validar_empresa
 from ..models import (
     Contrato,
     ContaContabil,
@@ -47,7 +47,11 @@ from ..utils import (
     serializar,
 )
 
-router = APIRouter(prefix="/api/contratos", tags=["contratos"])
+# O menu deste módulo pode ser tirado de um plano (ou de um cliente) na área
+# do administrador. Quem fecha a porta de verdade é a dependência abaixo:
+# esconder o botão no menu não impede ninguém de chamar a rota pelo endereço.
+router = APIRouter(prefix="/api/contratos", tags=["contratos"],
+                   dependencies=[Depends(exigir_modulo("CONTRATOS"))])
 
 CODIGO_CONTA_COMISSAO = "3.1.01.004"
 

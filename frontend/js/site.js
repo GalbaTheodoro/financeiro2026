@@ -188,8 +188,11 @@ const Site = {
           valor: z.codigo,
           rotulo: `${p.nome} ${z.rotulo.toLowerCase()} — ${UI.moeda(z.valor)} (${z.meses} meses)`,
         }))), planoEscolhido, { vazio: false }), 'o plano decide quais telas a conta enxerga')}
+        ${UI.campo('Cupom de desconto', '<input name="cupom" placeholder="se você recebeu um" '
+          + 'autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">',
+          'o desconto entra na primeira cobrança')}
       </div>
-      <div class="mini" style="margin-top:12px">
+      <div class="mini" id="aviso-cupom" style="margin-top:12px">
         Você pode trocar o plano depois, antes de fazer o Pix.
       </div>`;
 
@@ -222,6 +225,34 @@ const Site = {
           },
         },
       ],
+    });
+
+    /* O cupom é conferido na hora, ao sair do campo ou ao trocar de plano: a
+       pessoa vê quanto vai pagar antes de criar a conta, não depois. */
+    const campoCupom = corpo.querySelector('[name=cupom]');
+    const aviso = corpo.querySelector('#aviso-cupom');
+    const padrao = aviso.innerHTML;
+    const conferirCupom = async () => {
+      const codigo = (campoCupom.value || '').trim();
+      if (!codigo) { aviso.innerHTML = padrao; aviso.classList.remove('positivo', 'alerta'); return; }
+      try {
+        const c = await Api.get(`/api/publico/cupom?codigo=${encodeURIComponent(codigo)}`);
+        const prazo = planos.flatMap((p) => p.prazos).find(
+          (z) => z.codigo === corpo.querySelector('[name=plano]').value);
+        const desconto = prazo ? (prazo.valor * c.percentual) / 100 : 0;
+        aviso.classList.add('positivo');
+        aviso.classList.remove('alerta');
+        aviso.innerHTML = `Cupom <b>${UI.escapar(c.codigo)}</b>: ${Assinaturas.porcento(c.percentual)} de desconto`
+          + (prazo ? ` — você paga <b>${UI.moeda(prazo.valor - desconto)}</b> em vez de ${UI.moeda(prazo.valor)}.` : '.');
+      } catch (e) {
+        aviso.classList.add('alerta');
+        aviso.classList.remove('positivo');
+        aviso.textContent = e.message;
+      }
+    };
+    campoCupom.onblur = conferirCupom;
+    corpo.querySelector('[name=plano]').addEventListener('change', () => {
+      if ((campoCupom.value || '').trim()) conferirCupom();
     });
   },
 

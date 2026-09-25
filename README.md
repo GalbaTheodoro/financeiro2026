@@ -110,6 +110,8 @@ com o suporte, em vez de dados de pagamento inventados.
   quanto tempo ainda resta.
 - **Pagamento por Pix** dentro do sistema: QR Code, chave e código copia e cola gerados
   com o valor do plano escolhido (padrão EMV do Banco Central) e um identificador por conta.
+- **Cupom de desconto**: o cliente digita o código no cadastro ou na tela de pagamento e o
+  QR Code e o copia e cola são refeitos com o valor menor.
 - Terminadas as 48 horas, a conta é **bloqueada** e cai na tela de pagamento — os dados
   lançados continuam guardados.
 - O assinante clica em **“Já fiz o Pix”**; você confere o recebimento e clica em
@@ -157,6 +159,39 @@ exceção fica na própria assinatura (`modulos_extras` e `modulos_bloqueados`),
 duas pontas é `assinaturas.modulos_da_assinatura`. Trocar o cliente de plano recalcula as
 exceções contra o plano novo, então quem sobe de plano não fica com "extra" do que o plano
 novo já dá.
+
+#### Cupons de desconto
+
+Não confundir com o **cupom fiscal** (NFC-e): aqui é o desconto de venda. Em **Administração
+→ Cupons de desconto** (só o seu usuário) você cria um código e uma porcentagem — por exemplo
+`PRIMAVERA10`, 10% — e liga ou desliga quando quiser. Não tem validade nem limite de uso: o
+que vale é estar ligado.
+
+O cliente digita o código em dois lugares: no **cadastro**, ao escolher o plano (a tela já
+mostra quanto ele vai pagar antes de criar a conta), e na **tela de pagamento**, para quem
+recebeu o cupom depois. Em qualquer um dos dois o **Pix é refeito**: o copia e cola e o QR
+Code passam a carregar o valor com desconto, porque os dois são montados a partir do mesmo
+valor de cobrança.
+
+Três coisas que o desconto respeita:
+
+- vale na **primeira cobrança**. Quando você clica em *Confirmar Pix*, o cupom é gasto: some
+  da conta, o contador de usos sobe e a renovação volta ao preço cheio. Fica registrado qual
+  cupom pagou a entrada daquela conta e quanto abateu;
+- **pacote de usuários extra não tem desconto** — o cupom é do plano;
+- a porcentagem fica **copiada na assinatura** no momento em que o cliente aplica. Se depois
+  você mudar o cupom de 10% para 5%, ou apagar o cupom, quem já aplicou continua com o que foi
+  combinado.
+
+Código errado ou cupom desligado dão a **mesma** resposta ("cupom não encontrado ou não está
+mais valendo"), de propósito: quem está do lado de fora não descobre que o cupom existe e foi
+desligado. Cupom errado digitado no cadastro não derruba a conta — ela é criada e o aviso vai
+junto.
+
+Código: `backend/descontos.py` (as regras), `Assinatura.cupom_*` e `CupomDesconto` em
+`backend/models.py`, as rotas em `backend/routers/assinatura.py` e `publico.py`, e as telas em
+`frontend/js/assinaturas.js` e `site.js`.
+Teste: `python testes/teste_cupons.py` (lê o valor de dentro do payload Pix, não do JSON).
 
 #### Como o sistema respeita o plano
 
@@ -1036,6 +1071,7 @@ sistema-financeiro/
 │   ├── gta.py                   GTA: espécies, conferência e ficha de preparo do portal
 │   ├── estoque.py               Estoque: movimentos, custo médio e conferência da venda
 │   ├── planos.py                Os quatro planos: módulos, preços e o que cada um libera
+│   ├── descontos.py             Cupons de desconto da assinatura (não é o cupom fiscal)
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -1094,6 +1130,7 @@ sistema-financeiro/
     ├── teste_gta.py             Teste da GTA: conferência, validade e ficha de preparo
     ├── teste_estoque.py         Teste do estoque: custo médio, baixa na venda e bloqueio
     ├── teste_planos.py          Teste dos quatro planos e do que cada conta enxerga
+    ├── teste_cupons.py          Teste dos cupons de desconto e do Pix com desconto
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
@@ -1131,6 +1168,7 @@ python testes/teste_cupom.py        # cupom fiscal (NFC-e): XML no schema e QR C
 python testes/teste_gta.py          # GTA: conferência, validade, resumo e ficha de preparo
 python testes/teste_estoque.py      # estoque: custo médio, entrada pela nota e baixa na venda
 python testes/teste_planos.py       # os quatro planos, o bloqueio por plano e o menu
+python testes/teste_cupons.py       # cupons de desconto: o valor certo no copia e cola
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)
 python testes/teste_interface.py    # site e telas no navegador (precisa de playwright)
 # por último (desliga o login de fábrica); servidor e teste com a mesma FIN_MASTER_EMAIL:

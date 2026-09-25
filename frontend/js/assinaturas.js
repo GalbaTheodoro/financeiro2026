@@ -53,7 +53,14 @@ const Assinaturas = {
         <div class="pix-grade">
           <div class="pix-qr">${p.qrcode_svg || '<div class="mini">QR Code indisponível — use a chave ao lado.</div>'}</div>
           <div>
-            <div class="pix-linha"><span class="mini">Valor</span><b>${UI.moeda(plano.valor)}</b></div>
+            ${p.cupom_desconto
+              ? `<div class="pix-linha"><span class="mini">Valor do plano</span>
+                   <span class="riscado">${UI.moeda(p.valor_cheio)}</span></div>
+                 <div class="pix-linha"><span class="mini">Cupom ${UI.escapar(p.cupom)}</span>
+                   <b class="positivo">− ${UI.moeda(p.cupom_desconto)}</b></div>
+                 <div class="pix-linha"><span class="mini">Valor a pagar</span>
+                   <b>${UI.moeda(p.valor_cobranca)}</b></div>`
+              : `<div class="pix-linha"><span class="mini">Valor</span><b>${UI.moeda(p.valor_cobranca)}</b></div>`}
             <div class="pix-linha"><span class="mini">Chave Pix</span><b id="pix-chave">${UI.escapar(p.pix_chave)}</b></div>
             ${p.pix_titular ? `<div class="pix-linha"><span class="mini">Titular</span><b>${UI.escapar(p.pix_titular)}</b></div>` : ''}
             ${p.pix_banco ? `<div class="pix-linha"><span class="mini">Banco</span><b>${UI.escapar(p.pix_banco)}</b></div>` : ''}
@@ -85,6 +92,22 @@ const Assinaturas = {
       ${compacto ? '' : `
       <h3 class="titulo-bloco">1. Escolha o plano</h3>
       <div class="planos-blocos">${escolha}</div>`}
+
+      ${p.configurado ? `
+      <div class="cupom-caixa">
+        <div>
+          <div class="forte">Tem um cupom de desconto?</div>
+          <div class="mini">${p.cupom
+            ? `Cupom <b>${UI.escapar(p.cupom)}</b> aplicado — ${Assinaturas.porcento(p.cupom_percentual)} de desconto nesta cobrança.`
+            : 'Digite o código que você recebeu e o valor do Pix muda na hora.'}</div>
+        </div>
+        <div class="cupom-campos">
+          <input name="cupom" placeholder="ex.: PRIMAVERA10" value="${UI.escapar(p.cupom || '')}"
+                 autocapitalize="characters" spellcheck="false">
+          <button class="btn btn-mini" id="btn-aplicar-cupom">Aplicar</button>
+          ${p.cupom ? '<button class="btn btn-mini" id="btn-tirar-cupom">Tirar</button>' : ''}
+        </div>
+      </div>` : ''}
 
       <h3 class="titulo-bloco">${compacto ? '' : '2. '}Pague por Pix</h3>
       ${areaPix}
@@ -130,6 +153,23 @@ const Assinaturas = {
           UI.erro(e.message);
         }
       };
+    });
+
+    /* O cupom: o servidor devolve o Pix já refeito, então basta redesenhar. */
+    const mandarCupom = async (codigo) => {
+      try {
+        const r = await Api.post('/api/assinatura/cupom', { codigo });
+        UI.sucesso(r.mensagem);
+        aoAtualizar();
+      } catch (e) {
+        UI.erro(e.message);
+      }
+    };
+    raiz.querySelector('#btn-aplicar-cupom')?.addEventListener('click', () =>
+      mandarCupom(raiz.querySelector('[name=cupom]')?.value || ''));
+    raiz.querySelector('#btn-tirar-cupom')?.addEventListener('click', () => mandarCupom(''));
+    raiz.querySelector('[name=cupom]')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); mandarCupom(e.target.value); }
     });
 
     raiz.querySelector('#btn-informei-pix')?.addEventListener('click', async () => {
@@ -403,7 +443,11 @@ const Assinaturas = {
         { titulo: 'Empresa', valor: (a) => UI.escapar(a.empresa_nome) },
         { titulo: 'Contato', valor: (a) => `<span class="mini">${UI.escapar(a.usuario_telefone || '-')}</span>` },
         { titulo: 'Plano', valor: (a) => `${UI.escapar(a.plano_nome || a.plano)}
-            <div class="mini">${UI.escapar((a.plano_periodo || '').toLowerCase())} · ${UI.moeda(a.valor)}</div>` },
+            <div class="mini">${UI.escapar((a.plano_periodo || '').toLowerCase())} · ${UI.moeda(a.valor)}</div>
+            ${a.cupom ? `<div class="mini positivo">cupom ${UI.escapar(a.cupom)}:
+              paga ${UI.moeda(a.valor_cobranca)}</div>` : ''}
+            ${!a.cupom && a.cupom_usado_codigo
+              ? `<div class="mini">entrou com o cupom ${UI.escapar(a.cupom_usado_codigo)}</div>` : ''}` },
         { titulo: 'Usuários', classe: 'centro', valor: (a) => `${a.limite_usuarios}
             <div class="mini">${a.pacotes_usuarios || 0} pacote(s)${a.pacotes_solicitados
               ? ` · <b>${a.pacotes_solicitados} pendente(s)</b>` : ''}</div>` },
@@ -471,7 +515,12 @@ const Assinaturas = {
     const corpo = document.createElement('div');
     corpo.innerHTML = `
       <p>Confirmar o recebimento do Pix de <b>${UI.escapar(assinatura.usuario_nome)}</b>
-         no valor de <b>${UI.moeda(assinatura.valor)}</b>?</p>
+         no valor de <b>${UI.moeda(assinatura.valor_cobranca ?? assinatura.valor)}</b>?</p>
+      ${assinatura.cupom ? `<div class="ok-caixa" style="margin-bottom:12px">
+        Esta conta aplicou o cupom <b>${UI.escapar(assinatura.cupom)}</b>:
+        ${UI.moeda(assinatura.cupom_desconto)} de desconto sobre ${UI.moeda(assinatura.valor)}.
+        O cupom é gasto agora — a renovação volta ao preço cheio.
+      </div>` : ''}
       <div class="linha-campos">
         ${UI.campo('Meses a liberar', `<input type="number" name="meses" value="${meses}" min="1" max="60">`)}
         ${UI.campo('Observação interna', '<input name="observacao" placeholder="ex.: Pix recebido em 10/09">')}
@@ -824,6 +873,140 @@ const Assinaturas = {
       corpo,
       largo: true,
       botoes: [{ rotulo: 'Fechar', acao: () => { UI.fecharModal(); Assinaturas.empresas(); } }],
+    });
+  },
+
+  /** "20" e não "20,00"; meia porcentagem continua aparecendo: "7,5". */
+  porcento(valor) {
+    const n = Number(valor || 0);
+    return `${UI.numero(n, n % 1 ? 2 : 0)}%`;
+  },
+
+  /* ------------------------------------------ cupons de desconto (MASTER) */
+  async cupons() {
+    const alvo = document.getElementById('pagina');
+    alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando cupons...</div></div>';
+    const dados = await Api.get('/api/admin/cupons');
+    const ativos = dados.linhas.filter((c) => c.ativo).length;
+    const usos = dados.linhas.reduce((s, c) => s + c.usos, 0);
+
+    alvo.innerHTML = `
+      <div class="grade g3" style="margin-bottom:16px">
+        <div class="kpi destaque-verde"><div class="kpi-rotulo">Cupons ativos</div>
+          <div class="kpi-valor">${ativos}</div>
+          <div class="kpi-nota">valendo agora, para quem digitar</div></div>
+        <div class="kpi"><div class="kpi-rotulo">Cupons cadastrados</div>
+          <div class="kpi-valor">${dados.linhas.length}</div></div>
+        <div class="kpi destaque-azul"><div class="kpi-rotulo">Vezes usado</div>
+          <div class="kpi-valor">${usos}</div>
+          <div class="kpi-nota">contas que pagaram com desconto</div></div>
+      </div>
+      <div class="cartao">
+        <div class="cartao-cabecalho espaco">
+          <div><h3>Cupons de desconto</h3>
+            <div class="mini">o cliente digita o código no cadastro ou na tela de pagamento e
+              o Pix já sai com o valor menor. O desconto vale na primeira cobrança;
+              a renovação volta ao preço cheio.</div></div>
+          <button class="btn btn-primario" id="btn-novo-cupom">Novo cupom</button>
+        </div>
+        <div class="cartao-corpo sem-padding" id="lista-cupons"></div>
+      </div>`;
+
+    alvo.querySelector('#lista-cupons').innerHTML = UI.tabela({
+      colunas: [
+        { titulo: 'Código', chave: 'codigo',
+          valor: (c) => `<b>${UI.escapar(c.codigo)}</b>` },
+        { titulo: 'Para que serve', valor: (c) => UI.escapar(c.descricao || '-') },
+        { titulo: 'Desconto', classe: 'centro',
+          valor: (c) => `<b>${Assinaturas.porcento(c.percentual)}</b>` },
+        { titulo: 'Já usado', classe: 'centro', valor: (c) => `${c.usos} vez(es)` },
+        { titulo: 'Situação', classe: 'centro', valor: (c) =>
+          `<span class="tag ${c.ativo ? 'tag-pago' : 'tag-vencido'}">${c.ativo ? 'ativo' : 'desligado'}</span>` },
+        { titulo: 'Ações', classe: 'centro', valor: (c, i) => `
+            <button class="btn btn-mini" data-editar="${i}">Editar</button>
+            <button class="btn btn-mini" data-ligar="${i}">${c.ativo ? 'Desligar' : 'Ligar'}</button>
+            <button class="btn btn-mini btn-perigo" data-apagar="${i}">Apagar</button>` },
+      ],
+      linhas: dados.linhas,
+      vazio: 'Nenhum cupom cadastrado. Crie um e passe o código para o cliente.',
+    });
+
+    alvo.querySelector('#btn-novo-cupom').onclick = () => Assinaturas.formularioCupom(null);
+    alvo.querySelectorAll('[data-editar]').forEach((b) => {
+      b.onclick = () => Assinaturas.formularioCupom(dados.linhas[Number(b.dataset.editar)]);
+    });
+    alvo.querySelectorAll('[data-ligar]').forEach((b) => {
+      b.onclick = async () => {
+        const c = dados.linhas[Number(b.dataset.ligar)];
+        try {
+          await Api.put(`/api/admin/cupons/${c.id}`, { ativo: !c.ativo });
+          UI.sucesso(c.ativo ? `Cupom ${c.codigo} desligado.` : `Cupom ${c.codigo} ligado.`);
+          Assinaturas.cupons();
+        } catch (e) { UI.erro(e.message); }
+      };
+    });
+    alvo.querySelectorAll('[data-apagar]').forEach((b) => {
+      b.onclick = async () => {
+        const c = dados.linhas[Number(b.dataset.apagar)];
+        if (!(await UI.confirmar(
+          `Apagar o cupom ${c.codigo}? Quem já aplicou não perde o desconto combinado.`,
+          'Apagar'))) return;
+        try {
+          await Api.del(`/api/admin/cupons/${c.id}`);
+          UI.sucesso('Cupom apagado.');
+          Assinaturas.cupons();
+        } catch (e) { UI.erro(e.message); }
+      };
+    });
+  },
+
+  formularioCupom(cupom) {
+    const novo = !cupom;
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <div class="linha-campos">
+        ${UI.campo('Código *', `<input name="codigo" value="${UI.escapar(cupom?.codigo || '')}"
+          placeholder="ex.: PRIMAVERA10" autocapitalize="characters" spellcheck="false"
+          style="text-transform:uppercase">`, 'é o que o cliente digita — sem espaço')}
+        ${UI.campo('Desconto (%) *', `<input type="number" name="percentual" step="0.01" min="0.01" max="100"
+          value="${cupom ? cupom.percentual : ''}" placeholder="ex.: 10">`,
+          'sobre o valor do plano escolhido')}
+        ${UI.campo('Para que serve', `<input name="descricao" value="${UI.escapar(cupom?.descricao || '')}"
+          placeholder="ex.: campanha da feira de setembro">`, 'anotação sua, o cliente não vê')}
+        ${UI.campo('Situação', UI.select('ativo', [
+          { valor: '1', rotulo: 'Ativo — valendo' },
+          { valor: '0', rotulo: 'Desligado' },
+        ], cupom && !cupom.ativo ? '0' : '1', { vazio: false }))}
+      </div>
+      <div class="ok-caixa" style="margin-top:12px">
+        O desconto entra na <b>primeira cobrança</b> da conta que digitar o código. Pacote de
+        usuários extra não recebe desconto.
+      </div>`;
+
+    UI.abrirModal({
+      titulo: novo ? 'Novo cupom de desconto' : `Cupom ${cupom.codigo}`,
+      corpo,
+      botoes: [
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
+        {
+          rotulo: 'Salvar',
+          classe: 'btn-primario',
+          acao: async () => {
+            const d = UI.lerFormulario(corpo);
+            const corpoEnvio = {
+              codigo: d.codigo, percentual: d.percentual,
+              descricao: d.descricao || '', ativo: d.ativo === '1',
+            };
+            try {
+              if (novo) await Api.post('/api/admin/cupons', corpoEnvio);
+              else await Api.put(`/api/admin/cupons/${cupom.id}`, corpoEnvio);
+              UI.fecharModal();
+              UI.sucesso('Cupom salvo.');
+              Assinaturas.cupons();
+            } catch (e) { UI.erro(e.message); }
+          },
+        },
+      ],
     });
   },
 

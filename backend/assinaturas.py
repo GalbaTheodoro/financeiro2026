@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from . import descontos
 from . import planos as catalogo
 from .models import Assinatura, Configuracao
 from .utils import adicionar_meses, dinheiro
@@ -575,6 +576,9 @@ def confirmar_pagamento(
     assinatura.data_fim = adicionar_meses(inicio, duracao)
     assinatura.confirmado_em = datetime.utcnow()
     assinatura.confirmado_por_id = confirmado_por_id
+    # o cupom vale na primeira cobrança: é aqui que ele é gasto e sai da conta,
+    # para a renovação voltar ao preço cheio
+    descontos.consumir(db, assinatura, plano["valor"])
     db.flush()
     return assinatura
 
@@ -645,9 +649,19 @@ def pix_qrcode_svg(payload: str) -> str:
 
 
 def dados_pagamento(db: Session, assinatura: Assinatura, valor: float | None = None) -> dict:
-    """Dados do Pix. `valor` permite cobrar algo diferente do plano (pacotes extras)."""
+    """Dados do Pix. `valor` permite cobrar algo diferente do plano (pacotes extras).
+
+    O cupom de desconto entra **só na cobrança do plano**: quando vem um `valor`
+    por fora, é pacote de usuários, e pacote não tem desconto. Como o copia e
+    cola e o QR Code são montados com `cobranca`, o desconto já sai nos dois.
+    """
     plano = plano_por_codigo(db, assinatura.plano)
-    cobranca = dinheiro(valor) if valor else plano["valor"]
+    if valor:
+        cobranca = dinheiro(valor)
+        cupom = descontos.desconto_da_assinatura(None, cobranca)
+    else:
+        cupom = descontos.desconto_da_assinatura(assinatura, plano["valor"])
+        cobranca = cupom["valor_pagar"]
     chave = config(db, "pix_chave")
     titular = config(db, "pix_titular") or config(db, "empresa_titular")
     cidade = config(db, "pix_cidade")
@@ -657,6 +671,10 @@ def dados_pagamento(db: Session, assinatura: Assinatura, valor: float | None = N
     return {
         "plano": plano,
         "valor_cobranca": cobranca,
+        "valor_cheio": cupom["valor_cheio"],
+        "cupom": cupom["codigo"],
+        "cupom_percentual": cupom["percentual"],
+        "cupom_desconto": cupom["desconto"],
         "pix_chave": chave,
         "pix_titular": titular,
         "pix_banco": config(db, "pix_banco"),

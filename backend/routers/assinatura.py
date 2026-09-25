@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import assinaturas as regras
+from .. import descontos
 from ..database import get_db
 from ..deps import (
     assinatura_do_usuario,
@@ -12,7 +13,7 @@ from ..deps import (
     somente_master,
     usuario_atual,
 )
-from ..models import Assinatura, Empresa, Usuario
+from ..models import Assinatura, CupomDesconto, Empresa, Usuario
 from ..schemas import (
     AcessoEmpresaIn,
     AcessoUsuarioIn,
@@ -23,6 +24,8 @@ from ..schemas import (
     PacotesUsuariosIn,
     StatusAssinaturaIn,
     AcessosContaIn,
+    CupomAssinanteIn,
+    CupomDescontoIn,
 )
 from ..utils import moeda_br, serializar
 
@@ -121,6 +124,41 @@ def escolher_plano(
     }
 
 
+@router.post("/assinatura/cupom")
+def aplicar_cupom(
+    dados: CupomAssinanteIn,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_atual),
+):
+    """O assinante digita o cupom na tela de pagamento e vê o valor cair na hora.
+
+    Não usa `acesso_liberado`: quem está na tela de pagamento normalmente está
+    justamente com a conta bloqueada.
+    """
+    assinatura = _minha(db, usuario)
+    if assinatura.status == "ATIVA":
+        raise HTTPException(
+            400, "Esta assinatura já está paga. O cupom vale na primeira cobrança.")
+    if not descontos.normalizar(dados.codigo):
+        descontos.remover(assinatura)
+        db.commit()
+        return {"ok": True, "mensagem": "Cupom retirado.",
+                "pagamento": regras.dados_pagamento(db, assinatura)}
+    try:
+        cupom = descontos.aplicar(db, assinatura, dados.codigo)
+    except descontos.CupomInvalido as erro:
+        raise HTTPException(400, str(erro)) from None
+    db.commit()
+    pagamento = regras.dados_pagamento(db, assinatura)
+    return {
+        "ok": True,
+        "pagamento": pagamento,
+        "mensagem": (f"Cupom {cupom.codigo} aplicado: "
+                     f"{moeda_br(pagamento['cupom_desconto'])} de desconto. "
+                     f"O Pix já está com o valor novo."),
+    }
+
+
 @router.post("/assinatura/pagamento")
 def informar_pagamento(
     dados: InformarPagamentoIn,
@@ -149,8 +187,14 @@ def _linha_assinatura(db: Session, a: Assinatura) -> dict:
     usuario = db.get(Usuario, a.usuario_id)
     empresa = db.get(Empresa, a.empresa_id) if a.empresa_id else None
     situacao = regras.situacao(db, a)
+    # o cupom sem montar o QR Code: a lista tem muitas contas e o Pix não é
+    # desenhado aqui, só o valor que vai ser cobrado
+    cupom = descontos.desconto_da_assinatura(a, float(a.valor or 0))
     return dict(
         serializar(a),
+        valor_cobranca=cupom["valor_pagar"],
+        cupom=cupom["codigo"],
+        cupom_desconto=cupom["desconto"],
         usuario_nome=usuario.nome if usuario else "-",
         usuario_email=usuario.email if usuario else "-",
         usuario_telefone=usuario.telefone if usuario else "",
@@ -476,6 +520,55 @@ def acesso_usuario(
         "ativo": usuario.ativo,
         "acesso_ate": usuario.acesso_ate.isoformat() if usuario.acesso_ate else None,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Cupons de desconto (MASTER)
+# --------------------------------------------------------------------------- #
+@router.get("/admin/cupons")
+def listar_cupons(db: Session = Depends(get_db), _: Usuario = Depends(somente_master)):
+    return {"linhas": descontos.listar(db)}
+
+
+@router.post("/admin/cupons")
+def criar_cupom(dados: CupomDescontoIn, db: Session = Depends(get_db),
+                _: Usuario = Depends(somente_master)):
+    try:
+        cupom = descontos.criar(db, dados.codigo or "", dados.percentual,
+                                dados.descricao,
+                                True if dados.ativo is None else dados.ativo)
+    except descontos.CupomInvalido as erro:
+        raise HTTPException(400, str(erro)) from None
+    db.commit()
+    return descontos.serializar(cupom)
+
+
+@router.put("/admin/cupons/{cupom_id}")
+def editar_cupom(cupom_id: int, dados: CupomDescontoIn, db: Session = Depends(get_db),
+                 _: Usuario = Depends(somente_master)):
+    cupom = db.get(CupomDesconto, cupom_id)
+    if not cupom:
+        raise HTTPException(404, "Cupom não encontrado")
+    try:
+        descontos.editar(db, cupom, dados.codigo, dados.percentual,
+                         dados.descricao, dados.ativo)
+    except descontos.CupomInvalido as erro:
+        raise HTTPException(400, str(erro)) from None
+    db.commit()
+    return descontos.serializar(cupom)
+
+
+@router.delete("/admin/cupons/{cupom_id}")
+def apagar_cupom(cupom_id: int, db: Session = Depends(get_db),
+                 _: Usuario = Depends(somente_master)):
+    """Apaga o cupom. Quem já aplicou não perde o desconto: a porcentagem fica
+    copiada na assinatura, então o combinado com aquele cliente é respeitado."""
+    cupom = db.get(CupomDesconto, cupom_id)
+    if not cupom:
+        raise HTTPException(404, "Cupom não encontrado")
+    db.delete(cupom)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/admin/configuracoes")

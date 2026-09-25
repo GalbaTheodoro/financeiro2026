@@ -773,6 +773,19 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .pix-codigo{width:100%;margin-top:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;
   min-height:70px;background:var(--cinza-50)}
 
+/* Cupom de desconto: fica logo acima do Pix, porque é ele que muda o valor do
+   copia e cola e do QR Code. */
+.cupom-caixa{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  border:1px dashed var(--cinza-300);background:var(--cinza-50);border-radius:var(--raio);
+  padding:12px 14px;margin-top:14px}
+.cupom-campos{display:flex;gap:8px;align-items:center}
+.cupom-campos input{width:180px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.riscado{text-decoration:line-through;color:var(--cinza-500)}
+@media (max-width:620px){
+  .cupom-caixa{flex-direction:column;align-items:stretch}
+  .cupom-campos input{width:100%}
+}
+
 .faixa-assinatura{display:flex;align-items:center;justify-content:space-between;gap:14px;
   padding:9px 24px;font-size:13.5px;font-weight:600}
 .faixa-assinatura.teste{background:var(--ambar-claro);color:#92400e;border-bottom:1px solid #fde68a}

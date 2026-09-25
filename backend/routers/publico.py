@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .. import assinaturas as regras
 from .. import cotacoes as fontes_cotacoes
+from .. import descontos
 from .. import mercado
 from ..database import get_db
 from ..deps import situacao_da_conta
@@ -185,6 +186,16 @@ def cadastro(dados: CadastroPublicoIn, db: Session = Depends(get_db)):
     criar_cadastros_contrato_padrao(db, empresa.id)
 
     assinatura = regras.criar_assinatura(db, usuario.id, empresa.id, plano["codigo"])
+    # o cupom digitado no cadastro. Código errado não derruba a conta recém-criada:
+    # a conta entra, o aviso vai junto e a pessoa tenta de novo na tela de pagamento.
+    aviso_cupom = ""
+    if dados.cupom:
+        try:
+            cupom = descontos.aplicar(db, assinatura, dados.cupom)
+            aviso_cupom = (f" Cupom {cupom.codigo} aplicado: "
+                           f"{float(cupom.percentual):.0f}% de desconto na primeira cobrança.")
+        except descontos.CupomInvalido as erro:
+            aviso_cupom = f" {erro}"
     db.commit()
     db.refresh(usuario)
 
@@ -195,6 +206,22 @@ def cadastro(dados: CadastroPublicoIn, db: Session = Depends(get_db)):
         "assinatura": regras.situacao(db, assinatura),
         "pagamento": regras.dados_pagamento(db, assinatura),
         "mensagem": (
-            f"Conta criada. Seu acesso está liberado por {regras.horas_teste(db)} horas para teste."
+            f"Conta criada. Seu acesso está liberado por {regras.horas_teste(db)} horas "
+            f"para teste.{aviso_cupom}"
         ),
     }
+
+
+@router.get("/cupom")
+def conferir_cupom(codigo: str = Query(...), db: Session = Depends(get_db)):
+    """Confere o cupom antes do cadastro, para a pessoa ver o desconto na hora.
+
+    Não diz *quanto* é o desconto em reais: o plano ainda não foi escolhido de
+    verdade. Diz a porcentagem, e a tela faz a conta.
+    """
+    try:
+        cupom = descontos.validar(db, codigo)
+    except descontos.CupomInvalido as erro:
+        raise HTTPException(400, str(erro)) from None
+    return {"codigo": cupom.codigo, "percentual": float(cupom.percentual or 0),
+            "descricao": cupom.descricao or ""}

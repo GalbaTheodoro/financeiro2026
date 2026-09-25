@@ -642,6 +642,40 @@ with sync_playwright() as p:
         erros.append("tela de bloqueio não apareceu")
     pagina.screenshot(path=SAIDA / "20-bloqueio.png", full_page=True)
 
+    # ----------------------- o cupom de desconto na própria tela de pagamento
+    api("POST", "/api/admin/cupons",
+        {"codigo": "TELA20", "percentual": 20, "descricao": "teste de interface"},
+        master["token"])
+    antes_pix = pagina.evaluate("() => document.querySelector('#pix-codigo')?.value || ''")
+    pagina.fill('[name=cupom]', "tela20")
+    pagina.click("#btn-aplicar-cupom")
+    pagina.wait_for_timeout(1800)
+    cupom_tela = pagina.evaluate("""() => {
+        const t = document.querySelector('#tela-pagamento').innerText;
+        const valor = (p) => {  // lê o campo 54 (valor) de dentro do payload Pix
+            let i = 0;
+            while (i + 4 <= p.length) {
+                const id = p.slice(i, i + 2), tam = Number(p.slice(i + 2, i + 4));
+                if (id === '54') return Number(p.slice(i + 4, i + 4 + tam));
+                i += 4 + tam;
+            }
+            return null;
+        };
+        return { texto: t.includes('TELA20') && t.includes('Valor a pagar'),
+                 pix: valor(document.querySelector('#pix-codigo')?.value || ''),
+                 qr: !!document.querySelector('.pix-qr svg') };
+    }""")
+    # 20% sobre o plano da conta de teste; o que importa é o Pix ter mudado junto
+    ok_cupom = (cupom_tela["texto"] and cupom_tela["qr"] and cupom_tela["pix"]
+                and antes_pix and antes_pix != pagina.evaluate(
+                    "() => document.querySelector('#pix-codigo')?.value || ''"))
+    print(f"  [{'OK  ' if ok_cupom else 'FALHA'}] cupom na tela de pagamento refaz o Pix {cupom_tela}")
+    if not ok_cupom:
+        erros.append("cupom não refez o Pix na tela de pagamento")
+    pagina.screenshot(path=SAIDA / "24-cupom-pagamento.png", full_page=True)
+    pagina.click("#btn-tirar-cupom")
+    pagina.wait_for_timeout(1500)
+
     # ------------------------------------------------- área do administrador
     pagina.evaluate("localStorage.removeItem('fin_token')")
     pagina.goto(BASE)
@@ -662,6 +696,16 @@ with sync_playwright() as p:
     if not ok_admin:
         erros.append("painel de assinaturas incompleto")
     pagina.screenshot(path=SAIDA / "21-admin-assinaturas.png", full_page=True)
+
+    pagina.goto(f"{BASE}/#/admin-cupons")
+    pagina.wait_for_timeout(1200)
+    cupons = pagina.inner_text("#pagina")
+    ok_cupons = ("TELA20" in cupons and "20%" in cupons and "0 vez(es)" in cupons
+                 and "Cupons ativos".upper() in cupons.upper())
+    print(f"  [{'OK  ' if ok_cupons else 'FALHA'}] tela de cupons do administrador")
+    if not ok_cupons:
+        erros.append("tela de cupons incompleta")
+    pagina.screenshot(path=SAIDA / "25-admin-cupons.png", full_page=True)
 
     pagina.goto(f"{BASE}/#/configuracoes")
     pagina.wait_for_timeout(1000)

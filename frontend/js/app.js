@@ -22,6 +22,7 @@ const App = {
     '/assinatura': { titulo: 'Minha Assinatura', subtitulo: 'Plano, pagamento por Pix e situação da conta', acao: () => Assinaturas.minha() },
     '/admin-empresas': { titulo: 'Empresas e acessos', subtitulo: 'Liberar e bloquear por data, limite de usuários por empresa', acao: () => Assinaturas.empresas(), master: true },
     '/admin-assinaturas': { titulo: 'Assinaturas', subtitulo: 'Contas cadastradas e confirmação de pagamentos', acao: () => Assinaturas.admin(), master: true },
+    '/admin-cupons': { titulo: 'Cupons de desconto', subtitulo: 'Códigos de desconto da assinatura', acao: () => Assinaturas.cupons(), master: true },
     '/configuracoes': { titulo: 'Configurações do site', subtitulo: 'Identidade, contatos, Pix e planos', acao: () => Assinaturas.configuracoes(), master: true },
   },
 
@@ -66,6 +67,7 @@ const App = {
         { grupo: 'Administração' },
         { rota: '/admin-empresas', icone: '⚿', rotulo: 'Empresas e acessos' },
         { rota: '/admin-assinaturas', icone: '★', rotulo: 'Assinaturas' },
+        { rota: '/admin-cupons', icone: '%', rotulo: 'Cupons de desconto' },
         { rota: '/configuracoes', icone: '⚑', rotulo: 'Config. do site' },
       );
     } else {

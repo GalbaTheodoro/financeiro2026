@@ -307,6 +307,17 @@ class Assinatura(Base):
     # Os dois são listas separadas por vírgula (ver backend/planos.py).
     modulos_extras = Column(String(200))
     modulos_bloqueados = Column(String(200))
+    # Cupom de desconto aplicado a esta conta, ainda **não** cobrado. O percentual
+    # fica copiado aqui de propósito: se o administrador mudar o cupom depois, quem
+    # já aplicou continua com o desconto que combinou. Some quando o Pix é
+    # confirmado, porque o desconto vale só na primeira cobrança.
+    cupom_codigo = Column(String(30))
+    cupom_percentual = Column(Numeric(5, 2, asdecimal=False))
+    cupom_aplicado_em = Column(DateTime)
+    # histórico: qual cupom pagou a entrada desta conta e quanto abateu
+    cupom_usado_codigo = Column(String(30))
+    cupom_usado_desconto = Column(Numeric(15, 2, asdecimal=False))
+    cupom_usado_em = Column(DateTime)
     pagamento_informado_em = Column(DateTime)
     pagamento_observacao = Column(String(300))
     pix_identificador = Column(String(40))
@@ -316,6 +327,30 @@ class Assinatura(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
+
+
+class CupomDesconto(Base):
+    """Cupom de desconto da assinatura — o "PRIMAVERA10" que o cliente digita.
+
+    Não tem nada a ver com o **cupom fiscal** (NFC-e); é só o desconto de venda.
+    O administrador do site cadastra o código e a porcentagem, e liga ou desliga
+    quando quiser: não há validade nem limite de uso, foi assim que ficou
+    combinado. O contador `usos` é só informação na tela, não trava nada.
+
+    O desconto vale na **primeira cobrança** da conta. Depois que o Pix é
+    confirmado o cupom some da assinatura e a renovação volta ao preço cheio.
+    """
+
+    __tablename__ = "cupons_desconto"
+
+    id = Column(Integer, primary_key=True)
+    # guardado sempre em maiúsculas e sem espaço, para "primavera10" achar o mesmo
+    codigo = Column(String(30), nullable=False, unique=True, index=True)
+    descricao = Column(String(120))
+    percentual = Column(Numeric(5, 2, asdecimal=False), nullable=False, default=0)
+    ativo = Column(Boolean, nullable=False, default=True)
+    usos = Column(Integer, nullable=False, default=0)
+    criado_em = Column(DateTime, default=datetime.utcnow)
 
 
 class CacheExterno(Base):

@@ -22,10 +22,26 @@ class CadastroPublicoIn(BaseModel):
     uf: str | None = None
     # código do plano com o prazo: P1_SEMESTRAL, P4_ANUAL... (ver backend/planos.py)
     plano: str = "P1_SEMESTRAL"
+    cupom: str | None = None
 
 
 class EscolherPlanoIn(BaseModel):
     plano: str
+
+
+class CupomAssinanteIn(BaseModel):
+    """O cupom digitado na tela de pagamento. Código vazio tira o cupom da conta."""
+
+    codigo: str | None = None
+
+
+class CupomDescontoIn(BaseModel):
+    """Cadastro do cupom pelo administrador do site."""
+
+    codigo: str | None = None
+    descricao: str | None = None
+    percentual: float | str | None = None
+    ativo: bool | None = None
 
 
 class AcessosContaIn(BaseModel):

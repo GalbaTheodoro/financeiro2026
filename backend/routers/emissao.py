@@ -712,7 +712,7 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
         from .cupom import config_do_cupom
         try:
             csc, csc_id = nfce.csc_do_ambiente(config_do_cupom(db, nota.empresa_id), ambiente)
-            suplemento = nfce.bloco_suplementar(chave, ambiente, csc, csc_id, empresa.uf)
+            suplemento = nfce.bloco_suplementar(chave, ambiente, csc, csc_id, empresa.uf, db)
         except nfce.ErroCupom as erro:
             raise HTTPException(400, str(erro)) from None
     assinada = nfe.assinar_nfe(inf, chave_privada, certificado, suplemento)
@@ -726,7 +726,7 @@ def transmitir(nota_id: int, dados: TransmitirNotaIn, db: Session = Depends(get_
 
     try:
         retorno = nfe.transmitir(chave_privada, certificado, cadeia, empresa.uf,
-                                 ambiente, assinada, modelo=modelo)
+                                 ambiente, assinada, modelo=modelo, db=db)
     except nfe.ErroEmissao as erro:
         # não deu para falar com a SEFAZ: a nota fica como rascunho e o número volta
         nota.status_emissao = "RASCUNHO"
@@ -836,7 +836,7 @@ def cancelar(nota_id: int, dados: CancelarNotaIn, db: Session = Depends(get_db),
         retorno = nfe.cancelar(
             chave_privada, certificado, cadeia, empresa.uf, nota.ambiente or cert.ambiente,
             nota.chave, motor.so_numeros(empresa.cnpj), nota.protocolo,
-            dados.justificativa or "", modelo=nota.modelo or "55",
+            dados.justificativa or "", modelo=nota.modelo or "55", db=db,
         )
     except nfe.ErroEmissao as erro:
         return {

@@ -26,8 +26,12 @@ const Cupom = {
     const c = Cupom._config || {};
     const falta = [];
     if (!c.uf_atendida) {
-      falta.push(`o cupom ainda não está ligado à SEFAZ de ${c.uf || 'sua UF'} `
-        + `(hoje: ${(c.ufs_com_cupom || []).join(', ')})`);
+      // diz o que falta, não só que não dá: quem administra o sistema resolve em uma tela
+      falta.push((c.falta_endereco || []).length
+        ? `o cupom em ${c.uf || 'sua UF'} está sem ${c.falta_endereco.join(' e ')} — `
+          + 'o administrador do sistema preenche em Administração > Endereços da SEFAZ'
+        : `o cupom ainda não está ligado à SEFAZ de ${c.uf || 'sua UF'} `
+          + `(hoje: ${(c.ufs_com_cupom || []).join(', ')})`);
     }
     if (!c.tem_csc_homologacao && !c.tem_csc_producao) {
       falta.push('o CSC da empresa (Cadastros > Cupom fiscal)');

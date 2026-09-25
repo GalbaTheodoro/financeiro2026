@@ -23,6 +23,7 @@ const App = {
     '/admin-empresas': { titulo: 'Empresas e acessos', subtitulo: 'Liberar e bloquear por data, limite de usuários por empresa', acao: () => Assinaturas.empresas(), master: true },
     '/admin-assinaturas': { titulo: 'Assinaturas', subtitulo: 'Contas cadastradas e confirmação de pagamentos', acao: () => Assinaturas.admin(), master: true },
     '/admin-cupons': { titulo: 'Cupons de desconto', subtitulo: 'Códigos de desconto da assinatura', acao: () => Assinaturas.cupons(), master: true },
+    '/admin-sefaz': { titulo: 'Endereços da SEFAZ', subtitulo: 'Webservices da NFC-e em cada estado', acao: () => Assinaturas.sefaz(), master: true },
     '/configuracoes': { titulo: 'Configurações do site', subtitulo: 'Identidade, contatos, Pix e planos', acao: () => Assinaturas.configuracoes(), master: true },
   },
 
@@ -68,6 +69,7 @@ const App = {
         { rota: '/admin-empresas', icone: '⚿', rotulo: 'Empresas e acessos' },
         { rota: '/admin-assinaturas', icone: '★', rotulo: 'Assinaturas' },
         { rota: '/admin-cupons', icone: '%', rotulo: 'Cupons de desconto' },
+        { rota: '/admin-sefaz', icone: '⌁', rotulo: 'Endereços da SEFAZ' },
         { rota: '/configuracoes', icone: '⚑', rotulo: 'Config. do site' },
       );
     } else {

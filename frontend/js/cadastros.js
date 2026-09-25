@@ -691,9 +691,13 @@ const Cadastros = {
             style="margin-bottom:12px;border-left:4px solid var(--vermelho)">
             <div class="cartao-corpo"><b>O cupom ainda não está ligado à SEFAZ de
               ${UI.escapar(config.uf || 'sua UF')}.</b>
-              <div class="mini">Hoje o sistema emite cupom em:
-                ${UI.escapar((config.ufs_com_cupom || []).join(', '))}. Nos outros
-                estados, emita NF-e.</div></div></div>`}
+              <div class="mini">${(config.falta_endereco || []).length
+                ? `Falta o endereço de ${UI.escapar(config.falta_endereco.join(' e '))} desse
+                   estado. Quem administra o sistema preenche em
+                   <b>Administração &gt; Endereços da SEFAZ</b>, copiando do portal da SEFAZ.`
+                : `Hoje o sistema emite cupom em:
+                   ${UI.escapar((config.ufs_com_cupom || []).join(', '))}. Nos outros
+                   estados, emita NF-e.`}</div></div></div>`}
 
           <div class="cartao" style="border-left:4px solid var(--${pronto ? 'verde' : 'ambar'})">
             <div class="cartao-corpo">

@@ -523,6 +523,52 @@ def acesso_usuario(
 
 
 # --------------------------------------------------------------------------- #
+# Endereços da SEFAZ (MASTER)
+# --------------------------------------------------------------------------- #
+@router.get("/admin/sefaz")
+def listar_enderecos_sefaz(modelo: str = "65", db: Session = Depends(get_db),
+                           _: Usuario = Depends(somente_master)):
+    """Um estado por linha, com os oito endereços e de onde veio cada um."""
+    from .. import sefaz_enderecos as enderecos
+
+    try:
+        enderecos.conferir_modelo(modelo)
+    except enderecos.EnderecoFaltando as erro:
+        raise HTTPException(400, str(erro)) from None
+    return {"modelo": modelo, "linhas": enderecos.quadro(db, modelo),
+            "servicos": enderecos.SERVICOS}
+
+
+@router.put("/admin/sefaz/{modelo}/{uf}")
+def salvar_endereco_sefaz(modelo: str, uf: str, dados: dict,
+                          db: Session = Depends(get_db),
+                          _: Usuario = Depends(somente_master)):
+    from .. import sefaz_enderecos as enderecos
+
+    try:
+        enderecos.salvar(db, modelo, uf, dados or {})
+    except enderecos.EnderecoFaltando as erro:
+        raise HTTPException(400, str(erro)) from None
+    db.commit()
+    return {"ok": True, "linhas": enderecos.quadro(db, modelo)}
+
+
+@router.delete("/admin/sefaz/{modelo}/{uf}")
+def restaurar_endereco_sefaz(modelo: str, uf: str, db: Session = Depends(get_db),
+                             _: Usuario = Depends(somente_master)):
+    """Volta o estado ao padrão de fábrica, apagando o que foi editado."""
+    from .. import sefaz_enderecos as enderecos
+
+    try:
+        enderecos.conferir_modelo(modelo)
+    except enderecos.EnderecoFaltando as erro:
+        raise HTTPException(400, str(erro)) from None
+    enderecos.voltar_ao_padrao(db, modelo, uf)
+    db.commit()
+    return {"ok": True, "linhas": enderecos.quadro(db, modelo)}
+
+
+# --------------------------------------------------------------------------- #
 # Cupons de desconto (MASTER)
 # --------------------------------------------------------------------------- #
 @router.get("/admin/cupons")

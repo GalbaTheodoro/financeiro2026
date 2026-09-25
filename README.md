@@ -484,14 +484,15 @@ valem igual), mesma assinatura, mesmo lote síncrono. O que muda:
 - o **destinatário é opcional**: a maioria dos cupons sai sem identificar ninguém. Quem pede
   "CPF na nota" informa só o documento, sem endereço e sem cadastro de cliente;
 - não leva transporte nem duplicatas, e o **troco** entra no grupo de pagamento;
-- os **webservices são outros** — em Minas, `nfce.fazenda.mg.gov.br`, não `nfe.`;
+- os **webservices são outros** — em Minas, `nfce.fazenda.mg.gov.br`, não `nfe.`; e são de
+  cada estado (veja *Em que estados o cupom sai*, abaixo);
 - a **numeração é separada** da nota fiscal: modelos diferentes, sequências diferentes.
 
 #### O CSC e o QR Code
 
 O cupom impresso leva um **QR Code** que o consumidor lê para conferir a venda no site da
 SEFAZ. Ele é assinado com o **CSC** (Código de Segurança do Contribuinte), um código que a
-empresa pede no portal da SEFAZ do estado — em Minas, no SIARE. **Sem CSC nenhum cupom é
+empresa pede no portal da SEFAZ do estado — em Minas, no SIARE; em São Paulo e Goiás, na área do contribuinte do portal da NFC-e. **Sem CSC nenhum cupom é
 aceito**, e por isso a tela avisa antes de a pessoa montar a venda.
 
 O texto do QR Code (versão 2.0, emissão on-line) é::
@@ -512,12 +513,45 @@ emitente, o aviso "DANFE NFC-e", os itens, o total, as formas de pagamento e o t
 consumidor (ou "CONSUMIDOR NAO IDENTIFICADO"), a chave de acesso para digitar, o QR Code e o
 protocolo. Imprimir é o botão do próprio navegador — o mesmo caminho da DANFE e do contrato.
 
-O cancelamento usa o mesmo evento 110111 da nota, mas o **prazo é de 30 minutos** em Minas;
-passado isso, a saída é uma devolução. A tela diz se ainda dá tempo.
+O cancelamento usa o mesmo evento 110111 da nota, mas o **prazo é de cada estado**: 30 minutos
+em Minas, 24 horas no Tocantins. Passado isso, a saída é uma devolução. A tela diz se ainda dá
+tempo, com o prazo do estado da empresa.
 
-Código: `backend/cupom.py` (QR Code, endereços e CSC), `backend/danfe_cupom.py` (a folha),
-`backend/routers/cupom.py` e a tela em `frontend/js/cupom.js`.
-Teste: `python testes/teste_cupom.py` — valida o XML no schema oficial e confere o QR Code.
+#### Em que estados o cupom sai
+
+De fábrica: **Minas Gerais, São Paulo e Goiás**. O **Tocantins** vem com a autorização pronta
+(pelo SVRS) e precisa só da URL do QR Code, que não consegui confirmar em fonte oficial — veja
+o parágrafo seguinte.
+
+A **NF-e (modelo 55) não tem essa limitação**: São Paulo, Goiás, Minas e mais nove estados têm
+endereço próprio na tabela de `backend/emissao.py`, e todos os outros — o Tocantins entre eles —
+caem no **SVRS**, que é quem autoriza para eles. Quem emite NF-e emite em qualquer estado.
+
+**Por que os endereços do cupom são editáveis.** Eles mudam: Goiás trocou a URL do QR Code da
+NFC-e em 2025 (Informe Técnico 2025.003, de `http` para `https`, com host novo). Quando um
+endereço chumbado no código sai de circulação, o cupom do cliente para de sair no balcão e ele
+fica esperando uma versão nova do sistema. Então o código traz o **padrão de fábrica** e quem
+manda é o que estiver gravado: em **Administração → Endereços da SEFAZ** (só o MASTER) há um
+cartão por estado, com os oito endereços (autorização, evento, QR Code e consulta, em produção
+e homologação), o prazo de cancelamento, de onde veio cada valor e um botão de voltar ao
+padrão. Campo salvo igual ao padrão não é gravado — assim o estado volta a acompanhar as
+atualizações do sistema sozinho.
+
+**Endereço em branco não vira palpite.** Sem a URL do QR Code o sistema **recusa emitir**
+naquele estado, com a frase dizendo qual serviço falta e onde preencher. É de propósito: um
+endereço chutado faz a SEFAZ devolver a **rejeição 395**, ou — pior — autoriza um cupom cujo
+QR Code o consumidor não consegue conferir. A origem de cada padrão fica escrita na tela,
+porque a confiança não é a mesma: São Paulo foi conferido no portal da SEFAZ-SP, os endereços
+do SVRS no portal do SVRS, e o QR Code de Goiás veio do Informe Técnico 2025.003 por fonte
+secundária — **confira no portal da SEFAZ-GO antes de usar em produção**. O jeito certo de
+conferir qualquer um deles é emitir em **homologação** primeiro.
+
+Código: `backend/cupom.py` (QR Code e CSC), `backend/sefaz_enderecos.py` (a tabela por estado),
+`backend/danfe_cupom.py` (a folha), `backend/routers/cupom.py` e as telas em
+`frontend/js/cupom.js` e `frontend/js/assinaturas.js`.
+Teste: `python testes/teste_cupom.py` — valida o XML no schema oficial e confere o QR Code;
+`python testes/teste_cupom_estados.py` — o QR Code de cada estado, a recusa quando falta
+endereço e a edição pela tela.
 
 #### Mandar a nota para o cliente por e-mail
 
@@ -1072,6 +1106,7 @@ sistema-financeiro/
 │   ├── estoque.py               Estoque: movimentos, custo médio e conferência da venda
 │   ├── planos.py                Os quatro planos: módulos, preços e o que cada um libera
 │   ├── descontos.py             Cupons de desconto da assinatura (não é o cupom fiscal)
+│   ├── sefaz_enderecos.py       Endereços da NFC-e por estado, editáveis na tela
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -1131,6 +1166,7 @@ sistema-financeiro/
     ├── teste_estoque.py         Teste do estoque: custo médio, baixa na venda e bloqueio
     ├── teste_planos.py          Teste dos quatro planos e do que cada conta enxerga
     ├── teste_cupons.py          Teste dos cupons de desconto e do Pix com desconto
+    ├── teste_cupom_estados.py   Teste do cupom em MG, SP, GO e TO
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)

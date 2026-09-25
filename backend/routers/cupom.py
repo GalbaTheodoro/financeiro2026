@@ -26,6 +26,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import correio, cupom as nfce, dfe as motor
+from .. import sefaz_enderecos as enderecos
 from ..database import get_db
 from ..deps import exigir_modulo, validar_empresa
 from ..models import ConfigCupom, Empresa, Nota, NotaPagamento, Usuario
@@ -79,7 +80,7 @@ def config_do_cupom(db: Session, empresa_id: int) -> ConfigCupom | None:
     return db.query(ConfigCupom).filter(ConfigCupom.empresa_id == empresa_id).first()
 
 
-def _ficha_config(config: ConfigCupom | None, empresa: Empresa) -> dict:
+def _ficha_config(config: ConfigCupom | None, empresa: Empresa, db=None) -> dict:
     """O que a tela recebe. **O CSC nunca sai daqui** — só o aviso de que existe."""
     return {
         "serie": (config.serie if config else "1") or "1",
@@ -89,9 +90,12 @@ def _ficha_config(config: ConfigCupom | None, empresa: Empresa) -> dict:
         "csc_id_homologacao": config.csc_id_homologacao if config else None,
         "csc_id_producao": config.csc_id_producao if config else None,
         "uf": empresa.uf,
-        "uf_atendida": nfce.uf_atendida(empresa.uf),
-        "ufs_com_cupom": sorted(nfce.AUTORIZACAO),
-        "minutos_para_cancelar": nfce.MINUTOS_PARA_CANCELAR,
+        "uf_atendida": nfce.uf_atendida(empresa.uf, db),
+        "ufs_com_cupom": nfce.ufs_com_cupom(db),
+        "minutos_para_cancelar": nfce.minutos_para_cancelar(empresa.uf, db),
+        # o que ainda falta preencher para este estado emitir (fica vazio quando está tudo lá)
+        "falta_endereco": [] if nfce.uf_atendida(empresa.uf, db) else
+            enderecos.faltando(db, nfce.MODELO, empresa.uf),
     }
 
 
@@ -99,7 +103,7 @@ def _ficha_config(config: ConfigCupom | None, empresa: Empresa) -> dict:
 def ler_config(empresa_id: int, db: Session = Depends(get_db),
                usuario: Usuario = Depends(_do_plano)):
     empresa = validar_empresa(db, empresa_id, usuario)
-    return _ficha_config(config_do_cupom(db, empresa_id), empresa)
+    return _ficha_config(config_do_cupom(db, empresa_id), empresa, db)
 
 
 @router.put("/config")
@@ -130,7 +134,7 @@ def salvar_config(dados: ConfigCupomIn, db: Session = Depends(get_db),
     config.atualizado_em = datetime.utcnow()
     db.commit()
     db.refresh(config)
-    return _ficha_config(config, empresa)
+    return _ficha_config(config, empresa, db)
 
 
 # --------------------------------------------------------------------------- #
@@ -145,11 +149,12 @@ def vender(dados: VendaIn, db: Session = Depends(get_db),
     from ..schemas import TransmitirNotaIn
 
     empresa = validar_empresa(db, dados.empresa_id, usuario)
-    if not nfce.uf_atendida(empresa.uf):
+    if not nfce.uf_atendida(empresa.uf, db):
         raise HTTPException(
             400, f"O cupom fiscal ainda não está ligado à SEFAZ de "
                  f"{empresa.uf or '(sem UF)'}. Hoje o sistema emite cupom em: "
-                 f"{', '.join(sorted(nfce.AUTORIZACAO))}.")
+                 f"{', '.join(nfce.ufs_com_cupom(db)) or 'nenhum estado'}. O administrador "
+                 "do sistema liga um estado novo em Administração > Endereços da SEFAZ.")
     if not dados.itens:
         raise HTTPException(400, "O cupom está sem itens — nada foi vendido.")
     config = config_do_cupom(db, dados.empresa_id)
@@ -215,11 +220,13 @@ def vender(dados: VendaIn, db: Session = Depends(get_db),
 def abrir(nota_id: int, db: Session = Depends(get_db),
           usuario: Usuario = Depends(_do_plano)):
     nota = _cupom(db, nota_id, usuario)
+    empresa = db.get(Empresa, nota.empresa_id)
+    pode, motivo = _pode_cancelar(nota, db, empresa.uf if empresa else "")
     return {"cupom": serializar(nota, exclude={"xml"}, extras={
         "itens": [serializar(i) for i in nota.itens],
         "pagamentos": [serializar(p) for p in nota.pagamentos],
-        "pode_cancelar": _pode_cancelar(nota)[0],
-        "motivo_nao_cancela": _pode_cancelar(nota)[1],
+        "pode_cancelar": pode,
+        "motivo_nao_cancela": motivo,
     })}
 
 
@@ -231,16 +238,18 @@ def _cupom(db: Session, nota_id: int, usuario: Usuario) -> Nota:
     return nota
 
 
-def _pode_cancelar(nota: Nota) -> tuple[bool, str]:
-    """No cupom o prazo é curto — em Minas, 30 minutos."""
+def _pode_cancelar(nota: Nota, db=None, uf: str = "") -> tuple[bool, str]:
+    """No cupom o prazo é curto, e é de cada estado: Minas 30 min, Tocantins 24 h."""
     if nota.status_emissao != "AUTORIZADA":
         return False, "Só dá para cancelar cupom autorizado."
     if not nota.data_autorizacao:
         return False, "Este cupom não tem a hora da autorização guardada."
-    limite = nota.data_autorizacao + timedelta(minutes=nfce.MINUTOS_PARA_CANCELAR)
+    minutos = nfce.minutos_para_cancelar(uf, db)
+    limite = nota.data_autorizacao + timedelta(minutes=minutos)
     if datetime.utcnow() > limite:
-        return False, (f"Passou o prazo de {nfce.MINUTOS_PARA_CANCELAR} minutos para "
-                       "cancelar o cupom. Faça uma devolução (nota de entrada).")
+        prazo = f"{minutos // 60} horas" if minutos >= 60 else f"{minutos} minutos"
+        return False, (f"Passou o prazo de {prazo} para cancelar o cupom "
+                       f"em {uf or 'seu estado'}. Faça uma devolução (nota de entrada).")
     return True, ""
 
 

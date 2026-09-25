@@ -43,68 +43,57 @@ MODELO = "65"
 
 # --------------------------------------------------------------------------- #
 # Endereços da SEFAZ para NFC-e (são diferentes dos da NF-e)
+#
+# A tabela não mora mais aqui: está em ``backend/sefaz_enderecos.py``, com o
+# padrão de fábrica de cada estado, e o que o administrador gravar na tela manda
+# por cima. Foi assim que o cupom saiu de Minas para Goiás, Tocantins e São
+# Paulo sem precisar de uma versão nova a cada endereço que a SEFAZ muda.
 # --------------------------------------------------------------------------- #
-AUTORIZACAO = {
-    "MG": {"1": "https://nfce.fazenda.mg.gov.br/nfce/services/NFeAutorizacao4",
-           "2": "https://hnfce.fazenda.mg.gov.br/nfce/services/NFeAutorizacao4"},
-}
-
-EVENTO = {
-    "MG": {"1": "https://nfce.fazenda.mg.gov.br/nfce/services/NFeRecepcaoEvento4",
-           "2": "https://hnfce.fazenda.mg.gov.br/nfce/services/NFeRecepcaoEvento4"},
-}
-
-# Onde o QR Code manda o consumidor, e onde ele consulta digitando a chave.
-QRCODE = {
-    "MG": {"1": "https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml",
-           "2": "https://portalsped.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml"},
-}
-
-CONSULTA_CHAVE = {
-    "MG": {"1": "https://portalsped.fazenda.mg.gov.br/portalnfce",
-           "2": "https://hportalsped.fazenda.mg.gov.br/portalnfce"},
-}
-
-# Em Minas o cancelamento do cupom tem prazo curto — bem menor que os 24 h da
-# NF-e. A tela avisa antes de deixar cancelar.
-MINUTOS_PARA_CANCELAR = 30
+from . import sefaz_enderecos as enderecos  # noqa: E402
 
 
 class ErroCupom(Exception):
     """Falta alguma coisa para emitir o cupom, com a frase pronta para a tela."""
 
 
-def uf_atendida(uf: str) -> bool:
-    return (uf or "").upper() in AUTORIZACAO
+def uf_atendida(uf: str, db=None) -> bool:
+    return enderecos.atendida(db, uf, MODELO)
 
 
-def _endereco(tabela: dict, uf: str, ambiente: str, servico: str) -> str:
-    uf = (uf or "").upper()
-    if uf not in tabela:
-        raise ErroCupom(
-            f"O cupom fiscal ainda não está ligado à SEFAZ de {uf or '(sem UF)'}. "
-            f"Hoje o sistema emite cupom em: {', '.join(sorted(tabela))}. "
-            "Para os outros estados, emita NF-e."
-        )
-    return tabela[uf][ambiente if ambiente in ("1", "2") else "2"]
+def ufs_com_cupom(db=None) -> list[str]:
+    return enderecos.ufs_atendidas(db, MODELO)
 
 
-def url_autorizacao(uf: str, ambiente: str) -> str:
-    return _endereco(AUTORIZACAO, uf, ambiente, "autorização")
+def minutos_para_cancelar(uf: str, db=None) -> int:
+    """O prazo é do estado: Minas dá 30 minutos, o Tocantins 24 horas."""
+    return enderecos.minutos_cancelamento(db, MODELO, uf)
 
 
-def url_evento(uf: str, ambiente: str) -> str:
-    return _endereco(EVENTO, uf, ambiente, "evento")
+def _endereco(servico: str, uf: str, ambiente: str, db=None) -> str:
+    try:
+        return enderecos.exigir(db, MODELO, uf, servico,
+                                ambiente if ambiente in ("1", "2") else "2")
+    except enderecos.EnderecoFaltando as erro:
+        raise ErroCupom(str(erro)) from None
 
 
-def url_consulta_chave(uf: str, ambiente: str) -> str:
-    return _endereco(CONSULTA_CHAVE, uf, ambiente, "consulta")
+def url_autorizacao(uf: str, ambiente: str, db=None) -> str:
+    return _endereco("autorizacao", uf, ambiente, db)
+
+
+def url_evento(uf: str, ambiente: str, db=None) -> str:
+    return _endereco("evento", uf, ambiente, db)
+
+
+def url_consulta_chave(uf: str, ambiente: str, db=None) -> str:
+    return _endereco("consulta", uf, ambiente, db)
 
 
 # --------------------------------------------------------------------------- #
 # O QR Code
 # --------------------------------------------------------------------------- #
-def texto_qrcode(chave: str, ambiente: str, csc: str, csc_id: str, uf: str) -> str:
+def texto_qrcode(chave: str, ambiente: str, csc: str, csc_id: str, uf: str,
+                 db=None) -> str:
     """O texto que vai dentro do QR Code impresso no cupom.
 
     Só para emissão normal (on-line), que é a que este sistema faz. A emissão em
@@ -117,8 +106,9 @@ def texto_qrcode(chave: str, ambiente: str, csc: str, csc_id: str, uf: str) -> s
     if not (csc or "").strip():
         raise ErroCupom(
             "Falta o CSC da empresa. É o código que a SEFAZ dá para assinar o QR Code do "
-            "cupom — sem ele a SEFAZ recusa. Peça no portal da SEFAZ do seu estado (em "
-            "Minas, no SIARE) e cadastre em Cadastros > Cupom fiscal."
+            "cupom — sem ele a SEFAZ recusa. Peça no portal da SEFAZ do seu estado "
+            "(em Minas, no SIARE; em São Paulo e Goiás, na área do contribuinte do "
+            "portal da NFC-e) e cadastre em Cadastros > Cupom fiscal."
         )
     identificador = re.sub(r"\D", "", str(csc_id or ""))
     if not identificador:
@@ -130,10 +120,11 @@ def texto_qrcode(chave: str, ambiente: str, csc: str, csc_id: str, uf: str) -> s
     dados = f"{chave}|2|{ambiente}|{identificador}"
     # o CSC entra só aqui, no cálculo — nunca no texto que é impresso
     assinatura = hashlib.sha1(f"{dados}{csc.strip()}".encode()).hexdigest().upper()
-    return f"{_endereco(QRCODE, uf, ambiente, 'QR Code')}?p={dados}|{assinatura}"
+    return f"{_endereco('qrcode', uf, ambiente, db)}?p={dados}|{assinatura}"
 
 
-def bloco_suplementar(chave: str, ambiente: str, csc: str, csc_id: str, uf: str) -> str:
+def bloco_suplementar(chave: str, ambiente: str, csc: str, csc_id: str, uf: str,
+                      db=None) -> str:
     """`infNFeSupl` — o QR Code e o endereço de consulta, que só o cupom tem.
 
     Entra **entre** o `infNFe` e a assinatura, nessa ordem exata (é o que o
@@ -141,10 +132,10 @@ def bloco_suplementar(chave: str, ambiente: str, csc: str, csc_id: str, uf: str)
     """
     from .emissao import _tag
 
-    qr = texto_qrcode(chave, ambiente, csc, csc_id, uf)
+    qr = texto_qrcode(chave, ambiente, csc, csc_id, uf, db)
     return ("<infNFeSupl>"
             + _tag("qrCode", qr, True)
-            + _tag("urlChave", url_consulta_chave(uf, ambiente), True)
+            + _tag("urlChave", url_consulta_chave(uf, ambiente, db), True)
             + "</infNFeSupl>")
 
 

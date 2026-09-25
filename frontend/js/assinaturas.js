@@ -876,6 +876,120 @@ const Assinaturas = {
     });
   },
 
+  /* ------------------------------------- endereços da SEFAZ (MASTER) */
+  /** Os endereços da NFC-e de cada estado. Aqui você conserta sem esperar versão nova. */
+  async sefaz() {
+    const alvo = document.getElementById('pagina');
+    alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando endereços...</div></div>';
+    const dados = await Api.get('/api/admin/sefaz', { modelo: '65' });
+    Assinaturas._sefaz = dados;
+    const emitem = dados.linhas.filter((l) => l.emite);
+
+    alvo.innerHTML = `
+      <div class="cartao" style="margin-bottom:16px">
+        <div class="cartao-corpo">
+          <div class="forte">Cupom fiscal: ${emitem.length} estado(s) ligado(s) —
+            ${emitem.map((l) => UI.escapar(l.uf)).join(', ') || 'nenhum'}</div>
+          <div class="mini" style="margin-top:6px">
+            A NFC-e tem endereços próprios em cada estado, e eles mudam de vez em quando
+            (Goiás trocou a URL do QR Code em 2025). Quando isso acontecer, corrija aqui —
+            não precisa de versão nova do sistema. Copie sempre do portal da SEFAZ do estado.
+          </div>
+          <div class="aviso-caixa" style="margin-top:12px">
+            <b>Endereço em branco não vira chute.</b> Enquanto faltar, o sistema recusa emitir
+            naquele estado e explica o que falta. É de propósito: um endereço errado faz a
+            SEFAZ recusar (rejeição 395) ou gera um cupom que o consumidor não consegue conferir.
+          </div>
+        </div>
+      </div>
+      <div id="lista-sefaz"></div>`;
+
+    alvo.querySelector('#lista-sefaz').innerHTML = dados.linhas.map((l, i) => `
+      <div class="cartao" style="margin-bottom:14px">
+        <div class="cartao-cabecalho espaco">
+          <div>
+            <h3>${UI.escapar(l.nome)} (${UI.escapar(l.uf)})
+              <span class="tag ${l.emite ? 'tag-pago' : 'tag-vencido'}">
+                ${l.emite ? 'emite cupom' : 'falta endereço'}</span></h3>
+            <div class="mini">origem do padrão: ${UI.escapar(l.fonte)}</div>
+            ${l.faltando.length
+              ? `<div class="mini alerta">falta preencher: ${l.faltando.map(UI.escapar).join(', ')}</div>`
+              : ''}
+            <div class="mini">prazo para cancelar o cupom:
+              <b>${l.minutos_cancelamento >= 60
+                ? `${l.minutos_cancelamento / 60} hora(s)` : `${l.minutos_cancelamento} minutos`}</b></div>
+          </div>
+          <button class="btn btn-mini" data-editar-uf="${i}">Editar endereços</button>
+        </div>
+      </div>`).join('');
+
+    alvo.querySelectorAll('[data-editar-uf]').forEach((b) => {
+      b.onclick = () => Assinaturas.formularioSefaz(dados.linhas[Number(b.dataset.editarUf)]);
+    });
+  },
+
+  formularioSefaz(linha) {
+    const dados = Assinaturas._sefaz;
+    const corpo = document.createElement('div');
+    const campo = (servico, nome, ambiente) => {
+      const chave = `${servico}_${ambiente === '1' ? 'producao' : 'homologacao'}`;
+      const c = linha.campos[chave];
+      return UI.campo(`${nome} — ${ambiente === '1' ? 'produção' : 'homologação'}`,
+        `<input name="${chave}" value="${UI.escapar(c.valor)}" spellcheck="false"
+                placeholder="https://...">`,
+        c.editado ? 'editado por você' : (c.valor ? 'padrão de fábrica' : 'em branco — o sistema não emite assim'));
+    };
+    corpo.innerHTML = `
+      <div class="mini" style="margin-bottom:12px">
+        Copie do portal da SEFAZ de ${UI.escapar(linha.nome)}. Deixar igual ao padrão de
+        fábrica é o mesmo que não editar — o campo volta a acompanhar as atualizações do sistema.
+      </div>
+      <div class="linha-campos">
+        ${Object.entries(dados.servicos).map(([servico, nome]) =>
+          ['1', '2'].map((amb) => campo(servico, nome, amb)).join('')).join('')}
+        ${UI.campo('Prazo para cancelar (minutos)',
+          `<input type="number" name="minutos_cancelamento" min="0" max="10080"
+                  value="${linha.minutos_cancelamento}">`,
+          'Minas dá 30 minutos; o Tocantins, 24 horas (1440)')}
+      </div>`;
+
+    UI.abrirModal({
+      titulo: `Endereços da SEFAZ — ${linha.nome}`,
+      corpo,
+      largo: true,
+      botoes: [
+        { rotulo: 'Cancelar', acao: () => UI.tentarFecharModal() },
+        {
+          rotulo: 'Voltar ao padrão',
+          acao: async () => {
+            if (!(await UI.confirmar(
+              `Apagar o que foi editado em ${linha.nome} e voltar ao padrão de fábrica?`,
+              'Voltar ao padrão'))) return;
+            try {
+              await Api.del(`/api/admin/sefaz/${dados.modelo}/${linha.uf}`);
+              UI.fecharModal();
+              UI.sucesso('Endereços restaurados.');
+              Assinaturas.sefaz();
+            } catch (e) { UI.erro(e.message); }
+          },
+        },
+        {
+          rotulo: 'Salvar',
+          classe: 'btn-primario',
+          acao: async () => {
+            try {
+              await Api.put(`/api/admin/sefaz/${dados.modelo}/${linha.uf}`,
+                UI.lerFormulario(corpo));
+              UI.fecharModal();
+              UI.sucesso(`Endereços de ${linha.nome} salvos.`);
+              Assinaturas.sefaz();
+            } catch (e) { UI.erro(e.message); }
+          },
+        },
+      ],
+    });
+  },
+
   /** "20" e não "20,00"; meia porcentagem continua aparecendo: "7,5". */
   porcento(valor) {
     const n = Number(valor || 0);

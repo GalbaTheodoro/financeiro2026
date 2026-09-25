@@ -323,11 +323,12 @@ checar("pagamento menor que o total é recusado",
        str(pouco.get("detail"))[:70])
 
 try:
-    nfce.url_autorizacao("SP", "2")
+    # o Acre não está na tabela: tem de avisar, e dizer onde se resolve
+    nfce.url_autorizacao("AC", "2")
     checar("UF sem cupom avisa", False, "não avisou")
 except nfce.ErroCupom as erro:
-    checar("UF sem cupom avisa com a lista do que dá", "MG" in str(erro),
-           str(erro)[:70])
+    checar("UF sem endereço avisa e diz onde preencher",
+           "AC" in str(erro) and "Endereços da SEFAZ" in str(erro), str(erro)[:80])
 
 print("\n" + "=" * 60)
 if erros:

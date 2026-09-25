@@ -329,6 +329,35 @@ class Assinatura(Base):
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
 
 
+class EnderecoSefaz(Base):
+    """Endereços da SEFAZ de um estado, quando são diferentes do padrão de fábrica.
+
+    Só guarda o que foi **mudado**: campo igual ao padrão fica nulo. Assim, quando
+    uma versão nova do sistema trouxer o endereço já corrigido, o estado volta
+    sozinho a usar o padrão, sem ninguém precisar limpar nada.
+
+    Ver ``backend/sefaz_enderecos.py`` — inclusive a razão de isto existir.
+    """
+
+    __tablename__ = "enderecos_sefaz"
+    __table_args__ = (UniqueConstraint("modelo", "uf", name="uq_endereco_sefaz"),)
+
+    id = Column(Integer, primary_key=True)
+    modelo = Column(String(2), nullable=False, default="65")   # 65 = cupom, 55 = NF-e
+    uf = Column(String(2), nullable=False, index=True)
+    autorizacao_producao = Column(String(300))
+    autorizacao_homologacao = Column(String(300))
+    evento_producao = Column(String(300))
+    evento_homologacao = Column(String(300))
+    qrcode_producao = Column(String(300))
+    qrcode_homologacao = Column(String(300))
+    consulta_producao = Column(String(300))
+    consulta_homologacao = Column(String(300))
+    # prazo para cancelar o cupom naquele estado (Minas: 30 min; Tocantins: 24 h)
+    minutos_cancelamento = Column(Integer)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class CupomDesconto(Base):
     """Cupom de desconto da assinatura — o "PRIMAVERA10" que o cliente digita.
 

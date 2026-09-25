@@ -815,7 +815,7 @@ def _endereco(tabela: dict, uf: str, ambiente: str) -> str:
 
 
 def transmitir(chave_privada, certificado, cadeia, uf: str, ambiente: str,
-               nfe_assinada: str, lote: int = 1, modelo: str = "55") -> dict:
+               nfe_assinada: str, lote: int = 1, modelo: str = "55", db=None) -> dict:
     """Envia a nota para a SEFAZ e traduz a resposta.
 
     O **cupom** (modelo 65) tem webservices próprios — em Minas, `nfce.` no
@@ -823,7 +823,7 @@ def transmitir(chave_privada, certificado, cadeia, uf: str, ambiente: str,
     """
     if modelo == "65":
         from . import cupom as nfce
-        url = nfce.url_autorizacao(uf, ambiente)
+        url = nfce.url_autorizacao(uf, ambiente, db)
     else:
         url = _endereco(AUTORIZACAO, uf, ambiente)
     # o corpo padrão é o <nfeDadosMsg> solto; algumas SEFAZ pedem o invólucro
@@ -881,17 +881,17 @@ def ler_retorno_autorizacao(resposta: str, nfe_assinada: str = "") -> dict:
     }
 
 
-def _url_evento(uf: str, ambiente: str, modelo: str) -> str:
+def _url_evento(uf: str, ambiente: str, modelo: str, db=None) -> str:
     """O evento do cupom vai para o webservice de NFC-e, não o da NF-e."""
     if modelo == "65":
         from . import cupom as nfce
-        return nfce.url_evento(uf, ambiente)
+        return nfce.url_evento(uf, ambiente, db)
     return _endereco(EVENTO, uf, ambiente)
 
 
 def cancelar(chave_privada, certificado, cadeia, uf: str, ambiente: str, chave_nfe: str,
              cnpj: str, protocolo: str, justificativa: str, sequencia: int = 1,
-             modelo: str = "55") -> dict:
+             modelo: str = "55", db=None) -> dict:
     """Evento 110111 — cancelamento da NF-e (ou do cupom) autorizada."""
     justificativa = (justificativa or "").strip()
     if len(justificativa) < 15:
@@ -921,7 +921,7 @@ def cancelar(chave_privada, certificado, cadeia, uf: str, ambiente: str, chave_n
         envelope, "nfeRecepcaoEventoNF")
     try:
         resposta = motor._enviar_variantes(
-            _url_evento(uf, ambiente, modelo), corpos,
+            _url_evento(uf, ambiente, modelo, db), corpos,
             "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento",
             motor._contexto_ssl(chave_privada, certificado, cadeia),
         )

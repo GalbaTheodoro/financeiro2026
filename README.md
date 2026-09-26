@@ -270,7 +270,9 @@ pela barra lateral.
 | Aba | Para que serve |
 |---|---|
 | **Clientes / Fornecedores** | Um único cadastro, com tipo Cliente, Fornecedor ou ambos, **busca automática pelo CNPJ** e **várias formas de pagamento** por parceiro |
-| **Produtos** | O que é negociado (café arábica, conilon...), já com unidade e embalagem padrão |
+| **Produtos** | O que é negociado (café arábica, conilon...), já com unidade, embalagem e **classificação** |
+| **Categorias** | Que tipo de coisa é o produto: Café, Grãos, Pecuária, Insumos, Embalagens |
+| **Marcas** | A marca comercial do produto; a granel, fica "Sem marca" |
 | **Unidades** | Código, nome e **peso de conversão em quilos** — é o que dá o peso total do contrato |
 | **Modalidades** | Modalidade do contrato (disponível, futuro, a fixar, CIF, FOB...) |
 | **Bancos e caixas** | Conta corrente, poupança, aplicação, cartão e caixa interno, com saldo inicial |
@@ -283,8 +285,41 @@ pela barra lateral.
 
 Ao criar uma empresa o sistema já gera um **plano de contas brasileiro completo**
 (112 contas), centros de custo e operações padrão, além de **unidades** (saca de 60 e de
-50 kg, arroba, tonelada, quilo, litro, unidade), **modalidades** e **produtos** prontos
-para usar.
+50 kg, arroba, tonelada, quilo, litro, unidade), **modalidades**, **categorias**, uma
+**marca** genérica e **produtos** prontos para usar — e os produtos já nascem classificados.
+
+#### Classificar o produto: categoria e marca
+
+Cada produto tem uma **categoria** (o que ele é) e uma **marca** (de quem ele é), as duas com
+código, nome e descrição, as duas por empresa. **Salvar produto sem escolher as duas não
+passa** — nem ao criar nem ao editar —, e a mensagem diz onde cadastrar o que falta. Também
+não dá para classificar com a categoria de outro assinante: o sistema confere a empresa antes
+de gravar.
+
+A classificação serve em três lugares:
+
+- **filtro na lista de produtos** — dois seletores no topo, que se somam com a busca por texto;
+  o contador vira "1 de 6 registro(s)" para você saber que está vendo um recorte;
+- **filtro no estoque** — ver o saldo só de uma categoria ou de uma marca, com o resumo
+  (valor total, negativos, abaixo do mínimo) acompanhando o filtro;
+- **relatório Por categoria / Por marca**, em Relatórios: quanto **saiu** no período (dos itens
+  das notas de saída autorizadas, pelo preço cobrado) e quanto **sobrou** hoje (pelo custo
+  médio). São duas leituras diferentes de propósito — o estoque é a foto de agora, não tem
+  período.
+
+Duas escolhas que evitam surpresa: a coluna aceita vazio no banco, então **produto cadastrado
+antes disto continua válido** e o produto criado pela **importação de XML** da SEFAZ cai em
+*Outros / Sem marca* em vez de travar a importação. E produto sem classificação **não some do
+relatório**: aparece em linha própria, para o total bater com o da empresa.
+
+Apagar uma categoria ou marca que tem produto é barrado — o caminho é trocar a classificação
+dos produtos ou inativar.
+
+Código: `CategoriaProduto` e `MarcaProduto` em `backend/models.py`, as rotas em
+`backend/routers/cadastros.py`, os padrões em `backend/plano_contas.py`, o relatório em
+`backend/routers/relatorios.py` e as telas em `frontend/js/cadastros.js`, `estoque.js` e
+`relatorios.js`.
+Teste: `python testes/teste_classificacao.py`.
 
 ### Usuários incluídos e pacotes extras
 
@@ -1167,6 +1202,7 @@ sistema-financeiro/
     ├── teste_planos.py          Teste dos quatro planos e do que cada conta enxerga
     ├── teste_cupons.py          Teste dos cupons de desconto e do Pix com desconto
     ├── teste_cupom_estados.py   Teste do cupom em MG, SP, GO e TO
+    ├── teste_classificacao.py   Teste da categoria e da marca do produto
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
@@ -1193,6 +1229,7 @@ python testes/teste_dfe.py          # DF-e: certificado, XML, DANFE, manifestaç
 python testes/teste_faturamento.py  # faturar e desfaturar a nota (título, parcelas, estorno)
 python testes/teste_emissao.py      # emissão de NF-e: chave, XML 4.00, assinatura e retornos
 python testes/teste_cadastros.py    # unidades, modalidades, produtos, nº automático e usuários
+python testes/teste_classificacao.py # categoria e marca: obrigatórias, filtros e relatório
 python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/capturas/contrato.pdf)
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos
 python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões e contrato por etapas

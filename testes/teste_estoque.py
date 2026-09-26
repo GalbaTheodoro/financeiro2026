@@ -58,6 +58,13 @@ def checar(descricao, condicao, extra=""):
         erros.append(descricao)
 
 
+def classificacao(empresa_id, token):
+    """A categoria e a marca padrão da empresa — o produto não salva sem elas."""
+    categoria = api("GET", f"/api/categorias-produto?empresa_id={empresa_id}", None, token)
+    marca = api("GET", f"/api/marcas-produto?empresa_id={empresa_id}", None, token)
+    return {"categoria_id": categoria[0]["id"], "marca_id": marca[0]["id"]}
+
+
 def perto(a, b, casas=2):
     return abs(float(a) - float(b)) < 10 ** -casas
 
@@ -77,12 +84,15 @@ api("PUT", f"/api/empresas/{eid}", {
 api("POST", f"/api/cadastros-contrato/padrao?empresa_id={eid}", None, t)
 unidade = api("GET", f"/api/unidades?empresa_id={eid}", None, t)[0]
 
+classes = classificacao(eid, t)
 cafe = api("POST", "/api/produtos", {
+    **classes,
     "empresa_id": eid, "codigo": "CAFE-01", "nome": "CAFE CRU EM GRAO",
     "unidade_id": unidade["id"], "ncm": "09011110", "cfop_padrao": "5102",
     "unidade_comercial": "SC", "origem": "0",
     "controla_estoque": True, "estoque_minimo": 20}, t)
 comissao = api("POST", "/api/produtos", {
+    **classes,
     "empresa_id": eid, "codigo": "COM-01", "nome": "COMISSAO DE CORRETAGEM",
     "unidade_id": unidade["id"], "ncm": "09011110", "cfop_padrao": "5102",
     "unidade_comercial": "UN", "origem": "0"}, t)   # sem controlar estoque

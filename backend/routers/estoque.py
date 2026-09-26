@@ -68,10 +68,12 @@ def _produto(db: Session, produto_id: int, empresa_id: int) -> Produto:
 # --------------------------------------------------------------------------- #
 @router.get("")
 def posicao(empresa_id: int, busca: str | None = None,
-            apenas_com_saldo: bool = False, db: Session = Depends(get_db),
+            apenas_com_saldo: bool = False, categoria_id: int | None = None,
+            marca_id: int | None = None, db: Session = Depends(get_db),
             usuario: Usuario = Depends(acesso_liberado)):
     validar_empresa(db, empresa_id, usuario)
-    return motor.posicao(db, empresa_id, busca or "", apenas_com_saldo)
+    return motor.posicao(db, empresa_id, busca or "", apenas_com_saldo,
+                         categoria_id, marca_id)
 
 
 @router.get("/extrato")

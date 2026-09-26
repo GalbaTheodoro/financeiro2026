@@ -48,6 +48,13 @@ def checar(descricao, condicao, extra=""):
         falhas.append(descricao)
 
 
+def classificacao(empresa_id, token):
+    """A categoria e a marca padrão da empresa — o produto não salva sem elas."""
+    categoria = api("GET", f"/api/categorias-produto?empresa_id={empresa_id}", None, token)
+    marca = api("GET", f"/api/marcas-produto?empresa_id={empresa_id}", None, token)
+    return {"categoria_id": categoria[0]["id"], "marca_id": marca[0]["id"]}
+
+
 sufixo = str(int(time.time()))
 
 print("\n=== 1. Preparação ===")
@@ -68,8 +75,9 @@ produtos = api("GET", f"/api/produtos?empresa_id={eid}", token=t)
 if not produtos:
     api("POST", f"/api/cadastros-contrato/padrao?empresa_id={eid}", token=t)
     produtos = api("GET", f"/api/produtos?empresa_id={eid}", token=t)
-cafe = api("POST", "/api/produtos", {"empresa_id": eid, "codigo": f"CAF{sufixo[-4:]}", "nome": "CAFÉ CRU"}, t)
-milho = api("POST", "/api/produtos", {"empresa_id": eid, "codigo": f"MIL{sufixo[-4:]}", "nome": "MILHO"}, t)
+classes = classificacao(eid, t)
+cafe = api("POST", "/api/produtos", {"empresa_id": eid, "codigo": f"CAF{sufixo[-4:]}", "nome": "CAFÉ CRU", **classes}, t)
+milho = api("POST", "/api/produtos", {"empresa_id": eid, "codigo": f"MIL{sufixo[-4:]}", "nome": "MILHO", **classes}, t)
 checar("parceiros e produtos criados", vendedor_mg["id"] and comprador_sp["id"] and cafe["id"])
 
 print("\n=== 2. Tabela de ICMS ===")

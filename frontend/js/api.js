@@ -89,7 +89,8 @@ const Api = {
     if (!eid) return;
     if (!forcar && Estado.cache.empresaId === eid) return;
     const [contas, centros, operacoes, bancos, parceiros,
-      unidades, modalidades, produtos, usuarios, icms] = await Promise.all([
+      unidades, modalidades, produtos, usuarios, icms,
+      categorias, marcas] = await Promise.all([
       Api.get('/api/contas-contabeis', { empresa_id: eid }),
       Api.get('/api/centros-custo', { empresa_id: eid }),
       Api.get('/api/operacoes', { empresa_id: eid }),
@@ -100,10 +101,12 @@ const Api = {
       Api.get('/api/produtos', { empresa_id: eid }),
       Api.get('/api/usuarios').catch(() => []),
       Api.get('/api/icms', { empresa_id: eid }).catch(() => []),
+      Api.get('/api/categorias-produto', { empresa_id: eid }).catch(() => []),
+      Api.get('/api/marcas-produto', { empresa_id: eid }).catch(() => []),
     ]);
     Estado.cache = {
       empresaId: eid, contas, centros, operacoes, bancos, parceiros,
-      unidades, modalidades, produtos, usuarios, icms,
+      unidades, modalidades, produtos, usuarios, icms, categorias, marcas,
     };
   },
 
@@ -132,6 +135,12 @@ const Api = {
   },
   modalidadesAtivas() {
     return (Estado.cache.modalidades || []).filter((m) => m.ativo);
+  },
+  categoriasAtivas() {
+    return (Estado.cache.categorias || []).filter((c) => c.ativo);
+  },
+  marcasAtivas() {
+    return (Estado.cache.marcas || []).filter((m) => m.ativo);
   },
   /* Alíquota de ICMS que o contrato usa: linha do produto > linha geral do par de UFs.
      Espelha backend/icms.py (buscar_aliquota). */

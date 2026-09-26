@@ -595,6 +595,43 @@ class ModalidadeContrato(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
+class CategoriaProduto(Base):
+    """Categoria do produto — o "que tipo de coisa é": Café, Insumo, Embalagem.
+
+    Serve para agrupar: filtrar a lista de produtos, filtrar o estoque e somar o
+    relatório por categoria. Cada empresa tem as suas.
+    """
+
+    __tablename__ = "categorias_produto"
+    __table_args__ = (UniqueConstraint("empresa_id", "codigo", name="uq_categoria_codigo"),)
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    codigo = Column(String(20), nullable=False)
+    nome = Column(String(80), nullable=False)
+    descricao = Column(String(200))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
+class MarcaProduto(Base):
+    """Marca do produto — o "de quem é": a marca comercial, o fabricante.
+
+    Nada a ver com a marca do próprio sistema. Cada empresa tem as suas.
+    """
+
+    __tablename__ = "marcas_produto"
+    __table_args__ = (UniqueConstraint("empresa_id", "codigo", name="uq_marca_codigo"),)
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    codigo = Column(String(20), nullable=False)
+    nome = Column(String(80), nullable=False)
+    descricao = Column(String(200))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
 class Produto(Base):
     """Mercadoria negociada nos contratos.
 
@@ -613,6 +650,11 @@ class Produto(Base):
     unidade_id = Column(Integer, ForeignKey("unidades.id"))
     embalagem = Column(String(40))
     descricao = Column(String(200))
+    # classificação: exigida ao salvar pela tela, mas a coluna aceita vazio de
+    # propósito — produtos cadastrados antes disto existir continuam válidos, e
+    # o XML importado da SEFAZ cria o produto antes de alguém classificá-lo.
+    categoria_id = Column(Integer, ForeignKey("categorias_produto.id"), index=True)
+    marca_id = Column(Integer, ForeignKey("marcas_produto.id"), index=True)
 
     # ---- dados fiscais (NF-e) ----
     ncm = Column(String(10))                 # classificação fiscal, 8 dígitos
@@ -658,6 +700,8 @@ class Produto(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     unidade = relationship("Unidade")
+    categoria = relationship("CategoriaProduto")
+    marca = relationship("MarcaProduto")
 
 
 class MovimentoEstoque(Base):

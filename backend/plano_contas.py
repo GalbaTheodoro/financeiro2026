@@ -306,11 +306,29 @@ MODALIDADES_PADRAO = [
 
 # (codigo, nome, codigo da unidade, embalagem)
 PRODUTOS_PADRAO = [
-    ("001", "CAFE ARABICA", "SC", "A GRANEL"),
-    ("002", "CAFE CONILON / ROBUSTA", "SC", "A GRANEL"),
-    ("003", "SOJA", "SC", "A GRANEL"),
-    ("004", "MILHO", "SC", "A GRANEL"),
-    ("005", "BOI GORDO", "AR", ""),
+    # (código, nome, unidade, embalagem, categoria, marca)
+    ("001", "CAFE ARABICA", "SC", "A GRANEL", "CAF", "GEN"),
+    ("002", "CAFE CONILON / ROBUSTA", "SC", "A GRANEL", "CAF", "GEN"),
+    ("003", "SOJA", "SC", "A GRANEL", "GRA", "GEN"),
+    ("004", "MILHO", "SC", "A GRANEL", "GRA", "GEN"),
+    ("005", "BOI GORDO", "AR", "", "PEC", "GEN"),
+]
+
+# A classificação do produto é obrigatória na tela. Para a empresa nova já nascer
+# com os produtos padrão classificados — e para a importação de XML da SEFAZ ter
+# onde encaixar um produto que chega sem classificação —, a conta começa com
+# estas categorias e esta marca genérica.
+CATEGORIAS_PADRAO = [
+    ("CAF", "Café", "Café em coco, cereja, beneficiado e derivados"),
+    ("GRA", "Grãos", "Soja, milho, sorgo e outros grãos"),
+    ("PEC", "Pecuária", "Boi, bezerro e derivados"),
+    ("INS", "Insumos", "Fertilizante, defensivo, semente e corretivo"),
+    ("EMB", "Embalagens", "Saca, big bag, caixa e demais embalagens"),
+    ("OUT", "Outros", "O que não se encaixa nas demais categorias"),
+]
+
+MARCAS_PADRAO = [
+    ("GEN", "Sem marca", "Produto a granel ou sem marca comercial"),
 ]
 
 
@@ -353,17 +371,65 @@ def criar_modalidades_padrao(db: Session, empresa_id: int) -> int:
     return criadas
 
 
+def _criar_classificacao(db: Session, empresa_id: int, model, padrao) -> int:
+    """Cria as categorias (ou marcas) padrão que ainda não existirem."""
+    existentes = {
+        r.codigo for r in db.query(model).filter(model.empresa_id == empresa_id).all()
+    }
+    criadas = 0
+    for codigo, nome, descricao in padrao:
+        if codigo in existentes:
+            continue
+        db.add(model(empresa_id=empresa_id, codigo=codigo, nome=nome, descricao=descricao))
+        criadas += 1
+    db.flush()
+    return criadas
+
+
+def criar_categorias_padrao(db: Session, empresa_id: int) -> int:
+    from .models import CategoriaProduto
+
+    return _criar_classificacao(db, empresa_id, CategoriaProduto, CATEGORIAS_PADRAO)
+
+
+def criar_marcas_padrao(db: Session, empresa_id: int) -> int:
+    from .models import MarcaProduto
+
+    return _criar_classificacao(db, empresa_id, MarcaProduto, MARCAS_PADRAO)
+
+
+def classificacao_padrao(db: Session, empresa_id: int) -> tuple[int | None, int | None]:
+    """(categoria "Outros", marca "Sem marca") — onde encaixar produto sem classificação.
+
+    É o que a importação de XML usa: o produto vem da nota de um fornecedor, sem
+    nada que diga a categoria, e ninguém quer que a importação pare por isso.
+    """
+    from .models import CategoriaProduto, MarcaProduto
+
+    categoria = (db.query(CategoriaProduto)
+                 .filter(CategoriaProduto.empresa_id == empresa_id,
+                         CategoriaProduto.codigo == "OUT").first())
+    marca = (db.query(MarcaProduto)
+             .filter(MarcaProduto.empresa_id == empresa_id,
+                     MarcaProduto.codigo == "GEN").first())
+    return (categoria.id if categoria else None, marca.id if marca else None)
+
+
 def criar_produtos_padrao(db: Session, empresa_id: int) -> int:
-    from .models import Produto, Unidade
+    from .models import CategoriaProduto, MarcaProduto, Produto, Unidade
 
     unidades = {
         u.codigo: u for u in db.query(Unidade).filter(Unidade.empresa_id == empresa_id).all()
     }
+    categorias = {c.codigo: c for c in db.query(CategoriaProduto)
+                  .filter(CategoriaProduto.empresa_id == empresa_id).all()}
+    marcas = {m.codigo: m for m in db.query(MarcaProduto)
+              .filter(MarcaProduto.empresa_id == empresa_id).all()}
     existentes = {
         p.codigo for p in db.query(Produto).filter(Produto.empresa_id == empresa_id).all()
     }
     criados = 0
-    for codigo, nome, unidade_codigo, embalagem in PRODUTOS_PADRAO:
+    for codigo, nome, unidade_codigo, embalagem, categoria, marca in PRODUTOS_PADRAO:
         if codigo in existentes:
             continue
         unidade = unidades.get(unidade_codigo)
@@ -374,6 +440,8 @@ def criar_produtos_padrao(db: Session, empresa_id: int) -> int:
                 nome=nome,
                 unidade_id=unidade.id if unidade else None,
                 embalagem=embalagem,
+                categoria_id=categorias[categoria].id if categoria in categorias else None,
+                marca_id=marcas[marca].id if marca in marcas else None,
             )
         )
         criados += 1
@@ -382,8 +450,15 @@ def criar_produtos_padrao(db: Session, empresa_id: int) -> int:
 
 
 def criar_cadastros_contrato_padrao(db: Session, empresa_id: int) -> dict:
-    """Unidades, modalidades e produtos padrão, na ordem certa de dependência."""
+    """Unidades, modalidades e produtos padrão, na ordem certa de dependência.
+
+    Categorias e marcas vêm antes dos produtos de propósito: o produto padrão já
+    nasce classificado.
+    """
     unidades = criar_unidades_padrao(db, empresa_id)
     modalidades = criar_modalidades_padrao(db, empresa_id)
+    categorias = criar_categorias_padrao(db, empresa_id)
+    marcas = criar_marcas_padrao(db, empresa_id)
     produtos = criar_produtos_padrao(db, empresa_id)
-    return {"unidades": unidades, "modalidades": modalidades, "produtos": produtos}
+    return {"unidades": unidades, "modalidades": modalidades, "produtos": produtos,
+            "categorias": categorias, "marcas": marcas}

@@ -33,6 +33,8 @@ from ..models import (
     Parceiro,
     Partida,
     Produto,
+    CategoriaProduto,
+    MarcaProduto,
     Unidade,
     Usuario,
 )
@@ -54,6 +56,8 @@ from ..schemas import (
     ParametrosIn,
     ParceiroIn,
     ProdutoIn,
+    CategoriaProdutoIn,
+    MarcaProdutoIn,
     UnidadeIn,
     UsuarioIn,
 )
@@ -591,18 +595,30 @@ def excluir_banco(banco_id: int, db: Session = Depends(get_db)):
 # --------------------------------------------------------------------------- #
 # Unidades, modalidades e produtos (usados nos contratos)
 # --------------------------------------------------------------------------- #
-def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None):
-    """Monta os quatro endpoints de um cadastro simples por empresa."""
+def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None, validar=None):
+    """Monta os quatro endpoints de um cadastro simples por empresa.
+
+    `validar(db, registro)` roda antes de gravar, na criação e na edição, para as
+    regras que são só daquele cadastro.
+    """
 
     def listar(
         empresa_id: int,
         apenas_ativos: bool = False,
+        categoria_id: int | None = None,
+        marca_id: int | None = None,
         db: Session = Depends(get_db),
         _: Usuario = Depends(acesso_liberado),
     ):
         query = db.query(model).filter(model.empresa_id == empresa_id)
         if apenas_ativos:
             query = query.filter(model.ativo.is_(True))
+        # os dois filtros só existem onde faz sentido (produtos); nos outros
+        # cadastros o parâmetro é ignorado
+        if categoria_id and hasattr(model, "categoria_id"):
+            query = query.filter(model.categoria_id == categoria_id)
+        if marca_id and hasattr(model, "marca_id"):
+            query = query.filter(model.marca_id == marca_id)
         registros = query.order_by(model.codigo).all()
         return [serializar(r, extras=extras(r) if extras else None) for r in registros]
 
@@ -621,6 +637,8 @@ def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None):
         registro = model()
         _aplicar(registro, dados.model_dump())
         registro.codigo = codigo
+        if validar:
+            validar(db, registro)
         db.add(registro)
         db.commit()
         return serializar(registro, extras=extras(registro) if extras else None)
@@ -632,6 +650,8 @@ def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None):
             raise HTTPException(404, f"{rotulo.capitalize()} não encontrado")
         validar_empresa(db, registro.empresa_id, usuario)
         _aplicar(registro, dados.model_dump(), ignorar=("empresa_id",))
+        if validar:
+            validar(db, registro)
         db.commit()
         return serializar(registro, extras=extras(registro) if extras else None)
 
@@ -642,11 +662,21 @@ def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None):
             raise HTTPException(404, f"{rotulo.capitalize()} não encontrado")
         validar_empresa(db, registro.empresa_id, usuario)
         campo = {"unidades": "unidade_id", "modalidades": "modalidade_id",
-                 "produtos": "produto_id"}[nome_rota]
-        if db.query(Contrato).filter(getattr(Contrato, campo) == registro_id).first():
+                 "produtos": "produto_id"}.get(nome_rota)
+        if campo and db.query(Contrato).filter(getattr(Contrato, campo) == registro_id).first():
             raise HTTPException(
                 400, f"Existem contratos usando {rotulo}. Inative em vez de excluir."
             )
+        # categoria e marca são obrigatórias no produto: apagar uma em uso deixaria
+        # produto sem classificação, que é justamente o que não se quer
+        for classificacao, coluna, aviso in (
+            (CategoriaProduto, Produto.categoria_id, "esta categoria"),
+            (MarcaProduto, Produto.marca_id, "esta marca"),
+        ):
+            if model is classificacao and db.query(Produto).filter(coluna == registro_id).first():
+                raise HTTPException(
+                    400, f"Existem produtos classificados com {aviso}. Troque a "
+                         "classificação deles ou inative em vez de excluir.")
         if model is Produto and db.query(AliquotaIcms).filter(AliquotaIcms.produto_id == registro_id).first():
             raise HTTPException(400, "Existem alíquotas de ICMS usando este produto. Inative-o ou apague as alíquotas.")
         if model is Unidade and db.query(Produto).filter(Produto.unidade_id == registro_id).first():
@@ -661,16 +691,44 @@ def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None):
     router.add_api_route(f"/{nome_rota}/{{registro_id}}", excluir, methods=["DELETE"])
 
 
+def _conferir_classificacao(db: Session, produto: Produto) -> None:
+    """Todo produto salvo pela tela sai classificado — e com classificação da própria conta.
+
+    A coluna aceita vazio (produto antigo e produto criado pela importação de XML
+    continuam válidos), então quem exige é aqui, na porta por onde a pessoa salva.
+    Conferir a empresa não é preciosismo: sem isso daria para classificar um produto
+    com a categoria de outro assinante mandando o id na mão.
+    """
+    for campo, classificacao, rotulo in (
+        ("categoria_id", CategoriaProduto, "a categoria"),
+        ("marca_id", MarcaProduto, "a marca"),
+    ):
+        valor = getattr(produto, campo, None)
+        if not valor:
+            raise HTTPException(
+                400, f"Escolha {rotulo} do produto. Se ainda não tem a que precisa, "
+                     "cadastre em Cadastros > "
+                     f"{'Categorias' if campo == 'categoria_id' else 'Marcas'}.")
+        registro = db.get(classificacao, valor)
+        if registro is None or registro.empresa_id != produto.empresa_id:
+            raise HTTPException(400, f"{rotulo.capitalize()} escolhida não é desta empresa.")
+
+
+_crud_simples("categorias-produto", CategoriaProduto, CategoriaProdutoIn, "uma categoria")
+_crud_simples("marcas-produto", MarcaProduto, MarcaProdutoIn, "uma marca")
 _crud_simples("unidades", Unidade, UnidadeIn, "uma unidade")
 _crud_simples("modalidades", ModalidadeContrato, ModalidadeIn, "uma modalidade")
 _crud_simples(
     "produtos", Produto, ProdutoIn, "um produto",
     extras=lambda p: {
         "unidade_nome": f"{p.unidade.codigo} - {p.unidade.nome}" if p.unidade else None,
+        "categoria_nome": p.categoria.nome if p.categoria else None,
+        "marca_nome": p.marca.nome if p.marca else None,
         "peso_conversao": p.unidade.peso_conversao if p.unidade else 0,
         # saldo e custo médio são só leitura: quem os move é o motor de estoque
         "estoque": estoque.ficha_produto(p) if p.controla_estoque else None,
     },
+    validar=_conferir_classificacao,
 )
 
 

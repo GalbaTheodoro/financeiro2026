@@ -96,6 +96,30 @@ checar("tabela temporária da conversão foi apagada", not sobrou, str(sobrou))
 print("\n=== 3. Rodar de novo não muda nada ===")
 de_novo = migrar()
 checar("segunda migração não altera nada", not de_novo, str(de_novo))
+
+print("\n=== 4. Empresa antiga ganha categoria e marca ===")
+# sem isso, exigir a classificação do produto viraria beco sem saída em quem já
+# usava o sistema: a tela pede a categoria e não há nenhuma para escolher
+from backend.database import SessionLocal          # noqa: E402
+from backend.seed import garantir_classificacao    # noqa: E402
+
+# o banco antigo do teste só tinha contratos; a empresa entra agora, como numa
+# base de verdade que já vinha rodando
+con.execute("INSERT INTO empresas (id, razao_social, ativo) "
+            "VALUES (1, 'Assessoria Antiga', 1)")
+con.commit()
+
+sessao = SessionLocal()
+try:
+    criadas = garantir_classificacao(sessao)
+    checar("a subida cria as categorias e a marca que faltavam", criadas > 0, str(criadas))
+    checar("e rodar de novo não cria nada", garantir_classificacao(sessao) == 0)
+finally:
+    sessao.close()
+quantas = con.execute("SELECT COUNT(*) FROM categorias_produto").fetchone()[0]
+marcas = con.execute("SELECT COUNT(*) FROM marcas_produto").fetchone()[0]
+checar("a empresa antiga ficou com as seis categorias e a marca genérica",
+       quantas >= 6 and marcas >= 1, f"{quantas} categorias, {marcas} marcas")
 con.close()
 
 print("\n" + "=" * 60)

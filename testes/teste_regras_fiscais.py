@@ -47,6 +47,13 @@ def checar(descricao, condicao, extra=""):
         erros.append(descricao)
 
 
+def classificacao(empresa_id, token):
+    """A categoria e a marca padrão da empresa — o produto não salva sem elas."""
+    categoria = api("GET", f"/api/categorias-produto?empresa_id={empresa_id}", None, token)
+    marca = api("GET", f"/api/marcas-produto?empresa_id={empresa_id}", None, token)
+    return {"categoria_id": categoria[0]["id"], "marca_id": marca[0]["id"]}
+
+
 # =========================================================================== #
 print("=== 1. Conta, tipos fiscais e cadastros ===")
 sufixo = str(int(time.time()))
@@ -88,7 +95,8 @@ produtos = api("GET", f"/api/produtos?empresa_id={eid}", None, t)
 cafe = produtos[0]
 api("PUT", f"/api/produtos/{cafe['id']}", {
     **{k: v for k, v in cafe.items() if k in ("codigo", "nome", "unidade_id",
-                                              "embalagem", "descricao")},
+                                              "embalagem", "descricao",
+                                              "categoria_id", "marca_id")},
     "empresa_id": eid, "ncm": "09011110", "cfop_padrao": "5102",
     "unidade_comercial": "SC", "origem": "0", "ativo": True,
     "tipo_fiscal_id": cafe_cru}, t)
@@ -173,6 +181,7 @@ checar("cliente de outro tipo cai na regra geral do item",
        padaria["regra"]["nome"])
 
 sem_tipo = api("POST", "/api/produtos", {
+    **classificacao(eid, t),
     "empresa_id": eid, "codigo": "SERV1", "nome": "CORRETAGEM",
     "unidade_id": cafe["unidade_id"], "ncm": "00000000", "cfop_padrao": "5949"}, t)
 nenhuma = simular(torrefacao_mg["id"], sem_tipo["id"])

@@ -99,6 +99,8 @@ const Relatorios = {
     { id: 'conta', rotulo: 'Por conta contábil' },
     { id: 'operacao', rotulo: 'Por operação' },
     { id: 'parceiro', rotulo: 'Por cliente/fornecedor' },
+    { id: 'categoria', rotulo: 'Por categoria' },
+    { id: 'marca', rotulo: 'Por marca' },
     { id: 'razao', rotulo: 'Razão contábil' },
   ],
 
@@ -159,6 +161,8 @@ const Relatorios = {
       conta: () => Relatorios.classificacao('conta', 'Conta contábil'),
       operacao: () => Relatorios.classificacao('operacao', 'Operação'),
       parceiro: () => Relatorios.classificacao('parceiro', 'Cliente/Fornecedor'),
+      categoria: () => Relatorios.produtosClassificacao('categoria', 'Categoria'),
+      marca: () => Relatorios.produtosClassificacao('marca', 'Marca'),
       razao: Relatorios.razao,
     };
     try {
@@ -540,6 +544,54 @@ const Relatorios = {
         </div>
       </div>`;
     Relatorios.ligarFiltros(`por-${agrupar}`);
+  },
+
+  /* ------------------------------------------ PRODUTOS POR CATEGORIA/MARCA */
+  /** Duas leituras: o que saiu no período (faturamento) e o que sobrou hoje (custo). */
+  async produtosClassificacao(agrupar, rotulo) {
+    const p = Relatorios.periodo || { de: UI.primeiroDiaMes(), ate: UI.ultimoDiaMes() };
+    const dados = await Api.get('/api/relatorios/produtos-classificacao', {
+      empresa_id: Estado.empresaId, agrupar_por: agrupar, de: p.de, ate: p.ate,
+    });
+    const t = dados.totais;
+    const maior = Math.max(1, ...dados.linhas.map((l) => l.vendido));
+
+    document.getElementById('area-relatorio').innerHTML = `
+      <div class="cartao">
+        <div class="cartao-cabecalho">
+          <div><h3>Produtos por ${UI.escapar(rotulo.toLowerCase())}</h3>
+            <div class="mini">Vendido no período ${UI.moeda(t.vendido)} ·
+              em estoque hoje ${UI.moeda(t.estoque)} · ${t.produtos} produto(s) com estoque</div></div>
+        </div>
+        ${Relatorios.cabecalhoPeriodo()}
+        <div class="cartao-corpo sem-padding">
+          ${UI.tabela({
+            colunas: [
+              { titulo: rotulo, chave: 'nome', valor: (l) => `<b>${UI.escapar(l.nome)}</b>` },
+              { titulo: 'Qtd. vendida', classe: 'num',
+                valor: (l) => (l.quantidade_vendida ? UI.numero(l.quantidade_vendida, 0) : '-') },
+              { titulo: 'Vendido no período', chave: 'vendido', classe: 'num',
+                valor: (l) => `<span class="forte">${UI.moeda(l.vendido, false)}</span>` },
+              { titulo: '% do vendido', classe: 'num', valor: (l) => `${UI.numero(l.percentual)}%` },
+              { titulo: 'Qtd. em estoque', classe: 'num',
+                valor: (l) => (l.quantidade_estoque ? UI.numero(l.quantidade_estoque, 0) : '-') },
+              { titulo: 'Estoque hoje', chave: 'estoque', classe: 'num',
+                valor: (l) => UI.moeda(l.estoque, false) },
+              { titulo: 'Participação',
+                valor: (l) => `<div class="barra"><span style="width:${(l.vendido / maior) * 100}%;background:var(--verde)"></span></div>` },
+            ],
+            linhas: dados.linhas,
+            rodape: { nome: 'Total', vendido: UI.moeda(t.vendido), estoque: UI.moeda(t.estoque) },
+            vazio: 'Sem venda no período e sem produto com estoque.',
+          })}
+          <div class="mini" style="padding:12px 18px">
+            <b>Vendido</b> sai dos itens das notas de saída autorizadas no período, pelo preço
+            cobrado. <b>Estoque hoje</b> é a foto de agora, pelo custo médio — não tem período.
+            Produto sem classificação aparece em linha própria, para o total bater com o da empresa.
+          </div>
+        </div>
+      </div>`;
+    Relatorios.ligarFiltros(`produtos-por-${agrupar}`);
   },
 
   /* ---------------------------------------------------------------- RAZÃO */

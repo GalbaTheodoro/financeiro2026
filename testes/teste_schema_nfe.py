@@ -81,7 +81,8 @@ api("POST", f"/api/cadastros-contrato/padrao?empresa_id={eid}", None, t)
 cafe = api("GET", f"/api/produtos?empresa_id={eid}", None, t)[0]
 api("PUT", f"/api/produtos/{cafe['id']}", {
     **{k: v for k, v in cafe.items() if k in ("codigo", "nome", "unidade_id",
-                                              "embalagem", "descricao")},
+                                              "embalagem", "descricao",
+                                              "categoria_id", "marca_id")},
     "empresa_id": eid, "ncm": "09011110", "cfop_padrao": "6102", "cst_icms": "102",
     "unidade_comercial": "SC", "origem": "0", "ativo": True}, t)
 cliente = api("POST", "/api/parceiros", {

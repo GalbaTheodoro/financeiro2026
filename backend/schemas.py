@@ -289,6 +289,26 @@ class UnidadeIn(BaseModel):
     ativo: bool = True
 
 
+class CategoriaProdutoIn(BaseModel):
+    """Categoria do produto: o que tipo de coisa é (Café, Insumo, Embalagem)."""
+
+    empresa_id: int
+    codigo: str
+    nome: str
+    descricao: str | None = None
+    ativo: bool = True
+
+
+class MarcaProdutoIn(BaseModel):
+    """Marca comercial do produto. Nada a ver com a marca do sistema."""
+
+    empresa_id: int
+    codigo: str
+    nome: str
+    descricao: str | None = None
+    ativo: bool = True
+
+
 class ModalidadeIn(BaseModel):
     empresa_id: int
     codigo: str
@@ -304,6 +324,9 @@ class ProdutoIn(BaseModel):
     unidade_id: int | None = None
     embalagem: str | None = None
     descricao: str | None = None
+    # classificação — exigidas ao salvar pela tela (ver routers/cadastros.py)
+    categoria_id: int | None = None
+    marca_id: int | None = None
     # dados fiscais (NF-e) — ficam em branco enquanto o produto for só de contrato
     ncm: str | None = None
     cest: str | None = None

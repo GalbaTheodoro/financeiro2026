@@ -1,10 +1,11 @@
 """Relatórios gerenciais e contábeis."""
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
+from .. import estoque
 from ..database import get_db
 from ..deps import exigir_modulo
 from ..models import (
@@ -364,6 +365,104 @@ def por_classificacao(
             "receitas": total_receitas,
             "despesas": total_despesas,
             "resultado": round(total_receitas - total_despesas, 2),
+        },
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Produtos por categoria e por marca
+# --------------------------------------------------------------------------- #
+@router.get("/produtos-classificacao")
+def produtos_por_classificacao(
+    empresa_id: int,
+    agrupar_por: str = "categoria",   # categoria | marca
+    de: str | None = None,
+    ate: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Quanto saiu e quanto sobrou, somado por categoria (ou por marca).
+
+    Duas leituras diferentes, de propósito, porque respondem a perguntas
+    diferentes:
+
+    * **vendido** vem dos itens das notas de **saída autorizadas** no período —
+      é faturamento, com o preço que foi cobrado;
+    * **estoque** é a foto de **agora**, pelo custo médio. Não tem período: o
+      saldo é o que está lá hoje, não o que estava no fim do mês passado.
+
+    Produto sem classificação entra numa linha própria ("Sem categoria"), em vez
+    de sumir da soma — o total do relatório tem de bater com o total da empresa.
+    """
+    from ..models import CategoriaProduto, MarcaProduto, Nota, NotaItem, Produto
+
+    inicio, fim = _periodo(de, ate)
+    por_marca = agrupar_por == "marca"
+    classificacao = MarcaProduto if por_marca else CategoriaProduto
+    campo = Produto.marca_id if por_marca else Produto.categoria_id
+    sem = "Sem marca definida" if por_marca else "Sem categoria"
+
+    nomes = {r.id: r.nome for r in db.query(classificacao)
+             .filter(classificacao.empresa_id == empresa_id).all()}
+    produtos = {p.id: p for p in db.query(Produto)
+                .filter(Produto.empresa_id == empresa_id).all()}
+
+    grupos = defaultdict(lambda: {"vendido": 0.0, "quantidade_vendida": 0.0,
+                                  "estoque": 0.0, "quantidade_estoque": 0.0,
+                                  "produtos": 0})
+
+    # ---- o que saiu no período (notas de saída autorizadas) ----
+    itens = (
+        db.query(NotaItem, Nota)
+        .join(Nota, NotaItem.nota_id == Nota.id)
+        .filter(Nota.empresa_id == empresa_id,
+                Nota.situacao == "AUTORIZADA",
+                Nota.tipo_operacao == "1",
+                Nota.data_emissao >= datetime.combine(inicio, time.min),
+                Nota.data_emissao <= datetime.combine(fim, time.max))
+        .all()
+    )
+    for item, _nota in itens:
+        produto = produtos.get(item.produto_id) if item.produto_id else None
+        chave = getattr(produto, "marca_id" if por_marca else "categoria_id", None) if produto else None
+        alvo = grupos[chave]
+        alvo["vendido"] += float(item.valor_total or 0)
+        alvo["quantidade_vendida"] += float(item.quantidade or 0)
+
+    # ---- o que está em estoque hoje ----
+    for produto in produtos.values():
+        if not produto.controla_estoque:
+            continue
+        chave = getattr(produto, "marca_id" if por_marca else "categoria_id", None)
+        alvo = grupos[chave]
+        alvo["estoque"] += estoque.valor_em_estoque(produto)
+        alvo["quantidade_estoque"] += estoque.saldo(produto)
+        alvo["produtos"] += 1
+
+    linhas = []
+    for chave, v in grupos.items():
+        linhas.append({
+            "id": chave,
+            "nome": nomes.get(chave, sem),
+            "vendido": dinheiro(v["vendido"]),
+            "quantidade_vendida": round(v["quantidade_vendida"], 4),
+            "estoque": dinheiro(v["estoque"]),
+            "quantidade_estoque": round(v["quantidade_estoque"], 4),
+            "produtos": v["produtos"],
+        })
+    linhas.sort(key=lambda l: (-l["vendido"], l["nome"]))
+
+    total_vendido = dinheiro(sum(l["vendido"] for l in linhas))
+    for linha in linhas:
+        linha["percentual"] = (round(linha["vendido"] / total_vendido * 100, 2)
+                               if total_vendido else 0)
+    return {
+        "periodo": {"de": inicio.isoformat(), "ate": fim.isoformat()},
+        "agrupar_por": "marca" if por_marca else "categoria",
+        "linhas": linhas,
+        "totais": {
+            "vendido": total_vendido,
+            "estoque": dinheiro(sum(l["estoque"] for l in linhas)),
+            "produtos": sum(l["produtos"] for l in linhas),
         },
     }
 

@@ -16,6 +16,32 @@ ADMIN_EMAIL = "admin@financeiro.local"
 ADMIN_SENHA = "admin123"
 
 
+def garantir_classificacao(db: Session) -> int:
+    """Toda empresa precisa ter ao menos uma categoria e uma marca.
+
+    Sem isso, a exigência de classificar o produto viraria um beco sem saída nas
+    empresas que já existiam antes desta versão: a pessoa abre o produto para
+    editar, o sistema pede a categoria, e não há nenhuma para escolher. Roda a
+    cada subida e não repete o que já está lá.
+    """
+    from .models import CategoriaProduto, Empresa, MarcaProduto
+    from .plano_contas import criar_categorias_padrao, criar_marcas_padrao
+
+    criadas = 0
+    for (empresa_id,) in db.query(Empresa.id).all():
+        tem_categoria = (db.query(CategoriaProduto)
+                         .filter(CategoriaProduto.empresa_id == empresa_id).first())
+        tem_marca = (db.query(MarcaProduto)
+                     .filter(MarcaProduto.empresa_id == empresa_id).first())
+        if not tem_categoria:
+            criadas += criar_categorias_padrao(db, empresa_id)
+        if not tem_marca:
+            criadas += criar_marcas_padrao(db, empresa_id)
+    if criadas:
+        db.commit()
+    return criadas
+
+
 def criar_dados_iniciais(db: Session) -> str | None:
     from .assinaturas import garantir_configuracoes
 
@@ -23,6 +49,8 @@ def criar_dados_iniciais(db: Session) -> str | None:
 
     from .assinaturas import garantir_master
     garantir_master(db)
+
+    garantir_classificacao(db)
 
     if db.query(Usuario).count():
         # garante que exista ao menos um administrador do sistema (perfil MASTER)

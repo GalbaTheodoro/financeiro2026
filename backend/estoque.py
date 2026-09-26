@@ -409,12 +409,21 @@ def ficha_produto(produto: Produto) -> dict:
         "atualizado_em": (produto.estoque_atualizado_em.isoformat(timespec="seconds")
                           if produto.estoque_atualizado_em else None),
         "ativo": produto.ativo,
+        "categoria_id": produto.categoria_id,
+        "categoria": produto.categoria.nome if produto.categoria else None,
+        "marca_id": produto.marca_id,
+        "marca": produto.marca.nome if produto.marca else None,
     }
 
 
 def posicao(db: Session, empresa_id: int, busca: str = "",
-            apenas_com_saldo: bool = False) -> dict:
-    """A posição de estoque: um produto por linha, com saldo e valor."""
+            apenas_com_saldo: bool = False, categoria_id: int | None = None,
+            marca_id: int | None = None) -> dict:
+    """A posição de estoque: um produto por linha, com saldo e valor.
+
+    Os filtros de categoria e marca servem para olhar um pedaço do estoque —
+    "quanto tenho de café", "quanto tenho da marca X" — sem ler a lista inteira.
+    """
     consulta = db.query(Produto).filter(
         Produto.empresa_id == empresa_id,
         Produto.controla_estoque.is_(True),
@@ -422,6 +431,10 @@ def posicao(db: Session, empresa_id: int, busca: str = "",
     if busca:
         alvo = f"%{busca.strip()}%"
         consulta = consulta.filter(Produto.nome.ilike(alvo) | Produto.codigo.ilike(alvo))
+    if categoria_id:
+        consulta = consulta.filter(Produto.categoria_id == categoria_id)
+    if marca_id:
+        consulta = consulta.filter(Produto.marca_id == marca_id)
     fichas = [ficha_produto(p) for p in consulta.order_by(Produto.nome).all()]
     if apenas_com_saldo:
         fichas = [f for f in fichas if abs(f["saldo"]) > MIGALHA]

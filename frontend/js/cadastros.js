@@ -9,6 +9,8 @@ const Cadastros = {
   ABAS: [
     { id: 'parceiros', rotulo: 'Clientes/Fornecedores', acao: () => Cadastros.parceiros() },
     { id: 'produtos', rotulo: 'Produtos', acao: () => Cadastros.produtos() },
+    { id: 'categorias', rotulo: 'Categorias', acao: () => Cadastros.categorias() },
+    { id: 'marcas', rotulo: 'Marcas', acao: () => Cadastros.marcas() },
     { id: 'unidades', rotulo: 'Unidades', acao: () => Cadastros.unidades() },
     { id: 'modalidades', rotulo: 'Modalidades', acao: () => Cadastros.modalidades() },
     { id: 'icms', rotulo: 'ICMS', acao: () => Cadastros.icms() },
@@ -53,9 +55,12 @@ const Cadastros = {
       <div class="cartao-cabecalho">
         <div>
           <h3>${UI.escapar(cfg.titulo)}</h3>
-          <div class="mini">${registros.length} registro(s)${cfg.ajuda ? ' — ' + UI.escapar(cfg.ajuda) : ''}</div>
+          <div class="mini"><span id="conta-registros">${registros.length} registro(s)</span>${cfg.ajuda ? ' — ' + UI.escapar(cfg.ajuda) : ''}</div>
         </div>
         <div class="espaco">
+          ${(cfg.filtros || []).map((f, i) => UI.select(`filtro${i}`,
+            f.opcoes().map((o) => ({ valor: o.valor, rotulo: o.rotulo })), '',
+            { vazio: f.rotulo, attr: 'style="width:190px"' })).join('')}
           <input id="busca-cadastro" placeholder="Filtrar..." style="width:200px">
           ${(cfg.acoesExtras || []).map((a, i) => `<button class="btn" data-extra="${i}">${UI.escapar(a.rotulo)}</button>`).join('')}
           <button class="btn btn-primario" id="btn-novo">+ Novo</button>
@@ -91,10 +96,29 @@ const Cadastros = {
     desenhar(registros);
 
     alvo.querySelector('#btn-novo').onclick = () => Cadastros.formulario(cfg, null);
-    alvo.querySelector('#busca-cadastro').oninput = (e) => {
-      const termo = e.target.value.toLowerCase();
-      desenhar(registros.filter((r) => JSON.stringify(r).toLowerCase().includes(termo)));
+
+    /* Busca e filtros trabalham juntos: o que a tela mostra é o que passa nos dois. */
+    const aplicar = () => {
+      const termo = (alvo.querySelector('#busca-cadastro').value || '').toLowerCase();
+      let lista = registros;
+      (cfg.filtros || []).forEach((f, i) => {
+        const escolhido = alvo.querySelector(`[name="filtro${i}"]`)?.value;
+        if (escolhido) lista = lista.filter((r) => String(r[f.campo]) === String(escolhido));
+      });
+      if (termo) lista = lista.filter((r) => JSON.stringify(r).toLowerCase().includes(termo));
+      desenhar(lista);
+      const conta = alvo.querySelector('#conta-registros');
+      if (conta) {
+        conta.textContent = lista.length === registros.length
+          ? `${registros.length} registro(s)`
+          : `${lista.length} de ${registros.length} registro(s)`;
+      }
     };
+    alvo.querySelector('#busca-cadastro').oninput = aplicar;
+    (cfg.filtros || []).forEach((_f, i) => {
+      const campo = alvo.querySelector(`[name="filtro${i}"]`);
+      if (campo) campo.onchange = aplicar;
+    });
     (cfg.acoesExtras || []).forEach((a, i) => {
       const botao = alvo.querySelector(`[data-extra="${i}"]`);
       if (botao) botao.onclick = () => a.acao();
@@ -1178,6 +1202,58 @@ const Cadastros = {
     desenhar();
   },
 
+  /* ----------------------------------------- categoria e marca do produto */
+  /** Os dois cadastros são iguais em forma; o que muda é o que cada um significa. */
+  _classificacao({ titulo, endpoint, ajuda, rotuloItem, exemplo }) {
+    return Cadastros.tela({
+      titulo,
+      endpoint,
+      ajuda,
+      listar: () => Api.get(endpoint, { empresa_id: Estado.empresaId }),
+      colunas: [
+        { titulo: 'Código', valor: (r) => `<span class="forte">${UI.escapar(r.codigo)}</span>` },
+        { titulo: 'Nome', valor: (r) => UI.escapar(r.nome) },
+        { titulo: 'Descrição', valor: (r) => UI.escapar(r.descricao || '-') },
+        { titulo: 'Produtos', classe: 'centro', valor: (r) => {
+          const quantos = (Estado.cache.produtos || []).filter(
+            (p) => (endpoint.includes('categoria') ? p.categoria_id : p.marca_id) === r.id).length;
+          return quantos ? `${quantos}` : '<span class="mini">nenhum</span>';
+        } },
+        { titulo: 'Situação', classe: 'centro', valor: (r) => (r.ativo
+          ? '<span class="tag tag-pago">Ativa</span>'
+          : '<span class="tag tag-cancelado">Inativa</span>') },
+      ],
+      campos: [
+        { nome: 'codigo', rotulo: 'Código', obrigatorio: true, dica: exemplo },
+        { nome: 'nome', rotulo: 'Nome', obrigatorio: true, largura: 2 },
+        { nome: 'descricao', rotulo: 'Descrição', largura: 2,
+          dica: 'para que serve, o que entra nela' },
+        { nome: 'ativo', rotulo: 'Situação', tipo: 'checkbox',
+          textoCheck: `${rotuloItem} ativa` },
+      ],
+    });
+  },
+
+  categorias() {
+    return Cadastros._classificacao({
+      titulo: 'Categorias de produto',
+      endpoint: '/api/categorias-produto',
+      ajuda: 'que tipo de coisa é o produto — Café, Grãos, Insumos, Embalagens',
+      rotuloItem: 'Categoria',
+      exemplo: 'ex.: CAF, GRA, INS',
+    });
+  },
+
+  marcas() {
+    return Cadastros._classificacao({
+      titulo: 'Marcas de produto',
+      endpoint: '/api/marcas-produto',
+      ajuda: 'a marca comercial do produto; a granel, use "Sem marca"',
+      rotuloItem: 'Marca',
+      exemplo: 'ex.: GEN, NES, 3COR',
+    });
+  },
+
   /* ------------------------------------------- unidades, modalidades, produtos */
   unidades() {
     return Cadastros.tela({
@@ -1235,9 +1311,19 @@ const Cadastros = {
           { empresa_id: Estado.empresaId });
         return Api.get('/api/produtos', { empresa_id: Estado.empresaId });
       },
+      filtros: [
+        { rotulo: 'Todas as categorias', campo: 'categoria_id',
+          opcoes: () => Api.categoriasAtivas().map((c) => ({ valor: c.id, rotulo: c.nome })) },
+        { rotulo: 'Todas as marcas', campo: 'marca_id',
+          opcoes: () => Api.marcasAtivas().map((m) => ({ valor: m.id, rotulo: m.nome })) },
+      ],
       colunas: [
         { titulo: 'Código', valor: (r) => `<span class="forte">${UI.escapar(r.codigo)}</span>` },
         { titulo: 'Produto', valor: (r) => UI.escapar(r.nome) },
+        { titulo: 'Classificação', valor: (r) => (r.categoria_nome || r.marca_nome
+          ? `${UI.escapar(r.categoria_nome || 'sem categoria')}
+             <div class="mini">${UI.escapar(r.marca_nome || 'sem marca')}</div>`
+          : '<span class="mini negativo">sem classificação</span>') },
         { titulo: 'Unidade', valor: (r) => UI.escapar(r.unidade_nome || '-') },
         { titulo: 'Embalagem', valor: (r) => UI.escapar(r.embalagem || '-') },
         { titulo: 'Fiscal', valor: (r) => (r.ncm
@@ -1265,6 +1351,18 @@ const Cadastros = {
             .map((u) => ({ valor: u.id, rotulo: `${u.codigo} — ${u.nome}` })) },
         { nome: 'embalagem', rotulo: 'Embalagem', dica: 'a granel, sacaria...' },
         { nome: 'descricao', rotulo: 'Descrição', largura: 2 },
+        { tipo: 'secao', rotulo: 'Classificação',
+          dica: 'é por ela que você filtra a lista, filtra o estoque e soma o relatório' },
+        { nome: 'categoria_id', rotulo: 'Categoria', tipo: 'select', obrigatorio: true,
+          vazio: 'Escolha a categoria',
+          opcoes: () => Api.categoriasAtivas().map((c) => ({
+            valor: c.id, rotulo: `${c.codigo} — ${c.nome}` })),
+          dica: 'que tipo de coisa é — cadastre em Cadastros > Categorias' },
+        { nome: 'marca_id', rotulo: 'Marca', tipo: 'select', obrigatorio: true,
+          vazio: 'Escolha a marca',
+          opcoes: () => Api.marcasAtivas().map((m) => ({
+            valor: m.id, rotulo: `${m.codigo} — ${m.nome}` })),
+          dica: 'a granel, use "Sem marca"' },
         { tipo: 'secao', rotulo: 'Identificação fiscal do produto',
           dica: 'CST e alíquotas NÃO ficam aqui — elas saem da aba Regras fiscais, '
             + 'que cruza CFOP, estados, tipo de cliente e tipo de item' },

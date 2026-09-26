@@ -278,7 +278,8 @@ with sync_playwright() as p:
     pagina.goto(f"{BASE}/#/cadastros")
     pagina.wait_for_timeout(1200)
     abas = pagina.eval_on_selector_all(".abas [data-cad]", "els => els.map(e => e.dataset.cad)")
-    ok_abas = {"parceiros", "produtos", "unidades", "modalidades", "usuarios"} <= set(abas)
+    ok_abas = {"parceiros", "produtos", "unidades", "modalidades", "usuarios",
+               "categorias", "marcas"} <= set(abas)
     print(f"  [{'OK  ' if ok_abas else 'FALHA'}] menu Cadastros com todas as abas ({len(abas)})")
     if not ok_abas:
         erros.append("menu de cadastros incompleto")
@@ -306,6 +307,76 @@ with sync_playwright() as p:
     if not ok_unidade:
         erros.append("cadastro de unidade não gravou")
     pagina.screenshot(path=SAIDA / "20-cadastro-unidade.png", full_page=True)
+
+    # --------------------------- categoria, marca e classificação do produto
+    pagina.goto(f"{BASE}/#/cadastros/categorias")
+    pagina.wait_for_timeout(1100)
+    pagina.click("#btn-novo")
+    pagina.wait_for_timeout(600)
+    pagina.fill('input[name=codigo]', "FER")
+    pagina.fill('input[name=nome]', "Ferramentas")
+    pagina.fill('input[name=descricao]', "Enxada, foice, peneira")
+    pagina.click("#modal-rodape >> text=Salvar")
+    pagina.wait_for_timeout(1300)
+    lista_cat = pagina.inner_text("#area-cadastro")
+    ok_cat = "Ferramentas" in lista_cat and "Enxada" in lista_cat and "Café" in lista_cat
+    print(f"  [{'OK  ' if ok_cat else 'FALHA'}] cadastro de categoria (com as de fábrica)")
+    if not ok_cat:
+        erros.append("cadastro de categoria não gravou")
+
+    pagina.goto(f"{BASE}/#/cadastros/marcas")
+    pagina.wait_for_timeout(1100)
+    ok_marca = "Sem marca" in pagina.inner_text("#area-cadastro")
+    print(f"  [{'OK  ' if ok_marca else 'FALHA'}] cadastro de marca nasce com a genérica")
+    if not ok_marca:
+        erros.append("cadastro de marca vazio")
+
+    # o produto exige a classificação: salvar sem escolher tem de reclamar
+    pagina.goto(f"{BASE}/#/cadastros/produtos")
+    pagina.wait_for_timeout(1300)
+    pagina.click("#btn-novo")
+    pagina.wait_for_timeout(700)
+    pagina.fill('input[name=codigo]', "FER001")
+    pagina.fill('input[name=nome]', "ENXADA LARGA")
+    tem_selects = pagina.evaluate(
+        "() => !!document.querySelector('#modal-corpo [name=categoria_id]')"
+        " && !!document.querySelector('#modal-corpo [name=marca_id]')")
+    pagina.click("#modal-rodape >> text=Salvar")
+    pagina.wait_for_timeout(1200)
+    reclamou = pagina.evaluate(
+        "() => (document.body.innerText || '').toLowerCase().includes('escolha a categoria')")
+    print(f"  [{'OK  ' if tem_selects and reclamou else 'FALHA'}] produto pede categoria e marca "
+          f"(selects={tem_selects}, avisou={reclamou})")
+    if not (tem_selects and reclamou):
+        erros.append("produto não exigiu a classificação")
+    pagina.screenshot(path=SAIDA / "28-produto-classificacao.png", full_page=True)
+
+    # agora escolhendo as duas, tem de salvar
+    pagina.select_option('#modal-corpo [name=categoria_id]', label="FER — Ferramentas")
+    marca_valor = pagina.evaluate(
+        "() => [...document.querySelectorAll('#modal-corpo [name=marca_id] option')]"
+        ".filter(o => o.value).map(o => o.value)[0]")
+    pagina.select_option('#modal-corpo [name=marca_id]', marca_valor)
+    pagina.click("#modal-rodape >> text=Salvar")
+    pagina.wait_for_timeout(1500)
+    lista_prod = pagina.inner_text("#area-cadastro")
+    ok_salvou = "ENXADA LARGA" in lista_prod and "Ferramentas" in lista_prod
+    print(f"  [{'OK  ' if ok_salvou else 'FALHA'}] produto salva classificado e a lista mostra")
+    if not ok_salvou:
+        erros.append("produto classificado não salvou")
+
+    # e o filtro por categoria enxuga a lista
+    pagina.select_option('[name="filtro0"]', label="Ferramentas")
+    pagina.wait_for_timeout(500)
+    filtrado = pagina.evaluate("""() => ({
+        linhas: document.querySelectorAll('#lista-cadastro tbody tr').length,
+        conta: document.querySelector('#conta-registros')?.textContent || '',
+    })""")
+    ok_filtro = filtrado["linhas"] == 1 and "de" in filtrado["conta"]
+    print(f"  [{'OK  ' if ok_filtro else 'FALHA'}] filtro por categoria na lista {filtrado}")
+    if not ok_filtro:
+        erros.append("filtro por categoria não funcionou")
+    pagina.screenshot(path=SAIDA / "29-filtro-categoria.png", full_page=True)
 
     # ------------------------------- formas de pagamento do cliente/fornecedor
     pagina.goto(f"{BASE}/#/cadastros/parceiros")

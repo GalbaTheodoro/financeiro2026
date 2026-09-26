@@ -45,6 +45,13 @@ def checar(descricao, condicao, extra=""):
         falhas.append(descricao)
 
 
+def classificacao(empresa_id, token):
+    """A categoria e a marca padrão da empresa — o produto não salva sem elas."""
+    categoria = api("GET", f"/api/categorias-produto?empresa_id={empresa_id}", None, token)
+    marca = api("GET", f"/api/marcas-produto?empresa_id={empresa_id}", None, token)
+    return {"categoria_id": categoria[0]["id"], "marca_id": marca[0]["id"]}
+
+
 def brl(v):
     return f"R$ {v:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
 
@@ -87,9 +94,10 @@ modalidade = api("POST", "/api/modalidades", {
     "empresa_id": eid, "codigo": "006", "nome": "ENTREGA FUTURA",
     "descricao": "Entrega combinada para safra seguinte",
 }, t)
+classes = classificacao(eid, t)
 produto = api("POST", "/api/produtos", {
     "empresa_id": eid, "codigo": "010", "nome": "CAFE CONILON",
-    "unidade_id": unidade["id"], "embalagem": "BIG BAG",
+    "unidade_id": unidade["id"], "embalagem": "BIG BAG", **classes,
 }, t)
 checar("modalidade nova gravada", modalidade["nome"] == "ENTREGA FUTURA")
 checar("produto novo gravado com a unidade", produto["unidade_id"] == unidade["id"],
@@ -97,7 +105,7 @@ checar("produto novo gravado com a unidade", produto["unidade_id"] == unidade["i
 
 produto = api("PUT", f"/api/produtos/{produto['id']}", {
     "empresa_id": eid, "codigo": "010", "nome": "CAFE CONILON TIPO 7",
-    "unidade_id": saca["id"], "embalagem": "A GRANEL",
+    "unidade_id": saca["id"], "embalagem": "A GRANEL", **classes,
 }, t)
 checar("produto alterado", produto["nome"] == "CAFE CONILON TIPO 7"
        and produto["unidade_id"] == saca["id"])

@@ -10,6 +10,9 @@ const Estoque = {
   _extrato: null,
   _filtros: { produto_id: '', de: '', ate: '', origem: '' },
   _busca: '',
+  // filtros da posição: ver só um pedaço do estoque (uma categoria, uma marca)
+  _categoriaId: '',
+  _marcaId: '',
   _apenasComSaldo: false,
 
   ORIGENS: {
@@ -37,6 +40,7 @@ const Estoque = {
     Estoque._posicao = await Api.get('/api/estoque', {
       empresa_id: Estado.empresaId, busca: Estoque._busca,
       apenas_com_saldo: Estoque._apenasComSaldo,
+      categoria_id: Estoque._categoriaId, marca_id: Estoque._marcaId,
     });
     Estoque.desenhar();
   },
@@ -103,6 +107,12 @@ const Estoque = {
       <div class="linha-campos" data-nao-suja>
         ${UI.campo('Procurar', `<input name="busca" value="${UI.escapar(Estoque._busca)}"
           placeholder="código ou nome do produto">`)}
+        ${UI.campo('Categoria', UI.select('categoria_id',
+          Api.categoriasAtivas().map((c) => ({ valor: c.id, rotulo: c.nome })),
+          Estoque._categoriaId, { vazio: 'Todas' }))}
+        ${UI.campo('Marca', UI.select('marca_id',
+          Api.marcasAtivas().map((m) => ({ valor: m.id, rotulo: m.nome })),
+          Estoque._marcaId, { vazio: 'Todas' }))}
         <label class="campo">Mostrar
           <span class="espaco" style="margin-top:6px">
             <input type="checkbox" name="apenas_com_saldo" ${Estoque._apenasComSaldo ? 'checked' : ''}>
@@ -201,6 +211,17 @@ const Estoque = {
           Estoque.carregarPosicao();
         }, 400);
       };
+    }
+    // os dois filtros da posição; o extrato tem os seus, mais abaixo
+    if (Estoque._aba !== 'extrato') {
+      [['categoria_id', '_categoriaId'], ['marca_id', '_marcaId']].forEach(([nome, guarda]) => {
+        const campo = pagina.querySelector(`[name="${nome}"]`);
+        if (!campo) return;
+        campo.onchange = () => {
+          Estoque[guarda] = campo.value;
+          Estoque.carregarPosicao();
+        };
+      });
     }
     const soComSaldo = pagina.querySelector('[name="apenas_com_saldo"]');
     if (soComSaldo) {

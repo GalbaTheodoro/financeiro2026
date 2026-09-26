@@ -25,6 +25,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import contabil, dfe as motor
+from .plano_contas import classificacao_padrao
 from .models import (
     Empresa,
     Lancamento,
@@ -187,8 +188,12 @@ def produto_do_item(db: Session, empresa_id: int, item: dict,
         while novo_codigo in existentes:
             sufixo += 1
             novo_codigo = f"{base.upper()[:16]}-{sufixo}"
+        # o produto nasce da nota de um fornecedor, sem nada que diga a categoria:
+        # entra em "Outros / Sem marca" e a pessoa reclassifica depois, se quiser
+        categoria_id, marca_id = classificacao_padrao(db, empresa_id)
         produto = Produto(empresa_id=empresa_id, codigo=novo_codigo,
-                          nome=(descricao or "PRODUTO")[:120])
+                          nome=(descricao or "PRODUTO")[:120],
+                          categoria_id=categoria_id, marca_id=marca_id)
         db.add(produto)
         criado = True
     if not atualizar:

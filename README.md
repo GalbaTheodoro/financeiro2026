@@ -270,7 +270,7 @@ pela barra lateral.
 | Aba | Para que serve |
 |---|---|
 | **Clientes / Fornecedores** | Um único cadastro, com tipo Cliente, Fornecedor ou ambos, **busca automática pelo CNPJ** e **várias formas de pagamento** por parceiro |
-| **Produtos** | O que é negociado (café arábica, conilon...), já com unidade, embalagem e **classificação** |
+| **Produtos** | O que é negociado (café arábica, conilon...), já com unidade, embalagem, **preço de venda** e **classificação** |
 | **Categorias** | Que tipo de coisa é o produto: Café, Grãos, Pecuária, Insumos, Embalagens |
 | **Marcas** | A marca comercial do produto; a granel, fica "Sem marca" |
 | **Unidades** | Código, nome e **peso de conversão em quilos** — é o que dá o peso total do contrato |
@@ -502,6 +502,66 @@ Código: `backend/notas.py` e `backend/routers/notas.py`; teste: `python testes/
   por ele que a nota entra no faturamento como conta a receber;
 - **cancelar** é o evento 110111, com justificativa de 15 letras e dentro do prazo legal.
 
+### Pedido de venda e orçamento (tela de balcão)
+
+**Movimento → Pedidos e Vendas** é a tela de PDV: **categorias à esquerda, produtos no meio,
+carrinho à direita**. Quem atende não digita código nem procura em lista — clica na categoria,
+clica no produto, e o item entra no carrinho. Clicar de novo no mesmo produto soma quantidade
+em vez de repetir a linha.
+
+O preço que aparece no cartão do produto é o **Preço de venda** do cadastro (campo novo em
+Cadastros → Produtos). Dá para mudar o valor do item na hora da venda; o cadastro é só o
+padrão.
+
+O documento nasce como **orçamento** ou como **pedido**, com número sequencial por empresa, e
+fica guardado: dá para reabrir, editar e finalizar depois. Orçamento e pedido **dividem a mesma
+sequência**, porque o orçamento aprovado vira pedido com o **mesmo número** — o cliente continua
+falando do mesmo papel. Orçamento não vira venda direto: tem de ser aprovado antes.
+
+#### Finalizar: uma tela só para decidir como recebe
+
+Um botão só, **FINALIZAR**, que abre a segunda tela. Separar as duas coisas é proposital:
+montar a venda e decidir como recebe são momentos diferentes, e misturá-los é o que faz o
+operador errar a forma de pagamento com o cliente esperando.
+
+**1. Como o cliente paga** — à vista ou a prazo. No a prazo: quantas parcelas, o primeiro
+vencimento e o intervalo (mensal, quinzenal, semanal). A tela mostra as parcelas **antes de
+confirmar**, e essa conta vem do servidor de propósito: o que aparece na tela é exatamente o
+que vai virar duplicata e conta a receber, centavo por centavo.
+
+A divisão arredonda em centavos e **joga a sobra na primeira parcela** (100,00 em 3x = 33,34 +
+33,33 + 33,33). O vencimento mensal anda de **mês em mês**, não de 30 em 30 dias: 31/01 vence
+em 28/02 e 31/03, não em 02/03.
+
+**2. Que documento sai** — **nota fiscal (NF-e 55)** ou **cupom fiscal (NFC-e 65)**. A NF-e
+exige o cliente cadastrado; o cupom aceita consumidor não identificado, e a tela diz isso
+quando falta. Em produção, a confirmação explícita continua valendo, igual às outras telas.
+
+Fechada a venda: **a prazo** gera a conta a receber com as parcelas, pelo mesmo `faturar` que
+o sistema já usava nas notas; **à vista** não gera título nenhum, porque o dinheiro já entrou.
+
+#### O que a finalização reaproveita — e o que ela protege
+
+A finalização **não reimplementa** emissão nem financeiro: ela monta a entrada das rotas que já
+existiam e as chama (`criar_rascunho` + `transmitir` para a NF-e, a venda do cupom para o 65, o
+`faturar` de sempre para o título). O pedido guarda o id da nota e do título, que é o rastro de
+onde ele foi parar.
+
+E **se a SEFAZ recusar, a venda não se perde**: o pedido continua aberto, com o motivo na tela,
+e dá para corrigir e finalizar de novo. Perder uma venda montada porque o certificado venceu
+seria o pior jeito de descobrir isso.
+
+O desconto do total é **rateado entre os itens** na hora de virar nota, porque a NF-e não tem
+"desconto do total" — cada item leva o seu, e a soma fecha com o valor do pedido.
+
+A tela de **Cupom Fiscal** continua existindo, para quem quer a venda numa chamada só sem
+guardar pedido.
+
+Código: `backend/pedidos.py` (numeração, totais e a conta das parcelas),
+`backend/routers/pedidos.py`, `Pedido`/`PedidoItem` em `backend/models.py` e a tela em
+`frontend/js/pedidos.js`.
+Teste: `python testes/teste_pedidos.py`.
+
 ### Cupom fiscal (NFC-e, modelo 65)
 
 **Movimento → Cupom Fiscal** é a venda de balcão: escolhe o produto, a quantidade, a forma
@@ -555,8 +615,16 @@ tempo, com o prazo do estado da empresa.
 #### Em que estados o cupom sai
 
 De fábrica: **Minas Gerais, São Paulo e Goiás**. O **Tocantins** vem com a autorização pronta
-(pelo SVRS) e precisa só da URL do QR Code, que não consegui confirmar em fonte oficial — veja
-o parágrafo seguinte.
+(pelo SVRS, confirmado pela própria SEFAZ-TO: o estado não tem servidor próprio de NFC-e) e
+precisa só das duas URLs do portal do estado — QR Code e consulta pela chave. O site da
+SEFAZ-TO bloqueia leitura automática, então esses dois não dá para trazer prontos; cada cartão
+da tela diz **onde copiar** cada endereço.
+
+A NFC-e segue o **padrão nacional do ENCAT** (MOC e anexos, no Portal Nacional da NF-e), não um
+manual de cada estado: o que muda por UF são os endereços. A transmissão já é **síncrona**
+(`indSinc=1`), como o cupom exige. O que o sistema **ainda não faz** é a **contingência
+off-line** do Anexo IV — sem internet, o cupom não sai. Para um balcão que perde conexão, é a
+próxima coisa a construir.
 
 A **NF-e (modelo 55) não tem essa limitação**: São Paulo, Goiás, Minas e mais nove estados têm
 endereço próprio na tabela de `backend/emissao.py`, e todos os outros — o Tocantins entre eles —
@@ -571,6 +639,11 @@ cartão por estado, com os oito endereços (autorização, evento, QR Code e con
 e homologação), o prazo de cancelamento, de onde veio cada valor e um botão de voltar ao
 padrão. Campo salvo igual ao padrão não é gravado — assim o estado volta a acompanhar as
 atualizações do sistema sozinho.
+
+**Conferir antes da primeira venda.** Cada estado ligado tem o botão **Conferir o QR Code**:
+ele monta o texto que vai dentro do QR Code, em produção e em homologação, com uma chave e um
+CSC de exemplo. Dá para comparar o começo da linha com um cupom de verdade daquele estado antes
+de vender — endereço errado aparece ali, e não na frente do cliente.
 
 **Endereço em branco não vira palpite.** Sem a URL do QR Code o sistema **recusa emitir**
 naquele estado, com a frase dizendo qual serviço falta e onde preencher. É de propósito: um
@@ -1142,6 +1215,7 @@ sistema-financeiro/
 │   ├── planos.py                Os quatro planos: módulos, preços e o que cada um libera
 │   ├── descontos.py             Cupons de desconto da assinatura (não é o cupom fiscal)
 │   ├── sefaz_enderecos.py       Endereços da NFC-e por estado, editáveis na tela
+│   ├── pedidos.py               Pedido e orçamento: numeração, totais e parcelas
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -1203,6 +1277,7 @@ sistema-financeiro/
     ├── teste_cupons.py          Teste dos cupons de desconto e do Pix com desconto
     ├── teste_cupom_estados.py   Teste do cupom em MG, SP, GO e TO
     ├── teste_classificacao.py   Teste da categoria e da marca do produto
+    ├── teste_pedidos.py         Teste do pedido, das parcelas e da finalização
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
@@ -1230,6 +1305,7 @@ python testes/teste_faturamento.py  # faturar e desfaturar a nota (título, parc
 python testes/teste_emissao.py      # emissão de NF-e: chave, XML 4.00, assinatura e retornos
 python testes/teste_cadastros.py    # unidades, modalidades, produtos, nº automático e usuários
 python testes/teste_classificacao.py # categoria e marca: obrigatórias, filtros e relatório
+python testes/teste_pedidos.py      # pedido de venda, parcelas e contas a receber
 python testes/teste_impressao.py    # folha do contrato e PDF (sai em testes/capturas/contrato.pdf)
 python testes/teste_status_contrato.py  # ciclo de vida do contrato e relatório de contratos
 python testes/teste_celular.py      # tela de 390x844: menu, listas em cartões e contrato por etapas

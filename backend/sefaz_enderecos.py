@@ -74,6 +74,7 @@ PADRAO_65: dict[str, dict] = {
     "MG": {
         "nome": "Minas Gerais",
         "fonte": "em uso no sistema desde o início",
+        "onde": "portalsped.fazenda.mg.gov.br/spedmg/nfce/web-services",
         "minutos_cancelamento": 30,
         "autorizacao": {"1": "https://nfce.fazenda.mg.gov.br/nfce/services/NFeAutorizacao4",
                         "2": "https://hnfce.fazenda.mg.gov.br/nfce/services/NFeAutorizacao4"},
@@ -87,6 +88,7 @@ PADRAO_65: dict[str, dict] = {
     "SP": {
         "nome": "São Paulo",
         "fonte": "portal.fazenda.sp.gov.br — serviços da NFC-e, WebServices",
+        "onde": "portal.fazenda.sp.gov.br/servicos/nfce → WebServices",
         "minutos_cancelamento": 30,
         "autorizacao": {"1": "https://nfce.fazenda.sp.gov.br/ws/NFeAutorizacao4.asmx",
                         "2": "https://homologacao.nfce.fazenda.sp.gov.br/ws/NFeAutorizacao4.asmx"},
@@ -101,6 +103,7 @@ PADRAO_65: dict[str, dict] = {
         "nome": "Goiás",
         "fonte": "autorização pelo SVRS; QR Code do Informe Técnico 2025.003 "
                  "(fonte secundária — confira no portal da SEFAZ-GO)",
+        "onde": "goias.gov.br/economia → NFC-e (Informe Técnico 2025.003)",
         "minutos_cancelamento": 30,
         "autorizacao": dict(_SVRS_AUT),
         "evento": dict(_SVRS_EVT),
@@ -111,8 +114,12 @@ PADRAO_65: dict[str, dict] = {
     },
     "TO": {
         "nome": "Tocantins",
-        "fonte": "autorização pelo SVRS (dfe-portal.svrs.rs.gov.br); QR Code e "
-                 "consulta não confirmados — preencha antes de emitir",
+        "fonte": "autorização pelo SVRS, confirmada pela própria SEFAZ-TO "
+                 "(o estado não tem servidor próprio de NFC-e). QR Code e consulta "
+                 "por chave: copie do portal do estado — o site da SEFAZ-TO bloqueia "
+                 "leitura automática, então estes dois não dá para trazer prontos",
+        "onde": "to.gov.br/sefaz/nfc-e → documentação; a consulta por chave é a "
+                "página sefaz.to.gov.br/nfce/consulta.jsf",
         # o manual da NFC-e do Tocantins fala em 24 horas para cancelar
         "minutos_cancelamento": 24 * 60,
         "autorizacao": dict(_SVRS_AUT),
@@ -261,6 +268,7 @@ def quadro(db: Session, modelo: str = "65") -> list[dict]:
             "uf": uf,
             "nome": padrao.get("nome") or uf,
             "fonte": padrao.get("fonte") or "cadastrado por você",
+            "onde": padrao.get("onde") or "",
             "minutos_cancelamento": minutos_cancelamento(db, modelo, uf),
             "emite": atendida(db, uf, modelo),
             "faltando": [SERVICOS[s] for s in SERVICOS
@@ -268,6 +276,33 @@ def quadro(db: Session, modelo: str = "65") -> list[dict]:
             "campos": campos,
         })
     return linhas
+
+
+def previa_qrcode(db: Session | None, uf: str, ambiente: str = "1") -> dict:
+    """Monta o texto do QR Code com uma chave e um CSC de brincadeira.
+
+    Serve para conferir o endereço **antes da primeira venda**: a pessoa compara
+    o começo desta linha com o QR Code de um cupom de verdade daquele estado (ou
+    com o que o portal da SEFAZ mostra). Endereço errado aparece aqui, e não na
+    frente do cliente com a SEFAZ devolvendo rejeição 395.
+
+    O CSC é falso de propósito — o hash sai diferente do de uma venda real, e é
+    o **endereço** que se está conferindo, não a assinatura.
+    """
+    from . import cupom as nfce
+
+    chave = "52" + "1" * 42          # 44 dígitos, só para desenhar a linha
+    try:
+        texto = nfce.texto_qrcode(chave, ambiente, "CSC-DE-EXEMPLO", "000001", uf, db)
+    except nfce.ErroCupom as erro:
+        return {"ok": False, "mensagem": str(erro)}
+    return {
+        "ok": True,
+        "endereco": endereco(db, "65", uf, "qrcode", ambiente),
+        "texto": texto,
+        "consulta": endereco(db, "65", uf, "consulta", ambiente),
+        "aviso": "Chave e CSC de exemplo — confira só o endereço no começo da linha.",
+    }
 
 
 def salvar(db: Session, modelo: str, uf: str, valores: dict) -> EnderecoSefaz:

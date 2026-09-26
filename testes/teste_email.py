@@ -304,7 +304,7 @@ checar("servidor que não existe diz para conferir o nome",
        str(sem_servidor.get("detail"))[:80])
 
 outra_conta = api("POST", "/api/publico/cadastro", {
-    "nome": "Outro", "email": f"outro{sufixo}@teste.com", "senha": "123456",
+    "nome": "Outro", "email": f"outroemail{sufixo}@teste.com", "senha": "123456",
     "empresa": "Outra"})
 alheio = api("GET", f"/api/email/config?empresa_id={eid}", None,
              outra_conta["token"], esperar_erro=True)

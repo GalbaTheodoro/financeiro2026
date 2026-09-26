@@ -539,6 +539,15 @@ def listar_enderecos_sefaz(modelo: str = "65", db: Session = Depends(get_db),
             "servicos": enderecos.SERVICOS}
 
 
+@router.get("/admin/sefaz/previa/{uf}")
+def previa_qrcode_sefaz(uf: str, ambiente: str = "1", db: Session = Depends(get_db),
+                        _: Usuario = Depends(somente_master)):
+    """O QR Code que vai sair naquele estado, para conferir antes da primeira venda."""
+    from .. import sefaz_enderecos as enderecos
+
+    return enderecos.previa_qrcode(db, uf, ambiente if ambiente in ("1", "2") else "1")
+
+
 @router.put("/admin/sefaz/{modelo}/{uf}")
 def salvar_endereco_sefaz(modelo: str, uf: str, dados: dict,
                           db: Session = Depends(get_db),

@@ -159,7 +159,7 @@ recusa = api("DELETE", f"/api/produtos/{milho['id']}", token=t, esperar_erro=Tru
 checar("produto usado em contrato/alíquota não é excluído", recusa.get("_status") == 400, recusa.get("_detalhe", ""))
 api("DELETE", f"/api/icms/{especifica['id']}", token=t)
 checar("excluir alíquota não mexe no contrato", api("GET", f"/api/contratos/{c2['id']}", token=t)["icms_percentual"] == 7)
-outra = api("POST", "/api/publico/cadastro", {"nome": "Outro", "email": f"outro{sufixo}@teste.com",
+outra = api("POST", "/api/publico/cadastro", {"nome": "Outro", "email": f"outroicms{sufixo}@teste.com",
                                               "senha": "123456", "empresa": "Outra"})
 alheia = api("GET", f"/api/icms?empresa_id={eid}", token=outra["token"], esperar_erro=True)
 checar("outra conta não vê a tabela", alheia.get("_status") == 403, str(alheia))

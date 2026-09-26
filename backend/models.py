@@ -382,6 +382,83 @@ class CupomDesconto(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
+class Pedido(Base):
+    """Orçamento ou pedido de venda montado na tela de balcão.
+
+    É o documento que existe **antes** da nota. A pessoa monta o carrinho com
+    calma, imprime para o cliente ver, guarda, reabre e só depois finaliza. Um
+    orçamento vira pedido quando o cliente aprova; o pedido vira venda quando é
+    finalizado.
+
+    A finalização não inventa nada: o pedido vira uma NF-e (modelo 55) ou um
+    cupom (65) pelos mesmos caminhos que já existiam, e as parcelas do "a prazo"
+    viram as duplicatas da nota — que é de onde o faturamento já tirava as contas
+    a receber. Por isso `nota_id` e `lancamento_id` ficam guardados: é o rastro
+    de onde aquele pedido foi parar.
+    """
+
+    __tablename__ = "pedidos"
+    __table_args__ = (UniqueConstraint("empresa_id", "numero", name="uq_pedido_numero"),)
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    numero = Column(String(9), nullable=False)
+    # ORCAMENTO vira PEDIDO quando o cliente aprova
+    tipo = Column(String(10), nullable=False, default="PEDIDO", index=True)
+    # ABERTO | FINALIZADO | CANCELADO
+    situacao = Column(String(12), nullable=False, default="ABERTO", index=True)
+    data = Column(Date, nullable=False, default=date.today)
+    validade = Column(Date)                   # só faz sentido no orçamento
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    # venda de balcão costuma não ter cadastro: guarda o nome e o documento soltos
+    cliente_nome = Column(String(160))
+    cliente_documento = Column(String(20))
+    observacao = Column(String(300))
+
+    desconto = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    valor_produtos = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    valor_total = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    # ---- como foi finalizado ----
+    condicao = Column(String(6))               # VISTA | PRAZO
+    forma_pagamento = Column(String(2))        # código da tabela de formas (01 dinheiro...)
+    parcelas = Column(Integer, nullable=False, default=1)
+    intervalo_dias = Column(Integer, nullable=False, default=30)
+    primeiro_vencimento = Column(Date)
+    documento = Column(String(6))              # NFE | CUPOM
+    nota_id = Column(Integer, ForeignKey("notas.id"), index=True)
+    lancamento_id = Column(Integer, ForeignKey("lancamentos.id"), index=True)
+
+    criado_por_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    finalizado_em = Column(DateTime)
+
+    itens = relationship("PedidoItem", back_populates="pedido",
+                         cascade="all, delete-orphan", order_by="PedidoItem.id")
+    parceiro = relationship("Parceiro")
+    nota = relationship("Nota")
+
+
+class PedidoItem(Base):
+    """Uma linha do carrinho."""
+
+    __tablename__ = "pedido_itens"
+
+    id = Column(Integer, primary_key=True)
+    pedido_id = Column(Integer, ForeignKey("pedidos.id", ondelete="CASCADE"),
+                       nullable=False, index=True)
+    produto_id = Column(Integer, ForeignKey("produtos.id"), index=True)
+    descricao = Column(String(200), nullable=False)
+    unidade = Column(String(10))
+    quantidade = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    valor_unitario = Column(Numeric(15, 6, asdecimal=False), nullable=False, default=0)
+    desconto = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    valor_total = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    pedido = relationship("Pedido", back_populates="itens")
+    produto = relationship("Produto")
+
+
 class CacheExterno(Base):
     """Dados buscados na internet (ex.: cotações do café), guardados para não
     consultar as fontes a cada visita."""
@@ -681,6 +758,12 @@ class Produto(Base):
     observacao_fiscal = Column(String(300))
     # classificação usada para achar a regra fiscal da nota (ver TipoFiscal)
     tipo_fiscal_id = Column(Integer, ForeignKey("tipos_fiscais.id"), index=True)
+
+    # ---- venda ----
+    # Preço sugerido na tela de balcão. Fica no cadastro porque quem atende no
+    # balcão não pode ficar decidindo preço a cada venda; na tela dá para mudar
+    # o valor do item, e o cadastro continua sendo o padrão.
+    preco_venda = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
 
     # ---- estoque ----
     # Só entra no controle de estoque o produto marcado aqui. Comissão, frete e

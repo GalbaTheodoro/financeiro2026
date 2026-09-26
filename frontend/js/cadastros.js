@@ -1325,7 +1325,8 @@ const Cadastros = {
              <div class="mini">${UI.escapar(r.marca_nome || 'sem marca')}</div>`
           : '<span class="mini negativo">sem classificação</span>') },
         { titulo: 'Unidade', valor: (r) => UI.escapar(r.unidade_nome || '-') },
-        { titulo: 'Embalagem', valor: (r) => UI.escapar(r.embalagem || '-') },
+        { titulo: 'Preço', classe: 'num', valor: (r) => (r.preco_venda
+          ? UI.moeda(r.preco_venda) : '<span class="mini">sem preço</span>') },
         { titulo: 'Fiscal', valor: (r) => (r.ncm
           ? `NCM ${UI.escapar(r.ncm)}<div class="mini">${UI.escapar(r.cfop_padrao || '')}</div>`
           : '<span class="mini">sem NCM</span>') },
@@ -1350,6 +1351,8 @@ const Cadastros = {
           opcoes: () => (Estado.cache.unidades || []).filter((u) => u.ativo)
             .map((u) => ({ valor: u.id, rotulo: `${u.codigo} — ${u.nome}` })) },
         { nome: 'embalagem', rotulo: 'Embalagem', dica: 'a granel, sacaria...' },
+        { nome: 'preco_venda', rotulo: 'Preço de venda', tipo: 'dinheiro', padrao: 0,
+          dica: 'o que aparece na tela de balcão; dá para mudar na hora da venda' },
         { nome: 'descricao', rotulo: 'Descrição', largura: 2 },
         { tipo: 'secao', rotulo: 'Classificação',
           dica: 'é por ela que você filtra a lista, filtra o estoque e soma o relatório' },

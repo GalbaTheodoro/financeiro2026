@@ -145,6 +145,7 @@ with sync_playwright() as p:
     for rota, nome in [("receber", "contas a receber"), ("pagar", "contas a pagar"),
                        ("caixa", "caixa"), ("contratos", "contratos"),
                        ("notas", "notas fiscais"), ("cupom", "cupom fiscal"),
+                       ("pedidos", "pedidos e vendas"),
                        ("gta", "GTA"), ("relatorios", "relatórios"),
                        ("cadastros/parceiros", "cadastros")]:
         pagina.goto(f"{BASE}/#/{rota}")

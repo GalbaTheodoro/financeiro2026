@@ -13,6 +13,7 @@ const App = {
     '/caixa': { titulo: 'Caixa e Bancos', subtitulo: 'Saldos, extrato e movimentos', acao: () => Caixa.tela() },
     '/contratos': { titulo: 'Contratos', subtitulo: 'Corretagem, compra e venda de café — com contas a receber e a pagar', acao: () => Contratos.tela() },
     '/notas': { titulo: 'Notas Fiscais', subtitulo: 'Gestão das notas: itens, cliente/fornecedor, faturar e desfaturar', acao: () => Notas.tela() },
+    '/pedidos': { titulo: 'Pedidos e orçamentos', subtitulo: 'Monte a venda no balcão e finalize à vista ou a prazo', acao: () => Pedidos.tela() },
     '/cupom': { titulo: 'Cupom Fiscal', subtitulo: 'Venda de balcão: NFC-e em uma tela só, com impressão em 80 mm', acao: () => Cupom.tela() },
     '/gta': { titulo: 'GTA — Guia de Trânsito Animal', subtitulo: 'Controle das guias dos produtores e ficha de preparo para o portal do estado', acao: () => GTA.tela() },
     '/estoque': { titulo: 'Estoque', subtitulo: 'Saldo e custo médio de cada produto — a entrada vem da nota, a saída é baixada sozinha', acao: (aba) => Estoque.tela(aba) },
@@ -43,7 +44,7 @@ const App = {
 
   /* Só estas rotas dependem do plano; o resto é de toda conta. */
   ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/notas',
-    '/dfe', '/estoque', '/cupom', '/gta', '/relatorios'],
+    '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios'],
 
   menu() {
     const itens = [
@@ -54,6 +55,7 @@ const App = {
       { rota: '/caixa', icone: '▤', rotulo: 'Caixa e Bancos' },
       { rota: '/contratos', icone: '§', rotulo: 'Contratos' },
       { rota: '/notas', icone: '⛁', rotulo: 'Notas Fiscais' },
+      { rota: '/pedidos', icone: '🛒', rotulo: 'Pedidos e Vendas' },
       { rota: '/cupom', icone: '⌦', rotulo: 'Cupom Fiscal' },
       { rota: '/gta', icone: '☙', rotulo: 'GTA (trânsito animal)' },
       { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },

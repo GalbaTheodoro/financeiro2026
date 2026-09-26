@@ -141,7 +141,7 @@ lista = api("GET", f"/api/parceiros/{fornecedor['id']}/formas-pagamento", token=
 checar("forma não usada é excluída", len(lista["formas"]) == 2)
 
 outra = api("POST", "/api/publico/cadastro", {
-    "nome": "Outro Dono", "email": f"outro{sufixo}@teste.com", "senha": "123456",
+    "nome": "Outro Dono", "email": f"outroformas{sufixo}@teste.com", "senha": "123456",
     "empresa": "Empresa Concorrente",
 })
 invasao = api("GET", f"/api/parceiros/{fornecedor['id']}/formas-pagamento",

@@ -773,6 +773,62 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .pix-codigo{width:100%;margin-top:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;
   min-height:70px;background:var(--cinza-50)}
 
+/* ------------------------------------------------ PDV (pedido de venda) --- */
+/* Três colunas: categorias, produtos e carrinho. No celular vira uma coluna só,
+   nesta ordem — categoria, produto, carrinho —, que é a ordem em que se usa. */
+.pdv{display:grid;grid-template-columns:200px 1fr 380px;gap:14px;align-items:start}
+.pdv-coluna{background:#fff;border:1px solid var(--borda);border-radius:var(--raio);
+  padding:12px;min-height:420px}
+.pdv-titulo{font-size:12px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
+  color:var(--cinza-500);margin-bottom:10px}
+.pdv-titulo input{width:150px;font-size:13px}
+.pdv-categorias{display:flex;flex-direction:column;gap:8px}
+.pdv-categoria{border:1px solid var(--borda);background:var(--cinza-50);border-radius:10px;
+  padding:12px 10px;font-weight:700;font-size:13.5px;cursor:pointer;text-align:left;
+  color:var(--cinza-700)}
+.pdv-categoria:hover{border-color:var(--verde)}
+.pdv-categoria.ativa{background:var(--verde);border-color:var(--verde);color:#fff}
+.pdv-produtos{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.pdv-produto{border:1px solid var(--borda);background:#fff;border-radius:10px;padding:10px;
+  cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:2px;min-height:86px}
+.pdv-produto:hover{border-color:var(--verde);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.pdv-produto-nome{font-weight:700;font-size:13.5px;line-height:1.25}
+.pdv-produto-valor{margin-top:auto;font-weight:800;color:var(--verde);font-size:15px}
+.pdv-carrinho{display:flex;flex-direction:column}
+/* os botões de quantidade ficam na mesma linha: quebrar em duas empurra o
+   carrinho para baixo e some com o total da tela */
+.pdv-carrinho td:last-child{white-space:nowrap;width:1%}
+.pdv-carrinho .btn-mini{padding:3px 8px;margin:0 1px}
+.pdv-cliente{margin-top:10px}
+.pdv-totais{margin-top:auto;padding-top:10px;border-top:1px solid var(--borda)}
+.pdv-linha{display:flex;justify-content:space-between;padding:4px 0;font-size:13.5px}
+.pdv-total{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;
+  padding-top:8px;border-top:2px solid var(--verde);font-weight:800}
+.pdv-total b{font-size:26px;color:var(--verde)}
+.pdv-acoes{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.pdv-acoes .btn-bloco{padding:12px}
+@media (max-width:1100px){
+  .pdv{grid-template-columns:1fr}
+  .pdv-coluna{min-height:0}
+  .pdv-categorias{flex-direction:row;flex-wrap:wrap}
+  .pdv-categoria{flex:1 1 130px}
+}
+
+/* A tela de finalizar: escolhas grandes, para não errar com o cliente esperando. */
+.finalizar-total{display:flex;justify-content:space-between;align-items:baseline;
+  background:var(--cinza-50);border:1px solid var(--borda);border-radius:var(--raio);
+  padding:12px 16px;margin-bottom:6px}
+.finalizar-total b{font-size:26px;color:var(--verde)}
+.escolha-grande{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.escolha{border:2px solid var(--borda);background:#fff;border-radius:10px;padding:14px;
+  cursor:pointer;text-align:left}
+.escolha:hover{border-color:var(--verde)}
+.escolha.ativa{border-color:var(--verde);background:var(--verde-claro)}
+.previa-parcelas{border:1px dashed var(--cinza-300);border-radius:var(--raio);
+  padding:10px 12px;margin-top:8px;background:var(--cinza-50)}
+.previa-linha{display:flex;justify-content:space-between;padding:3px 0;font-size:13.5px}
+@media (max-width:620px){ .escolha-grande{grid-template-columns:1fr} }
+
 /* Cupom de desconto: fica logo acima do Pix, porque é ele que muda o valor do
    copia e cola e do QR Code. */
 .cupom-caixa{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;

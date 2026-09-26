@@ -228,6 +228,37 @@ checar("voltar ao padrão desfaz a edição",
        go["campos"]["qrcode_producao"]["valor"])
 
 # =========================================================================== #
+print("\n=== 5b. Conferir o QR Code antes da primeira venda ===")
+previa = api("GET", "/api/admin/sefaz/previa/SP?ambiente=1", None, tm)
+checar("a prévia monta o QR Code de São Paulo",
+       previa["ok"] is True and previa["texto"].startswith("https://www.nfce.fazenda.sp.gov.br"),
+       previa["texto"][:56])
+checar("e mostra também a consulta pela chave daquele estado",
+       "nfce.fazenda.sp.gov.br" in previa["consulta"], previa["consulta"])
+homolog = api("GET", "/api/admin/sefaz/previa/SP?ambiente=2", None, tm)
+checar("produção e homologação dão endereços diferentes",
+       homolog["texto"] != previa["texto"]
+       and "homologacao" in homolog["texto"], homolog["texto"][:56])
+sem_qr = api("GET", "/api/admin/sefaz/previa/AC?ambiente=1", None, tm)
+checar("estado sem endereço não finge que dá — diz o que falta",
+       sem_qr["ok"] is False and "QR Code" in sem_qr["mensagem"],
+       str(sem_qr.get("mensagem"))[:70])
+checar("o assinante não vê a prévia",
+       api("GET", "/api/admin/sefaz/previa/SP", None, None, esperar_erro=True)
+       .get("_status") == 401)
+
+# ------------------------------------------------- o Tocantins diz onde copiar
+to_linha = next(l for l in api("GET", "/api/admin/sefaz?modelo=65", None, tm)["linhas"]
+                if l["uf"] == "TO")
+checar("o Tocantins diz que a autorização é do SVRS",
+       "SVRS" in to_linha["fonte"], to_linha["fonte"][:60])
+checar("e a tela diz onde copiar o que falta",
+       "to.gov.br/sefaz" in to_linha["onde"], to_linha["onde"][:60])
+checar("todo estado do padrão diz de onde vem e onde copiar",
+       all(l["fonte"] and l["onde"] for l in api(
+           "GET", "/api/admin/sefaz?modelo=65", None, tm)["linhas"]))
+
+# =========================================================================== #
 print("\n=== 6. A tela do cliente enxerga o estado dele ===")
 conta = api("POST", "/api/publico/cadastro", {
     "nome": "Galba", "email": f"sp{sufixo}@teste.com", "senha": "123456",

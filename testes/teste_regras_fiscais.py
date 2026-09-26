@@ -475,7 +475,7 @@ checar("com usar_regra a tela é descartada e a regra volta a valer",
 # =========================================================================== #
 print("\n=== 6. Segurança e apagar ===")
 outra = api("POST", "/api/publico/cadastro", {
-    "nome": "Outro", "email": f"outro{sufixo}@teste.com", "senha": "123456",
+    "nome": "Outro", "email": f"outroregras{sufixo}@teste.com", "senha": "123456",
     "empresa": "Outra"})
 alheia = api("GET", f"/api/fiscal/regras?empresa_id={eid}", None, outra["token"],
              esperar_erro=True)

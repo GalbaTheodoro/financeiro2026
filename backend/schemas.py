@@ -327,6 +327,7 @@ class ProdutoIn(BaseModel):
     # classificação — exigidas ao salvar pela tela (ver routers/cadastros.py)
     categoria_id: int | None = None
     marca_id: int | None = None
+    preco_venda: float = 0            # preço sugerido na tela de balcão
     # dados fiscais (NF-e) — ficam em branco enquanto o produto for só de contrato
     ncm: str | None = None
     cest: str | None = None
@@ -683,6 +684,46 @@ class ParcelaNotaIn(BaseModel):
     numero: str | None = None
     vencimento: date
     valor: float
+
+
+class ItemPedidoIn(BaseModel):
+    """Uma linha do carrinho."""
+
+    produto_id: int | None = None
+    descricao: str | None = None
+    unidade: str | None = None
+    quantidade: float = 1
+    valor_unitario: float = 0
+    desconto: float = 0
+
+
+class PedidoIn(BaseModel):
+    """Orçamento ou pedido de venda montado na tela de balcão."""
+
+    empresa_id: int
+    tipo: str = "PEDIDO"                  # ORCAMENTO | PEDIDO
+    data: date | None = None
+    validade: date | None = None
+    parceiro_id: int | None = None
+    cliente_nome: str | None = None
+    cliente_documento: str | None = None
+    observacao: str | None = None
+    desconto: float = 0
+    itens: list[ItemPedidoIn] = []
+
+
+class FinalizarPedidoIn(BaseModel):
+    """A segunda tela: como paga e que documento sai."""
+
+    condicao: str = "VISTA"               # VISTA | PRAZO
+    forma_pagamento: str | None = None    # 01 dinheiro, 03 cartão, 17 Pix...
+    parcelas: int = 1
+    intervalo_dias: int = 30
+    primeiro_vencimento: date | None = None
+    documento: str = "CUPOM"              # NFE | CUPOM
+    ambiente: str | None = None
+    confirmo_producao: bool = False
+    observacao: str | None = None
 
 
 class NotaEmitidaIn(BaseModel):

@@ -912,6 +912,7 @@ const Assinaturas = {
               <span class="tag ${l.emite ? 'tag-pago' : 'tag-vencido'}">
                 ${l.emite ? 'emite cupom' : 'falta endereço'}</span></h3>
             <div class="mini">origem do padrão: ${UI.escapar(l.fonte)}</div>
+            ${l.onde ? `<div class="mini">onde copiar: ${UI.escapar(l.onde)}</div>` : ''}
             ${l.faltando.length
               ? `<div class="mini alerta">falta preencher: ${l.faltando.map(UI.escapar).join(', ')}</div>`
               : ''}
@@ -919,13 +920,55 @@ const Assinaturas = {
               <b>${l.minutos_cancelamento >= 60
                 ? `${l.minutos_cancelamento / 60} hora(s)` : `${l.minutos_cancelamento} minutos`}</b></div>
           </div>
-          <button class="btn btn-mini" data-editar-uf="${i}">Editar endereços</button>
+          <div class="espaco">
+            ${l.emite ? `<button class="btn btn-mini" data-conferir="${i}">Conferir o QR Code</button>` : ''}
+            <button class="btn btn-mini" data-editar-uf="${i}">Editar endereços</button>
+          </div>
         </div>
       </div>`).join('');
 
     alvo.querySelectorAll('[data-editar-uf]').forEach((b) => {
       b.onclick = () => Assinaturas.formularioSefaz(dados.linhas[Number(b.dataset.editarUf)]);
     });
+    alvo.querySelectorAll('[data-conferir]').forEach((b) => {
+      b.onclick = () => Assinaturas.conferirQrcode(dados.linhas[Number(b.dataset.conferir)]);
+    });
+  },
+
+  /** O QR Code que vai sair naquele estado — conferido antes da primeira venda. */
+  async conferirQrcode(linha) {
+    const corpo = document.createElement('div');
+    corpo.innerHTML = '<div class="vazio">Montando...</div>';
+    UI.abrirModal({
+      titulo: `QR Code em ${linha.nome}`,
+      corpo,
+      largo: true,
+      botoes: [{ rotulo: 'Fechar', acao: () => UI.fecharModal() }],
+    });
+    const linhas = await Promise.all(['1', '2'].map(async (ambiente) => {
+      try {
+        const r = await Api.get(`/api/admin/sefaz/previa/${linha.uf}`, { ambiente });
+        return { ambiente, ...r };
+      } catch (e) { return { ambiente, ok: false, mensagem: e.message }; }
+    }));
+    corpo.innerHTML = `
+      <div class="mini" style="margin-bottom:12px">
+        É assim que o QR Code do cupom vai sair em ${UI.escapar(linha.nome)}. Compare o
+        <b>começo da linha</b> com o QR Code de um cupom de verdade daquele estado, ou com o
+        que o portal da SEFAZ mostra. A chave e o CSC são de exemplo — o que se confere aqui
+        é o <b>endereço</b>, não a assinatura.
+      </div>
+      ${linhas.map((l) => `
+        <div class="cartao" style="margin-bottom:10px">
+          <div class="cartao-corpo">
+            <div class="forte">${l.ambiente === '1' ? 'Produção' : 'Homologação'}</div>
+            ${l.ok ? `
+              <div class="pix-codigo" style="min-height:0;padding:8px;margin-top:6px">${UI.escapar(l.texto)}</div>
+              <div class="mini" style="margin-top:6px">consulta pela chave:
+                ${l.consulta ? UI.escapar(l.consulta) : '<span class="alerta">em branco</span>'}</div>`
+              : `<div class="mini alerta" style="margin-top:6px">${UI.escapar(l.mensagem)}</div>`}
+          </div>
+        </div>`).join('')}`;
   },
 
   formularioSefaz(linha) {
@@ -941,8 +984,10 @@ const Assinaturas = {
     };
     corpo.innerHTML = `
       <div class="mini" style="margin-bottom:12px">
-        Copie do portal da SEFAZ de ${UI.escapar(linha.nome)}. Deixar igual ao padrão de
-        fábrica é o mesmo que não editar — o campo volta a acompanhar as atualizações do sistema.
+        Copie do portal da SEFAZ de ${UI.escapar(linha.nome)}${linha.onde
+          ? ` — <b>${UI.escapar(linha.onde)}</b>` : ''}.
+        Deixar igual ao padrão de fábrica é o mesmo que não editar — o campo volta a
+        acompanhar as atualizações do sistema.
       </div>
       <div class="linha-campos">
         ${Object.entries(dados.servicos).map(([servico, nome]) =>

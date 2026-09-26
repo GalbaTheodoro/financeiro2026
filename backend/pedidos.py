@@ -31,7 +31,14 @@ from .utils import adicionar_meses, dinheiro
 TIPOS = {"ORCAMENTO": "Orçamento", "PEDIDO": "Pedido"}
 SITUACOES = {"ABERTO": "Aberto", "FINALIZADO": "Finalizado", "CANCELADO": "Cancelado"}
 CONDICOES = {"VISTA": "À vista", "PRAZO": "A prazo"}
-DOCUMENTOS = {"NFE": "Nota fiscal (NF-e)", "CUPOM": "Cupom fiscal (NFC-e)"}
+DOCUMENTOS = {
+    "NFE": "Nota fiscal (NF-e)",
+    "CUPOM": "Cupom fiscal (NFC-e)",
+    # a venda fecha e o financeiro nasce; o documento fiscal sai depois
+    "SEM": "Sem documento — emitir depois",
+}
+# os que realmente vão à SEFAZ
+DOCUMENTOS_FISCAIS = ("NFE", "CUPOM")
 MAX_PARCELAS = 36
 
 
@@ -120,22 +127,88 @@ def montar_parcelas(total: float, quantidade: int, primeiro: date,
 # --------------------------------------------------------------------------- #
 # Fechar a venda
 # --------------------------------------------------------------------------- #
+def faturar_sem_nota(db: Session, pedido: Pedido, parcelas: list[dict], usuario) -> object:
+    """A conta a receber de uma venda que ainda não tem documento fiscal.
+
+    Quando o pedido vira NF-e ou cupom, quem gera o título é o `faturar` de
+    sempre, a partir das duplicatas da nota. Sem documento não há nota — então o
+    título nasce direto do pedido, com as mesmas parcelas que a tela mostrou.
+
+    O título fica **igual** ao que a nota geraria: mesma conta contábil, mesma
+    contabilização, mesmas parcelas. A diferença é só a descrição, que diz o
+    número do pedido em vez do número da nota — e é por ela que se reconhece,
+    em Contas a Receber, a venda que ainda está sem documento.
+    """
+    from . import contabil
+    from .models import Lancamento, LancamentoItem, Parcela
+    from .routers.contratos import conta_padrao
+
+    if not pedido.parceiro_id:
+        raise ErroPedido(
+            "Para gerar a conta a receber é preciso dizer quem é o cliente. "
+            "Escolha o cliente no pedido, ou finalize à vista.")
+    valor = dinheiro(pedido.valor_total)
+    if valor <= 0:
+        raise ErroPedido("O pedido está zerado: não dá para gerar o título.")
+
+    emissao = pedido.data or date.today()
+    descricao = f"Pedido nº {pedido.numero}"
+    if pedido.parceiro is not None:
+        descricao += f" - {pedido.parceiro.nome}"
+    conta_id = conta_padrao(db, pedido.empresa_id, "venda")
+
+    lancamento = Lancamento(
+        empresa_id=pedido.empresa_id,
+        tipo="RECEBER",
+        modo="MULTIPLO" if len(parcelas) > 1 else "SIMPLES",
+        numero_documento=pedido.numero[:40],
+        parceiro_id=pedido.parceiro_id,
+        descricao=descricao[:200],
+        data_emissao=emissao,
+        data_competencia=emissao,
+        valor_total=valor,
+        observacao="Venda sem documento fiscal — nota ou cupom a emitir.",
+        usuario_id=getattr(usuario, "id", None),
+    )
+    db.add(lancamento)
+    db.flush()
+    db.add(LancamentoItem(
+        lancamento_id=lancamento.id, conta_contabil_id=conta_id,
+        descricao=descricao[:200], valor=valor,
+    ))
+    # a última parcela absorve a diferença de centavos, para a soma fechar
+    soma = 0.0
+    for numero, parcela in enumerate(parcelas or [{"vencimento": emissao, "valor": valor}],
+                                     start=1):
+        ultimo = numero == len(parcelas or [1])
+        valor_parcela = dinheiro(valor - soma) if ultimo else dinheiro(parcela["valor"])
+        soma += valor_parcela
+        db.add(Parcela(lancamento_id=lancamento.id, numero=numero,
+                       data_vencimento=parcela["vencimento"], valor=valor_parcela))
+    db.flush()
+    db.refresh(lancamento)
+    contabil.contabilizar_lancamento(db, lancamento)
+    return lancamento
+
+
+
 def concluir(db: Session, pedido: Pedido, nota, condicao: str, quantidade: int,
              primeiro: date, intervalo_dias: int, documento: str,
              forma_pagamento: str | None, usuario) -> str:
-    """O que acontece **depois** que o documento fiscal saiu autorizado.
+    """O que acontece **depois** que a venda foi fechada.
 
     Fica separado da emissão de propósito: emitir depende da SEFAZ e de
     certificado, e esta parte aqui — marcar o pedido e gerar as contas a receber
     — é dinheiro do cliente e precisa ser testável sozinha.
 
-    À vista não gera título: o dinheiro já entrou. A prazo vira conta a receber
-    pelas duplicatas que a nota já carrega, pelo mesmo `faturar` de sempre.
+    À vista não gera título: o dinheiro já entrou. A prazo vira conta a receber —
+    pelas duplicatas da nota, quando há nota; direto do pedido, quando o
+    documento fiscal ficou para depois (`nota is None`).
     """
     from .notas import faturar as faturar_nota
     from .schemas import FaturarNotaIn
 
-    pedido.nota_id = nota.id
+    pedido.nota_id = nota.id if nota is not None else None
     pedido.condicao = condicao
     pedido.forma_pagamento = forma_pagamento
     pedido.parcelas = quantidade
@@ -147,15 +220,22 @@ def concluir(db: Session, pedido: Pedido, nota, condicao: str, quantidade: int,
 
     mensagem = f"Pedido nº {pedido.numero} finalizado."
     if condicao == "PRAZO":
-        lancamento = faturar_nota(db, nota, FaturarNotaIn(
-            empresa_id=pedido.empresa_id, tipo_titulo="RECEBER",
-            parceiro_id=pedido.parceiro_id,
-            observacao=f"Pedido nº {pedido.numero}"), usuario)
+        if nota is not None:
+            lancamento = faturar_nota(db, nota, FaturarNotaIn(
+                empresa_id=pedido.empresa_id, tipo_titulo="RECEBER",
+                parceiro_id=pedido.parceiro_id,
+                observacao=f"Pedido nº {pedido.numero}"), usuario)
+        else:
+            lancamento = faturar_sem_nota(db, pedido, montar_parcelas(
+                float(pedido.valor_total or 0), quantidade, primeiro, intervalo_dias), usuario)
         pedido.lancamento_id = lancamento.id
         mensagem += (f" Conta a receber gerada em {quantidade} parcela(s), "
                      f"a primeira em {primeiro.strftime('%d/%m/%Y')}.")
     else:
         mensagem += " À vista: nada foi lançado em contas a receber."
+    if documento == "SEM":
+        mensagem += (" O documento fiscal ficou para depois — o estoque só baixa quando "
+                     "a nota ou o cupom sair.")
     db.flush()
     return mensagem
 
@@ -174,6 +254,11 @@ def item_dict(item: PedidoItem) -> dict:
         "desconto": float(item.desconto or 0),
         "valor_total": float(item.valor_total or 0),
     }
+
+
+def falta_documento(pedido: Pedido) -> bool:
+    """Venda fechada que ainda não tem nota nem cupom — é o que não pode ser esquecido."""
+    return pedido.situacao == "FINALIZADO" and not pedido.nota_id
 
 
 def ficha(db: Session, pedido: Pedido) -> dict:
@@ -207,11 +292,12 @@ def ficha(db: Session, pedido: Pedido) -> dict:
                                 if pedido.primeiro_vencimento else None),
         "documento": pedido.documento,
         "documento_rotulo": DOCUMENTOS.get(pedido.documento or "", ""),
+        "falta_documento": falta_documento(pedido),
         "nota_id": pedido.nota_id,
         "nota_numero": nota.numero if nota else None,
         "nota_situacao": nota.status_emissao if nota else None,
         "lancamento_id": pedido.lancamento_id,
-        "lancamento_numero": lancamento.numero if lancamento else None,
+        "lancamento_descricao": lancamento.descricao if lancamento else None,
         "itens": [item_dict(i) for i in pedido.itens],
         "finalizado_em": (pedido.finalizado_em.isoformat(timespec="seconds")
                           if pedido.finalizado_em else None),
@@ -238,6 +324,7 @@ def resumo(pedido: Pedido) -> dict:
         "condicao_rotulo": CONDICOES.get(pedido.condicao or "", ""),
         "documento_rotulo": DOCUMENTOS.get(pedido.documento or "", ""),
         "parcelas": int(pedido.parcelas or 1),
+        "falta_documento": falta_documento(pedido),
         "nota_id": pedido.nota_id,
         "lancamento_id": pedido.lancamento_id,
     }

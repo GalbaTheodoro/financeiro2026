@@ -274,6 +274,116 @@ finally:
     db.close()
 
 # =========================================================================== #
+print("\n=== 6b. Finalizar SEM documento, com o financeiro já lançado ===")
+sem_doc = api("POST", "/api/pedidos", {
+    "empresa_id": eid, "tipo": "PEDIDO", "parceiro_id": cliente["id"],
+    "itens": [{"produto_id": cafe["id"], "descricao": cafe["nome"], "quantidade": 3,
+               "valor_unitario": 1000}]}, t)["pedido"]
+fechado = api("POST", f"/api/pedidos/{sem_doc['id']}/finalizar", {
+    "condicao": "PRAZO", "parcelas": 3, "primeiro_vencimento": "2026-07-05",
+    "intervalo_dias": 30, "documento": "SEM", "forma_pagamento": "15"}, t)
+checar("a venda fecha sem mandar nada para a SEFAZ", fechado.get("ok") is True,
+       str(fechado.get("mensagem"))[:90])
+checar("e o aviso diz que o estoque só baixa na emissão",
+       "estoque" in str(fechado.get("mensagem")).lower())
+pedido_sd = fechado["pedido"]
+checar("o pedido fica finalizado, sem nota e com título",
+       pedido_sd["situacao"] == "FINALIZADO" and not pedido_sd["nota_id"]
+       and pedido_sd["lancamento_id"], str(pedido_sd["lancamento_id"]))
+checar("e marcado como falta emitir", pedido_sd["falta_documento"] is True)
+
+db = SessionLocal()
+try:
+    titulo_sd = db.get(Lancamento, pedido_sd["lancamento_id"])
+    checar("o título é a receber, do cliente do pedido",
+           titulo_sd.tipo == "RECEBER" and titulo_sd.parceiro_id == cliente["id"])
+    checar("com as três parcelas certas", len(titulo_sd.parcelas) == 3)
+    checar("a soma das parcelas é o total da venda",
+           round(sum(float(p.valor) for p in titulo_sd.parcelas), 2) == 3000.0,
+           str(round(sum(float(p.valor) for p in titulo_sd.parcelas), 2)))
+    checar("os vencimentos são os que a tela mostrou",
+           sorted(p.data_vencimento for p in titulo_sd.parcelas)
+           == [date(2026, 7, 5), date(2026, 8, 5), date(2026, 9, 5)],
+           str(sorted(p.data_vencimento for p in titulo_sd.parcelas)))
+    checar("o título diz que a venda está sem documento",
+           "sem documento" in (titulo_sd.observacao or "").lower(),
+           str(titulo_sd.observacao)[:60])
+    # o título tem de estar contabilizado, como o da nota
+    checar("e nasce contabilizado, igual ao título da nota",
+           bool(titulo_sd.itens) and titulo_sd.itens[0].conta_contabil_id)
+finally:
+    db.close()
+
+# a prazo sem cliente não pode gerar título — e o pedido não pode ficar meio-fechado
+orfao = api("POST", "/api/pedidos", {
+    "empresa_id": eid, "tipo": "PEDIDO",
+    "itens": [{"produto_id": cafe["id"], "descricao": cafe["nome"], "quantidade": 1,
+               "valor_unitario": 100}]}, t)["pedido"]
+recusado = api("POST", f"/api/pedidos/{orfao['id']}/finalizar", {
+    "condicao": "PRAZO", "parcelas": 2, "primeiro_vencimento": "2026-07-05",
+    "documento": "SEM"}, t)
+checar("a prazo sem cliente é recusado, com a frase certa",
+       recusado.get("ok") is False and "cliente" in str(recusado.get("mensagem")).lower(),
+       str(recusado.get("mensagem"))[:70])
+depois_recusa = api("GET", f"/api/pedidos/{orfao['id']}", None, t)["pedido"]
+checar("e o pedido não fica meio-fechado: continua ABERTO e sem título",
+       depois_recusa["situacao"] == "ABERTO" and not depois_recusa["lancamento_id"])
+
+avista_sem = api("POST", f"/api/pedidos/{orfao['id']}/finalizar", {
+    "condicao": "VISTA", "documento": "SEM", "forma_pagamento": "01"}, t)
+checar("à vista sem documento fecha e não gera título",
+       avista_sem.get("ok") is True
+       and not avista_sem["pedido"]["lancamento_id"], str(avista_sem.get("mensagem"))[:60])
+
+lista_falta = api("GET", f"/api/pedidos?empresa_id={eid}&falta_documento=true", None, t)
+checar("a lista sabe filtrar só o que falta emitir",
+       {l["id"] for l in lista_falta["linhas"]} == {sem_doc["id"], orfao["id"]},
+       str([l["numero"] for l in lista_falta["linhas"]]))
+checar("e o resumo conta quanto é",
+       lista_falta["resumo"]["sem_documento"] == 2
+       and lista_falta["resumo"]["valor_sem_documento"] == 3100.0,
+       str(lista_falta["resumo"]))
+
+# ---------------------------------------- emitir o documento depois
+sem_cert = api("POST", f"/api/pedidos/{sem_doc['id']}/documento", {
+    "documento": "NFE", "ambiente": "2"}, t)
+checar("emitir depois sem certificado avisa e não estraga nada",
+       sem_cert.get("ok") is False, str(sem_cert.get("mensagem"))[:60])
+intacto = api("GET", f"/api/pedidos/{sem_doc['id']}", None, t)["pedido"]
+checar("o pedido continua finalizado e com o mesmo título",
+       intacto["situacao"] == "FINALIZADO"
+       and intacto["lancamento_id"] == pedido_sd["lancamento_id"])
+
+# o caminho feliz: a nota autorizada assume o título que já existia
+db = SessionLocal()
+try:
+    usuario = db.query(Usuario).filter(Usuario.email == f"ped{sufixo}@teste.com").first()
+    alvo3 = db.get(Pedido, sem_doc["id"])
+    nota3 = nota_autorizada(db, alvo3, [])
+    antes_titulo = alvo3.lancamento_id
+    alvo3.nota_id = nota3.id
+    alvo3.documento = "NFE"
+    nota3.lancamento_id = antes_titulo
+    db.commit()
+    checar("depois de emitir, o pedido deixa de faltar documento",
+           regras.falta_documento(alvo3) is False)
+    quantos = db.query(Lancamento).filter(
+        Lancamento.empresa_id == eid,
+        Lancamento.numero_documento == alvo3.numero).count()
+    checar("e existe UM título só para essa venda — nada em dobro", quantos == 1, str(quantos))
+finally:
+    db.close()
+
+ja_tem = api("POST", f"/api/pedidos/{sem_doc['id']}/documento", {
+    "documento": "CUPOM"}, t, esperar_erro=True)
+checar("pedido que já tem documento não emite outro",
+       ja_tem.get("_status") == 400 and "já tem documento" in str(ja_tem.get("detail")),
+       str(ja_tem.get("detail"))[:60])
+aberto_doc = api("POST", f"/api/pedidos/{segundo['id']}/documento", {
+    "documento": "CUPOM"}, t, esperar_erro=True)
+checar("e pedido ainda aberto também não", aberto_doc.get("_status") == 400)
+
+# =========================================================================== #
 print("\n=== 7. Pedido finalizado não se mexe ===")
 travado = api("PUT", f"/api/pedidos/{editado['id']}", {
     "empresa_id": eid, "tipo": "PEDIDO",
@@ -294,15 +404,65 @@ checar("e nem finalizar de novo",
            esperar_erro=True).get("_status") == 400)
 
 lista = api("GET", f"/api/pedidos?empresa_id={eid}", None, t)
+# quatro fechados: dois com documento (seção 6) e dois sem (seção 6b), e um deles
+# já ganhou a nota depois — sobra um faltando emitir
 checar("a lista mostra o resumo certo",
-       lista["resumo"]["finalizados"] == 2, str(lista["resumo"]))
+       lista["resumo"]["finalizados"] == 4 and lista["resumo"]["sem_documento"] == 1,
+       str(lista["resumo"]))
 finalizado = next(l for l in lista["linhas"] if l["id"] == editado["id"])
 checar("e a linha conta como a venda foi paga",
        finalizado["condicao_rotulo"] == "A prazo" and finalizado["parcelas"] == 3,
        str(finalizado["condicao_rotulo"]))
 
 # =========================================================================== #
-print("\n=== 8. A conta do vizinho não enxerga ===")
+print("\n=== 8. A folha que o cliente leva ===")
+folha = api("GET", f"/api/pedidos/{editado['id']}/impressao", None, t)
+checar("a folha traz o pedido inteiro",
+       folha["pedido"]["numero"] == editado["numero"]
+       and len(folha["pedido"]["itens"]) == 1)
+checar("e os dados da empresa para o cabeçalho",
+       bool(folha["empresa"]["razao_social"]) and "endereco" in folha["empresa"])
+checar("com o cliente do pedido",
+       folha["cliente"]["nome"] == "TORREFACAO PAULISTA LTDA",
+       str(folha["cliente"] or {})[:60])
+checar("as parcelas da folha saem do TÍTULO, não de uma conta nova",
+       [x["valor"] for x in folha["parcelas"]] and
+       round(sum(x["valor"] for x in folha["parcelas"]), 2) == 26400.0,
+       str([x["vencimento"] for x in folha["parcelas"]]))
+checar("e batem com os vencimentos que estão em contas a receber",
+       [x["vencimento"] for x in folha["parcelas"]]
+       == ["2026-01-31", "2026-02-28", "2026-03-31"])
+checar("a folha diz quando foi emitida", bool(folha["emitido_em"]))
+
+orcamento_folha = api("GET", f"/api/pedidos/{segundo['id']}/impressao", None, t)
+checar("orçamento sem cliente cadastrado imprime como consumidor não identificado",
+       orcamento_folha["cliente"] is None)
+checar("e sem condição de pagamento ainda não tem parcelas",
+       orcamento_folha["parcelas"] == [])
+
+# um pedido a prazo ainda NÃO finalizado mostra a prévia das parcelas na folha
+aberto = api("POST", "/api/pedidos", {
+    "empresa_id": eid, "tipo": "PEDIDO", "parceiro_id": cliente["id"],
+    "itens": [{"produto_id": cafe["id"], "descricao": cafe["nome"], "quantidade": 2,
+               "valor_unitario": 500}]}, t)["pedido"]
+db = SessionLocal()
+try:
+    alvo2 = db.get(Pedido, aberto["id"])
+    alvo2.condicao = "PRAZO"
+    alvo2.parcelas = 2
+    alvo2.primeiro_vencimento = date(2026, 5, 10)
+    alvo2.intervalo_dias = 30
+    db.commit()
+finally:
+    db.close()
+previa_folha = api("GET", f"/api/pedidos/{aberto['id']}/impressao", None, t)
+checar("pedido a prazo ainda não faturado mostra as parcelas calculadas",
+       [x["vencimento"] for x in previa_folha["parcelas"]] == ["2026-05-10", "2026-06-10"]
+       and round(sum(x["valor"] for x in previa_folha["parcelas"]), 2) == 1000.0,
+       str(previa_folha["parcelas"]))
+
+# =========================================================================== #
+print("\n=== 9. A conta do vizinho não enxerga ===")
 outra = api("POST", "/api/publico/cadastro", {
     "nome": "Vizinho", "email": f"vizped{sufixo}@teste.com", "senha": "123456",
     "empresa": "Assessoria Vizinha", "plano": "P4_ANUAL"})
@@ -311,6 +471,9 @@ checar("pedido de outra conta não abre",
            esperar_erro=True).get("_status") == 403)
 checar("nem a lista da empresa alheia",
        api("GET", f"/api/pedidos?empresa_id={eid}", None, outra["token"],
+           esperar_erro=True).get("_status") == 403)
+checar("nem a folha de impressão",
+       api("GET", f"/api/pedidos/{editado['id']}/impressao", None, outra["token"],
            esperar_erro=True).get("_status") == 403)
 
 # =========================================================================== #

@@ -17,10 +17,11 @@ const Pedidos = {
   _busca: '',
 
   /* =========================================================== a lista */
-  async tela() {
+  async tela(filtros = {}) {
     const alvo = document.getElementById('pagina');
     alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando pedidos...</div></div>';
-    const dados = await Api.get('/api/pedidos', { empresa_id: Estado.empresaId });
+    const dados = await Api.get('/api/pedidos',
+      { empresa_id: Estado.empresaId, ...filtros });
     Pedidos._lista = dados;
     const r = dados.resumo;
 
@@ -31,10 +32,20 @@ const Pedidos = {
           <div class="kpi-nota">orçamentos e pedidos esperando</div></div>
         <div class="kpi"><div class="kpi-rotulo">Valor em aberto</div>
           <div class="kpi-valor">${UI.moeda(r.valor_aberto)}</div></div>
-        <div class="kpi destaque-verde"><div class="kpi-rotulo">Finalizados</div>
-          <div class="kpi-valor">${r.finalizados}</div>
-          <div class="kpi-nota">já viraram venda</div></div>
+        <div class="kpi ${r.sem_documento ? 'destaque-ambar' : 'destaque-verde'}">
+          <div class="kpi-rotulo">${r.sem_documento ? 'Falta emitir documento' : 'Finalizados'}</div>
+          <div class="kpi-valor">${r.sem_documento || r.finalizados}</div>
+          <div class="kpi-nota">${r.sem_documento
+            ? `${UI.moeda(r.valor_sem_documento)} vendidos sem nota nem cupom`
+            : 'já viraram venda'}</div></div>
       </div>
+      ${r.sem_documento ? `<div class="cartao" style="margin-bottom:16px;
+        border-left:4px solid var(--ambar)"><div class="cartao-corpo espaco">
+        <div><b>${r.sem_documento} venda(s) fechada(s) sem documento fiscal.</b>
+          <div class="mini">O financeiro já está lançado; falta a nota ou o cupom —
+            e o estoque só baixa quando o documento sair.</div></div>
+        <button class="btn" id="btn-so-falta">Ver só essas</button>
+      </div></div>` : ''}
 
       <div class="cartao">
         <div class="cartao-cabecalho espaco">
@@ -58,7 +69,8 @@ const Pedidos = {
         { titulo: 'Total', classe: 'num', valor: (p) => `<b>${UI.moeda(p.valor_total)}</b>` },
         { titulo: 'Pagamento', valor: (p) => (p.condicao_rotulo
           ? `${UI.escapar(p.condicao_rotulo)}${p.parcelas > 1 ? ` em ${p.parcelas}x` : ''}
-             <div class="mini">${UI.escapar(p.documento_rotulo || '')}</div>`
+             <div class="mini ${p.falta_documento ? 'alerta' : ''}">${p.falta_documento
+               ? 'falta emitir o documento' : UI.escapar(p.documento_rotulo || '')}</div>`
           : '<span class="mini">-</span>') },
         { titulo: 'Situação', classe: 'centro', valor: (p) => {
           const cor = p.situacao === 'FINALIZADO' ? 'tag-pago'
@@ -68,6 +80,10 @@ const Pedidos = {
         { titulo: 'Ações', classe: 'centro', valor: (p, i) => `
             <button class="btn btn-mini" data-abrir="${i}">
               ${p.situacao === 'ABERTO' ? 'Abrir' : 'Ver'}</button>
+            <button class="btn btn-mini" data-imprimir="${i}">Imprimir</button>
+            ${p.falta_documento
+              ? `<button class="btn btn-mini btn-verde" data-emitir="${i}">Emitir documento</button>`
+              : ''}
             ${p.situacao === 'ABERTO'
               ? `<button class="btn btn-mini btn-perigo" data-cancelar="${i}">Cancelar</button>`
               : ''}` },
@@ -81,6 +97,14 @@ const Pedidos = {
     alvo.querySelectorAll('[data-abrir]').forEach((b) => {
       b.onclick = () => Pedidos.abrir(dados.linhas[Number(b.dataset.abrir)].id);
     });
+    alvo.querySelectorAll('[data-imprimir]').forEach((b) => {
+      b.onclick = () => Impressao.pedido(dados.linhas[Number(b.dataset.imprimir)].id);
+    });
+    alvo.querySelectorAll('[data-emitir]').forEach((b) => {
+      b.onclick = () => Pedidos.telaDocumento(dados.linhas[Number(b.dataset.emitir)]);
+    });
+    const soFalta = alvo.querySelector('#btn-so-falta');
+    if (soFalta) soFalta.onclick = () => Pedidos.tela({ falta_documento: true });
     alvo.querySelectorAll('[data-cancelar]').forEach((b) => {
       b.onclick = async () => {
         const p = dados.linhas[Number(b.dataset.cancelar)];
@@ -186,11 +210,16 @@ const Pedidos = {
 
           <div class="pdv-acoes">
             ${fechado ? `
+              ${p.falta_documento
+                ? '<button class="btn btn-bloco btn-verde" id="btn-emitir">Emitir documento fiscal</button>'
+                : ''}
+              <button class="btn btn-bloco" id="btn-imprimir">Imprimir</button>
               <button class="btn btn-bloco" id="btn-voltar-lista">Voltar para a lista</button>
               ${p.nota_id ? '<button class="btn btn-bloco" id="btn-ver-nota">Ver o documento fiscal</button>' : ''}
               ${p.lancamento_id ? '<button class="btn btn-bloco" id="btn-ver-titulo">Ver as contas a receber</button>' : ''}
             ` : `
               <button class="btn btn-bloco" id="btn-gravar">Gravar</button>
+              <button class="btn btn-bloco" id="btn-imprimir">Gravar e imprimir</button>
               ${p.tipo === 'ORCAMENTO' && p.id
                 ? '<button class="btn btn-bloco btn-verde" id="btn-aprovar">Aprovar orçamento</button>'
                 : ''}
@@ -306,6 +335,8 @@ const Pedidos = {
     ligar('#btn-gravar', () => Pedidos.gravar());
     ligar('#btn-aprovar', () => Pedidos.aprovar());
     ligar('#btn-finalizar', () => Pedidos.finalizar());
+    ligar('#btn-imprimir', () => Pedidos.imprimir());
+    ligar('#btn-emitir', () => Pedidos.telaDocumento(Pedidos._atual));
     ligar('#btn-voltar-lista', () => Pedidos.tela());
     ligar('#btn-ver-nota', () => App.irPara('/notas'));
     ligar('#btn-ver-titulo', () => App.irPara('/receber'));
@@ -352,6 +383,18 @@ const Pedidos = {
     }
   },
 
+  /** Grava antes de imprimir: a folha sai do banco, não da tela — o que o
+      cliente leva tem de ser o que ficou guardado. */
+  async imprimir() {
+    let pedido = Pedidos._atual;
+    if (pedido.situacao === 'ABERTO') {
+      pedido = await Pedidos.gravar(true);
+      if (!pedido) return;
+      Pedidos.venda();
+    }
+    Impressao.pedido(pedido.id);
+  },
+
   async aprovar() {
     const pedido = await Pedidos.gravar(true);
     if (!pedido) return;
@@ -361,6 +404,88 @@ const Pedidos = {
       UI.sucesso(r.mensagem);
       Pedidos.venda();
     } catch (e) { UI.erro(e.message); }
+  },
+
+  /* ========================== emitir o documento de uma venda já fechada */
+  /** O financeiro já está lançado: aqui só sai o papel, e o título é o mesmo. */
+  telaDocumento(pedido) {
+    const corpo = document.createElement('div');
+    corpo.innerHTML = `
+      <div class="finalizar-total">
+        <span>Pedido nº ${UI.escapar(pedido.numero)} — venda já fechada</span>
+        <b>${UI.moeda(pedido.valor_total)}</b>
+      </div>
+      <div class="ok-caixa" style="margin:10px 0">
+        A conta a receber desta venda <b>já existe</b> e não vai ser lançada de novo — o
+        documento nasce ligado a ela. O <b>estoque baixa agora</b>, quando o documento sair.
+      </div>
+
+      <h4 class="titulo-bloco">Que documento sai</h4>
+      <div class="escolha-grande">
+        <button class="escolha ativa" data-documento="CUPOM">
+          <div class="forte">CUPOM FISCAL</div>
+          <div class="mini">NFC-e — balcão, consumidor final, dentro do estado</div></button>
+        <button class="escolha" data-documento="NFE">
+          <div class="forte">NOTA FISCAL</div>
+          <div class="mini">NF-e — exige o cliente cadastrado no pedido</div></button>
+      </div>
+
+      <div class="linha-campos" style="margin-top:12px">
+        ${UI.campo('Ambiente', UI.select('ambiente', [
+          { valor: '2', rotulo: 'Homologação (teste)' },
+          { valor: '1', rotulo: 'Produção (vale de verdade)' },
+        ], '2', { vazio: false }))}
+        <label class="campo" style="grid-column:span 2">
+          <span>Confirmação</span>
+          <span><input type="checkbox" name="confirmo_producao">
+            <span class="mini">confirmo a emissão em produção</span></span>
+        </label>
+      </div>`;
+
+    let documento = 'CUPOM';
+    corpo.querySelectorAll('[data-documento]').forEach((b) => {
+      b.onclick = () => {
+        documento = b.dataset.documento;
+        corpo.querySelectorAll('[data-documento]').forEach((x) => {
+          x.classList.toggle('ativa', x.dataset.documento === documento);
+        });
+      };
+    });
+
+    UI.abrirModal({
+      titulo: 'Emitir documento fiscal',
+      corpo,
+      largo: true,
+      botoes: [
+        { rotulo: 'Voltar', acao: () => UI.tentarFecharModal() },
+        {
+          rotulo: 'Emitir',
+          classe: 'btn-primario',
+          acao: async () => {
+            const d = UI.lerFormulario(corpo);
+            try {
+              const r = await Api.post(`/api/pedidos/${pedido.id}/documento`, {
+                documento,
+                ambiente: d.ambiente,
+                confirmo_producao: Boolean(d.confirmo_producao),
+              });
+              if (r.ok) {
+                UI.fecharModal();
+                UI.sucesso(r.mensagem);
+              } else {
+                UI.erro(r.mensagem);
+              }
+              if (Pedidos._atual && Pedidos._atual.id === pedido.id) {
+                Pedidos._atual = r.pedido;
+                Pedidos.venda();
+              } else {
+                Pedidos.tela();
+              }
+            } catch (e) { UI.erro(e.message); }
+          },
+        },
+      ],
+    });
   },
 
   /* ================================================= a tela de finalizar */
@@ -421,6 +546,14 @@ const Pedidos = {
         <button class="escolha" data-documento="NFE">
           <div class="forte">NOTA FISCAL</div>
           <div class="mini">NF-e — para empresa ou fora do estado; exige o cliente cadastrado</div></button>
+        <button class="escolha" data-documento="SEM">
+          <div class="forte">SEM DOCUMENTO</div>
+          <div class="mini">fecha a venda e gera o financeiro; a nota ou o cupom sai depois</div></button>
+      </div>
+      <div id="aviso-sem-documento" class="aviso-caixa oculto" style="margin-top:10px">
+        A venda fecha e as contas a receber nascem agora. O <b>estoque só baixa quando o
+        documento sair</b> — até lá o saldo continua contando a mercadoria. O pedido fica
+        marcado como <b>falta emitir</b> na lista, e o botão de emitir está nele.
       </div>
 
       <div class="linha-campos" style="margin-top:12px">
@@ -481,6 +614,7 @@ const Pedidos = {
       b.onclick = () => {
         documento = b.dataset.documento;
         marcar('[data-documento]', 'data-documento', documento);
+        corpo.querySelector('#aviso-sem-documento').classList.toggle('oculto', documento !== 'SEM');
       };
     });
     ['parcelas', 'primeiro_vencimento', 'intervalo_dias'].forEach((nome) => {

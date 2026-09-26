@@ -533,12 +533,41 @@ A divisão arredonda em centavos e **joga a sobra na primeira parcela** (100,00 
 33,33 + 33,33). O vencimento mensal anda de **mês em mês**, não de 30 em 30 dias: 31/01 vence
 em 28/02 e 31/03, não em 02/03.
 
-**2. Que documento sai** — **nota fiscal (NF-e 55)** ou **cupom fiscal (NFC-e 65)**. A NF-e
-exige o cliente cadastrado; o cupom aceita consumidor não identificado, e a tela diz isso
-quando falta. Em produção, a confirmação explícita continua valendo, igual às outras telas.
+**2. Que documento sai** — **nota fiscal (NF-e 55)**, **cupom fiscal (NFC-e 65)** ou **sem
+documento**. A NF-e exige o cliente cadastrado; o cupom aceita consumidor não identificado, e a
+tela diz isso quando falta. Em produção, a confirmação explícita continua valendo.
+
+**Sem documento** fecha a venda e **já lança o financeiro** — a nota ou o cupom saem depois,
+pelo botão do próprio pedido. É para quem vende no balcão e emite a nota no fim do dia (ou do
+mês). Duas consequências, ditas na tela antes de confirmar:
+
+- o **estoque só baixa quando o documento sair**. Até lá o saldo continua contando a
+  mercadoria — foi a escolha do Galba, e é o que evita o saldo baixar duas vezes;
+- a venda fica marcada como **falta emitir**: a lista ganha um cartão âmbar com quantas são e
+  quanto somam, um botão *Ver só essas* e o botão *Emitir documento* em cada linha. Uma venda
+  sem nota não fica escondida.
+
+Ao emitir depois, **o título não é gerado de novo**: a nota nasce ligada ao que já existe, e o
+teste confere que sobra um título só por venda. O título dessa venda nasce igual ao que a nota
+geraria — mesma conta contábil, mesma contabilização, mesmas parcelas —, mudando só a descrição,
+que traz o número do pedido e o aviso de que o documento está pendente.
 
 Fechada a venda: **a prazo** gera a conta a receber com as parcelas, pelo mesmo `faturar` que
 o sistema já usava nas notas; **à vista** não gera título nenhum, porque o dinheiro já entrou.
+
+#### A folha para o cliente
+
+**Imprimir** sai em A4, com o logotipo e os dados da empresa, o cliente, os itens, o total por
+extenso, a condição de pagamento, as **parcelas** e duas linhas de assinatura — abre já na caixa
+de impressão do navegador, onde dá para salvar em PDF. É o mesmo caminho do contrato.
+
+Na tela de venda o botão é **Gravar e imprimir**: a folha sai do que está guardado, não do que
+está na tela, para o papel do cliente ser exatamente o documento. E as parcelas impressas saem
+do **título**, quando o pedido já virou venda a prazo — refazer a conta na hora de imprimir
+abriria a porta para o papel e o Contas a Receber discordarem.
+
+O orçamento sai com a validade (quando preenchida) e o aviso de que **não tem valor fiscal**;
+o pedido finalizado diz qual documento fiscal foi emitido.
 
 #### O que a finalização reaproveita — e o que ela protege
 

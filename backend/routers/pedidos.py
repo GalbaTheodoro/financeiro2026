@@ -50,7 +50,8 @@ def _pedido(db: Session, pedido_id: int, usuario: Usuario) -> Pedido:
 
 @router.get("")
 def listar(empresa_id: int, tipo: str | None = None, situacao: str | None = None,
-           busca: str | None = None, db: Session = Depends(get_db),
+           busca: str | None = None, falta_documento: bool = False,
+           db: Session = Depends(get_db),
            usuario: Usuario = Depends(acesso_liberado)):
     validar_empresa(db, empresa_id, usuario)
     consulta = db.query(Pedido).filter(Pedido.empresa_id == empresa_id)
@@ -62,14 +63,21 @@ def listar(empresa_id: int, tipo: str | None = None, situacao: str | None = None
         alvo = f"%{busca.strip()}%"
         consulta = consulta.filter(
             Pedido.numero.ilike(alvo) | Pedido.cliente_nome.ilike(alvo))
+    if falta_documento:
+        consulta = consulta.filter(Pedido.situacao == "FINALIZADO", Pedido.nota_id.is_(None))
     linhas = consulta.order_by(Pedido.id.desc()).limit(300).all()
     abertos = [p for p in linhas if p.situacao == "ABERTO"]
+    # a venda fechada sem nota é a que não pode ser esquecida: conta separado
+    sem_documento = [p for p in linhas if regras.falta_documento(p)]
     return {
         "linhas": [regras.resumo(p) for p in linhas],
         "resumo": {
             "abertos": len(abertos),
             "valor_aberto": dinheiro(sum(float(p.valor_total or 0) for p in abertos)),
             "finalizados": sum(1 for p in linhas if p.situacao == "FINALIZADO"),
+            "sem_documento": len(sem_documento),
+            "valor_sem_documento": dinheiro(
+                sum(float(p.valor_total or 0) for p in sem_documento)),
         },
         "tipos": regras.TIPOS,
         "situacoes": regras.SITUACOES,
@@ -80,6 +88,56 @@ def listar(empresa_id: int, tipo: str | None = None, situacao: str | None = None
 def abrir(pedido_id: int, db: Session = Depends(get_db),
           usuario: Usuario = Depends(acesso_liberado)):
     return {"pedido": regras.ficha(db, _pedido(db, pedido_id, usuario))}
+
+
+@router.get("/{pedido_id}/impressao")
+def dados_impressao(pedido_id: int, db: Session = Depends(get_db),
+                    usuario: Usuario = Depends(acesso_liberado)):
+    """Tudo o que a folha do pedido precisa, num pacote só.
+
+    As parcelas saem do **título**, quando o pedido já virou venda a prazo — e
+    não de uma nova conta. O papel que o cliente leva tem de dizer os mesmos
+    vencimentos que estão em Contas a Receber; refazer a conta aqui abriria a
+    porta para os dois discordarem.
+    """
+    from datetime import datetime as agora
+
+    from ..models import Empresa
+    from ..utils import endereco_linha, serializar
+
+    pedido = _pedido(db, pedido_id, usuario)
+    empresa = db.get(Empresa, pedido.empresa_id)
+
+    parcelas = []
+    if pedido.lancamento_id:
+        titulo = db.get(Lancamento, pedido.lancamento_id)
+        parcelas = [
+            {"numero": p.numero or str(i + 1).zfill(3),
+             "vencimento": p.data_vencimento.isoformat() if p.data_vencimento else None,
+             "valor": float(p.valor or 0)}
+            for i, p in enumerate(sorted(titulo.parcelas, key=lambda x: x.data_vencimento))
+        ] if titulo else []
+    elif pedido.condicao == "PRAZO" and pedido.primeiro_vencimento:
+        parcelas = [{**p, "vencimento": p["vencimento"].isoformat()}
+                    for p in regras.montar_parcelas(
+                        float(pedido.valor_total or 0), int(pedido.parcelas or 1),
+                        pedido.primeiro_vencimento, int(pedido.intervalo_dias or 30))]
+
+    cliente = None
+    if pedido.parceiro is not None:
+        cliente = dict(serializar(pedido.parceiro, exclude={"observacao"}),
+                       endereco=endereco_linha(pedido.parceiro))
+    elif pedido.cliente_nome:
+        cliente = {"nome": pedido.cliente_nome, "cpf_cnpj": pedido.cliente_documento or "",
+                   "endereco": ""}
+
+    return {
+        "pedido": regras.ficha(db, pedido),
+        "empresa": dict(serializar(empresa), endereco=endereco_linha(empresa)),
+        "cliente": cliente,
+        "parcelas": parcelas,
+        "emitido_em": agora.now().isoformat(timespec="minutes"),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -280,7 +338,11 @@ def finalizar(pedido_id: int, dados: FinalizarPedidoIn, db: Session = Depends(ge
             usar_regra=True,
         ))
 
-    if dados.documento == "CUPOM":
+    if dados.documento == "SEM":
+        # a venda fecha e o financeiro nasce; nota ou cupom saem depois, pelo
+        # botão do próprio pedido
+        nota, erro = None, ""
+    elif dados.documento == "CUPOM":
         nota, erro = _finalizar_cupom(db, usuario, pedido, dados, itens)
     else:
         nota, erro = _finalizar_nota(
@@ -294,12 +356,89 @@ def finalizar(pedido_id: int, dados: FinalizarPedidoIn, db: Session = Depends(ge
 
     if dados.observacao:
         pedido.observacao = (dados.observacao or "").strip()[:300]
-    mensagem = regras.concluir(db, pedido, nota, condicao, quantidade, primeiro,
-                               dados.intervalo_dias, dados.documento,
-                               dados.forma_pagamento, usuario)
+    try:
+        mensagem = regras.concluir(db, pedido, nota, condicao, quantidade, primeiro,
+                                   dados.intervalo_dias, dados.documento,
+                                   dados.forma_pagamento, usuario)
+    except regras.ErroPedido as erro:
+        # o título não pôde nascer: desfaz e devolve o pedido aberto, com o motivo
+        db.rollback()
+        return {"ok": False, "mensagem": str(erro), "pedido": regras.ficha(db, pedido)}
     db.commit()
     db.refresh(pedido)
     return {"ok": True, "mensagem": mensagem, "pedido": regras.ficha(db, pedido)}
+
+
+@router.post("/{pedido_id}/documento")
+def emitir_documento(pedido_id: int, dados: FinalizarPedidoIn,
+                     db: Session = Depends(get_db),
+                     usuario: Usuario = Depends(acesso_liberado)):
+    """Emite a nota ou o cupom de uma venda que já foi fechada sem documento.
+
+    O título **não é gerado de novo**: ele já existe desde a finalização. A nota
+    nasce ligada a ele (`lancamento_id`), para o sistema não oferecer faturar uma
+    segunda vez e não contabilizar a mesma venda duas vezes.
+
+    É aqui também que o estoque baixa — foi a escolha do Galba: o saldo mexe
+    quando o documento sai, não antes.
+    """
+    from datetime import datetime as agora
+
+    from ..schemas import ItemNotaIn, NotaEmitidaIn, ParcelaNotaIn, TransmitirNotaIn
+    from .emissao import criar_rascunho, transmitir
+
+    pedido = _pedido(db, pedido_id, usuario)
+    if pedido.situacao != "FINALIZADO":
+        raise HTTPException(400, "Só pedido finalizado emite documento fiscal.")
+    if pedido.nota_id:
+        raise HTTPException(
+            400, "Este pedido já tem documento fiscal. Para trocar, cancele a nota na SEFAZ.")
+    if dados.documento not in regras.DOCUMENTOS_FISCAIS:
+        raise HTTPException(400, "Escolha o documento: nota fiscal ou cupom fiscal.")
+
+    itens = [ItemNotaIn(
+        produto_id=i.produto_id, descricao=i.descricao, unidade=i.unidade or "UN",
+        quantidade=float(i.quantidade or 0), valor_unitario=float(i.valor_unitario or 0),
+        desconto=float(i.desconto or 0), usar_regra=True) for i in pedido.itens]
+    parcelas = []
+    if pedido.lancamento_id:
+        titulo = db.get(Lancamento, pedido.lancamento_id)
+        if titulo is not None:
+            # as duplicatas da nota são as parcelas do título que já existe, para
+            # o papel, o XML e o financeiro contarem a mesma história
+            parcelas = [{"numero": str(p.numero or i + 1).zfill(3),
+                         "vencimento": p.data_vencimento, "valor": float(p.valor or 0)}
+                        for i, p in enumerate(sorted(titulo.parcelas,
+                                                     key=lambda x: x.data_vencimento))]
+
+    if dados.documento == "CUPOM":
+        nota, erro = _finalizar_cupom(db, usuario, pedido, dados, itens)
+    else:
+        nota, erro = _finalizar_nota(
+            db, usuario, pedido, dados, itens, parcelas,
+            NotaEmitidaIn, ParcelaNotaIn, TransmitirNotaIn, criar_rascunho, transmitir)
+    if erro:
+        db.commit()
+        return {"ok": False, "mensagem": erro, "pedido": regras.ficha(db, pedido)}
+
+    pedido.nota_id = nota.id
+    pedido.documento = dados.documento
+    # a nota assume o título que a venda já gerou, em vez de criar outro
+    if pedido.lancamento_id and not nota.lancamento_id:
+        nota.lancamento_id = pedido.lancamento_id
+        nota.faturada_em = agora.utcnow()
+        nota.faturada_por_id = usuario.id
+        nota.faturamento_observacao = f"Título gerado pelo pedido nº {pedido.numero}"
+    db.commit()
+    db.refresh(pedido)
+    return {
+        "ok": True,
+        "pedido": regras.ficha(db, pedido),
+        "mensagem": (f"{regras.DOCUMENTOS[dados.documento]} emitida para o pedido nº "
+                     f"{pedido.numero}." + (" O título que já existia foi mantido — "
+                                            "nada foi lançado em dobro."
+                                            if pedido.lancamento_id else "")),
+    }
 
 
 def _finalizar_cupom(db: Session, usuario: Usuario, pedido: Pedido,

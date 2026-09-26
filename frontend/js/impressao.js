@@ -384,6 +384,163 @@ const Impressao = {
       @media print { .barra-tela { display:none; } }`;
   },
 
+  /* ------------------------------------------- pedido de venda / orçamento */
+  /** A folha que o cliente leva: itens, total, condição de pagamento e parcelas. */
+  folhaPedido(d) {
+    const p = d.pedido;
+    const orcamento = p.tipo === 'ORCAMENTO';
+    const cliente = d.cliente;
+
+    const linhas = p.itens.map((i, pos) => `
+      <tr>
+        <td class="cinza">${pos + 1}</td>
+        <td>${Impressao.esc(i.descricao)}</td>
+        <td class="num">${Impressao.numero(i.quantidade, 0)} ${Impressao.esc(i.unidade || '')}</td>
+        <td class="num">${Impressao.moeda(i.valor_unitario)}</td>
+        <td class="num">${i.desconto ? Impressao.moeda(i.desconto) : '-'}</td>
+        <td class="num">${Impressao.moeda(i.valor_total)}</td>
+      </tr>`).join('');
+
+    /* As parcelas vêm do título quando o pedido já virou venda — o papel do
+       cliente tem de dizer os mesmos vencimentos que estão em Contas a Receber. */
+    const parcelas = (d.parcelas || []).length ? `
+      <h2>Parcelas</h2>
+      <table class="tabela">
+        <thead><tr><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th></tr></thead>
+        <tbody>${d.parcelas.map((x) => `<tr>
+          <td>${Impressao.esc(x.numero)}</td>
+          <td>${Impressao.data(x.vencimento)}</td>
+          <td class="num">${Impressao.moeda(x.valor)}</td></tr>`).join('')}
+        </tbody>
+        <tfoot><tr><td colspan="2">Total</td>
+          <td class="num">${Impressao.moeda(
+            d.parcelas.reduce((s, x) => s + Number(x.valor || 0), 0))}</td></tr></tfoot>
+      </table>` : '';
+
+    const pagamento = p.condicao ? `
+      <h2>Pagamento</h2>
+      <div class="grade">
+        ${Impressao.celula('Condição', Impressao.esc(p.condicao_rotulo))}
+        ${p.parcelas > 1 ? Impressao.celula('Parcelas', `${p.parcelas}x`) : ''}
+        ${p.documento_rotulo
+          ? Impressao.celula('Documento fiscal', Impressao.esc(p.documento_rotulo)) : ''}
+        ${p.nota_numero ? Impressao.celula('Nº do documento', Impressao.esc(p.nota_numero)) : ''}
+      </div>` : '';
+
+    return `
+      ${Impressao.cabecalho(d.empresa)}
+
+      <div class="titulo-documento">
+        <h1>${orcamento ? 'Orçamento' : 'Pedido de venda'}</h1>
+        <div class="numero-contrato">
+          <span class="rotulo-mini">Nº</span><b>${Impressao.esc(p.numero)}</b>
+          <span class="rotulo-mini">Data</span><b>${Impressao.data(p.data)}</b>
+        </div>
+      </div>
+
+      <div class="partes">
+        <div class="parte">
+          <div class="parte-titulo">Cliente</div>
+          <div class="parte-nome">${Impressao.esc(
+            (cliente && cliente.nome) || 'Consumidor não identificado')}</div>
+          ${cliente && cliente.cpf_cnpj
+            ? `<div><span class="rotulo-mini">CPF/CNPJ</span>${Impressao.esc(cliente.cpf_cnpj)}</div>`
+            : ''}
+          ${cliente && cliente.endereco ? `<div>${Impressao.esc(cliente.endereco)}</div>` : ''}
+          ${cliente && cliente.telefone ? `<div>${Impressao.esc(cliente.telefone)}</div>` : ''}
+        </div>
+      </div>
+
+      <h2>Itens</h2>
+      <table class="tabela">
+        <thead><tr>
+          <th>#</th><th>Descrição</th><th class="num">Qtd.</th>
+          <th class="num">Valor unit.</th><th class="num">Desconto</th><th class="num">Total</th>
+        </tr></thead>
+        <tbody>${linhas}</tbody>
+        <tfoot>
+          <tr><td colspan="5">Subtotal</td>
+            <td class="num">${Impressao.moeda(p.valor_produtos)}</td></tr>
+          ${p.desconto ? `<tr><td colspan="5">Desconto</td>
+            <td class="num">− ${Impressao.moeda(p.desconto)}</td></tr>` : ''}
+          <tr><td colspan="5"><b>Total</b></td>
+            <td class="num destaque"><b>${Impressao.moeda(p.valor_total)}</b></td></tr>
+        </tfoot>
+      </table>
+      <div class="extenso">${Impressao.esc(Impressao.extenso(p.valor_total))}</div>
+
+      ${pagamento}
+      ${parcelas}
+
+      ${p.observacao ? `<h2>Observação</h2><p class="texto">${Impressao.esc(p.observacao)}</p>` : ''}
+
+      ${orcamento ? `<p class="texto" style="margin-top:10px">
+        ${p.validade
+          ? `Este orçamento é válido até <b>${Impressao.data(p.validade)}</b>.`
+          : 'Orçamento sujeito a confirmação de preço e disponibilidade.'}
+        Este documento <b>não tem valor fiscal</b>.</p>` : `
+        <p class="texto" style="margin-top:10px">Este documento não tem valor fiscal —
+        ${p.documento_rotulo
+          ? `o documento fiscal da venda é a ${Impressao.esc(p.documento_rotulo)}.`
+          : 'o documento fiscal é emitido na finalização da venda.'}</p>`}
+
+      <div class="assinaturas">
+        <div class="assinatura"><div class="linha-assinatura"></div>
+          <div class="assinatura-nome">${Impressao.esc(
+            d.empresa.nome_fantasia || d.empresa.razao_social || '')}</div>
+          <div class="cinza">vendedor</div></div>
+        <div class="assinatura"><div class="linha-assinatura"></div>
+          <div class="assinatura-nome">${Impressao.esc(
+            (cliente && cliente.nome) || 'Cliente')}</div>
+          <div class="cinza">de acordo</div></div>
+      </div>
+
+      <div class="rodape">
+        <span>${Impressao.esc(p.tipo_rotulo)} nº ${Impressao.esc(p.numero)} ·
+          ${Impressao.esc(p.situacao_rotulo)}</span>
+        <span>Emitido em ${Impressao.dataHora(d.emitido_em)}</span>
+      </div>`;
+  },
+
+  async pedido(id) {
+    let dados;
+    try {
+      dados = await Api.get(`/api/pedidos/${id}/impressao`);
+    } catch (e) {
+      return UI.erro(e.message);
+    }
+    const p = dados.pedido;
+    Impressao.abrirFolha(
+      `${p.tipo === 'ORCAMENTO' ? 'Orçamento' : 'Pedido'} ${p.numero}`,
+      Impressao.folhaPedido(dados));
+  },
+
+  /** Abre a janela de impressão com a folha pronta. */
+  abrirFolha(titulo, conteudo) {
+    const janela = window.open('', '_blank');
+    if (!janela) {
+      return UI.erro('O navegador bloqueou a janela de impressão. '
+        + 'Libere as janelas pop-up para este endereço e tente de novo.');
+    }
+    janela.document.write(`<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>${Impressao.esc(titulo)}</title>
+<style>${Impressao.estilo()}</style>
+</head><body>
+<div class="barra-tela">
+  <button onclick="window.close()">Fechar</button>
+  <button class="principal" onclick="window.print()">Imprimir / Salvar em PDF</button>
+</div>
+<div class="folha">${conteudo}</div>
+</body></html>`);
+    janela.document.close();
+    janela.focus();
+    setTimeout(() => {
+      try { janela.print(); } catch { /* o usuário pode imprimir pelo botão */ }
+    }, 400);
+    return null;
+  },
+
   /* ------------------------------------------------------------------ abrir */
   async contrato(id) {
     let dados;

@@ -2,21 +2,31 @@
 const Site = {
   info: null,
 
+  /* A ordem é a da página: os cinco primeiros são os cartões grandes, e são o que
+     o visitante lê antes de decidir. Nota fiscal, venda, estoque e cupom vêm na
+     frente porque é o que ele procura; o contrato de assessoria continua ali, que
+     é o que diferencia o sistema. */
   RECURSOS: [
+    { icone: '⛁', destaque: true, titulo: 'Nota fiscal eletrônica, fácil de emitir',
+      texto: 'NF-e 4.00 assinada com o seu certificado e transmitida à SEFAZ em cinco etapas curtas — o imposto sai da tabela de regras, sem digitar CST nem alíquota a cada nota. DANFE em PDF, envio automático para o cliente por e-mail e, quando a SEFAZ recusa, a explicação em português com o que corrigir. Em todos os planos.' },
+    { icone: '🛒', destaque: true, titulo: 'Vendas na tela de balcão',
+      texto: 'Clica na categoria, clica no produto, fecha a venda: pedido ou orçamento com número, impresso para o cliente. Um botão de finalizar decide o resto — à vista ou a prazo em parcelas, com nota, com cupom, ou sem documento agora e emitindo depois.' },
+    { icone: '▣', destaque: true, titulo: 'Controle de estoque',
+      texto: 'A nota de entrada gera o estoque com um botão; a venda e o cupom baixam sozinhos. Saldo e custo médio por produto, aviso de estoque mínimo, extrato de cada movimento e venda barrada quando falta mercadoria — antes de gastar número de nota.' },
+    { icone: '⌦', destaque: true, titulo: 'Cupom fiscal eletrônico',
+      texto: 'NFC-e para a venda de balcão: uma tela só, QR Code que o consumidor confere no site da SEFAZ e impressão na bobina de 80 mm. Nos planos 2 e 4.' },
     { icone: '§', destaque: true, titulo: 'Contratos de assessoria',
       texto: 'Comprador, vendedor, representante, produto e unidade; corretagem em percentual dos dois lados, número automático e peso total calculado.' },
-    { icone: '⇢', destaque: true, titulo: 'Do contrato ao recebível',
+    { icone: '⇢', titulo: 'Do contrato ao recebível',
       texto: 'Um clique transforma as comissões em contas a receber, com vencimento, parcelamento e classificação contábil — e estorno enquanto não houver baixa.' },
-    { icone: '◉', destaque: true, titulo: 'Situação de cada contrato',
+    { icone: '◉', titulo: 'Situação de cada contrato',
       texto: 'Aberto, Fechado a Receber, Recebido Parcial, Recebido Total ou Cancelado — a situação muda sozinha conforme o dinheiro entra.' },
-    { icone: '⎙', destaque: true, titulo: 'Contrato impresso em PDF',
+    { icone: '⎙', titulo: 'Contrato impresso em PDF',
       texto: 'Uma página A4 com seu logotipo, as partes, dados bancários, valor por extenso e campos de assinatura, pronta para salvar em PDF e enviar.' },
-    { icone: '⛁', destaque: true, titulo: 'Emissão de NF-e',
-      texto: 'NF-e 4.00 assinada com o seu certificado e transmitida à SEFAZ, com DANFE em PDF, envio automático para o cliente por e-mail e as recusas explicadas em português. Em todos os planos.' },
-    { icone: '⌦', titulo: 'Cupom fiscal eletrônico',
-      texto: 'NFC-e para a venda de balcão: uma tela só, QR Code conferível pelo consumidor e impressão na bobina de 80 mm. Nos planos 2 e 4.' },
     { icone: '☙', titulo: 'GTA — Guia de Trânsito Animal',
       texto: 'Guarda as guias dos produtores, avisa quando a validade está acabando e imprime a ficha de preparo na ordem das telas do portal do estado. Nos planos 3 e 4.' },
+    { icone: '⇩', titulo: 'DF-e: as notas emitidas contra você',
+      texto: 'Busca na SEFAZ os documentos emitidos contra o seu CNPJ, importa o XML e vira conta a pagar — sem esperar o fornecedor mandar o arquivo.' },
     { icone: '↓', titulo: 'Contas a receber',
       texto: 'Títulos por cliente, vencimento e situação, com baixa individual ou em lote, juros, multa, desconto e estorno.' },
     { icone: '↑', titulo: 'Contas a pagar',
@@ -32,7 +42,7 @@ const Site = {
     { icone: '☺', titulo: 'Clientes e fornecedores',
       texto: 'Busca do cadastro pelo CNPJ na Receita e do endereço pelo CEP, com as contas e chaves Pix de cada um.' },
     { icone: '≣', titulo: 'Cadastros num menu só',
-      texto: 'Produtos, unidades com peso de conversão, modalidades, bancos, centros de custo, operações e plano de contas com 112 contas prontas.' },
+      texto: 'Produtos com preço, categoria e marca, unidades com peso de conversão, modalidades, bancos, centros de custo, operações e plano de contas com 112 contas prontas.' },
   ],
 
   FAQ: [
@@ -310,7 +320,8 @@ const Site = {
     document.getElementById('btn-hero-cadastro').onclick = abrirCadastro;
     document.getElementById('btn-cta-final').onclick = abrirCadastro;
     document.getElementById('btn-entrar').onclick = () => Site.formularioLogin();
+    // o botão agora leva à lista de recursos, que é onde estão nota, venda e estoque
     document.getElementById('btn-hero-contratos').onclick = () =>
-      document.getElementById('contratos-site').scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('recursos').scrollIntoView({ behavior: 'smooth' });
   },
 };

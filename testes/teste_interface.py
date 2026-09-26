@@ -241,6 +241,25 @@ with sync_playwright() as p:
         erros.append("menu do Plano 1 não escondeu cupom/GTA")
     pagina.screenshot(path=SAIDA / "03b-menu-plano-1.png", full_page=True)
 
+    # os grupos da barra: cada assunto no seu, e grupo sem item não sobra vazio
+    grupos = pagina.eval_on_selector_all(
+        "#menu .menu-grupo", "els => els.map(e => e.textContent.trim())")
+    ok_grupos = ["Vendas", "Fiscal", "Estoque", "Financeiro", "Análise", "Cadastros"] == \
+        [g for g in grupos if g in ("Vendas", "Fiscal", "Estoque", "Financeiro",
+                                    "Análise", "Cadastros")]
+    print(f"  [{'OK  ' if ok_grupos else 'FALHA'}] a barra vem agrupada por assunto {grupos}")
+    if not ok_grupos:
+        erros.append("os grupos do menu não estão na ordem certa")
+    vazio = pagina.evaluate("""() => {
+        // um título de grupo seguido de outro título é um grupo sem nenhum item
+        const filhos = [...document.querySelectorAll('#menu > *')];
+        return filhos.some((e, i) => e.classList.contains('menu-grupo')
+          && (!filhos[i + 1] || filhos[i + 1].classList.contains('menu-grupo')));
+    }""")
+    print(f"  [{'OK  ' if not vazio else 'FALHA'}] e nenhum grupo ficou sem item")
+    if vazio:
+        erros.append("sobrou grupo vazio no menu")
+
     # e o endereço digitado à mão também é barrado
     pagina.goto(f"{BASE}/#/gta")
     pagina.wait_for_timeout(1200)

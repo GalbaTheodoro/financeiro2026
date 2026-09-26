@@ -47,19 +47,25 @@ const App = {
     '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios'],
 
   menu() {
+    /* Um grupo por assunto: o que é venda fica junto, o que é fiscal fica junto,
+       o financeiro fica junto. Grupo cujo plano não libera nenhum item some
+       inteiro — quem não tem o módulo não vê um título vazio na barra. */
     const itens = [
-      { grupo: 'Movimento' },
+      { grupo: 'Vendas' },
+      { rota: '/pedidos', icone: '🛒', rotulo: 'Pedidos e Vendas' },
+      { rota: '/cupom', icone: '⌦', rotulo: 'Cupom Fiscal' },
+      { rota: '/contratos', icone: '§', rotulo: 'Contratos' },
+      { grupo: 'Fiscal' },
+      { rota: '/notas', icone: '⛁', rotulo: 'Notas Fiscais' },
+      { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (buscar na SEFAZ)' },
+      { rota: '/gta', icone: '☙', rotulo: 'GTA (trânsito animal)' },
+      { grupo: 'Estoque' },
+      { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },
+      { grupo: 'Financeiro' },
       { rota: '/painel', icone: '◧', rotulo: 'Painel' },
       { rota: '/receber', icone: '↓', rotulo: 'Contas a Receber' },
       { rota: '/pagar', icone: '↑', rotulo: 'Contas a Pagar' },
       { rota: '/caixa', icone: '▤', rotulo: 'Caixa e Bancos' },
-      { rota: '/contratos', icone: '§', rotulo: 'Contratos' },
-      { rota: '/notas', icone: '⛁', rotulo: 'Notas Fiscais' },
-      { rota: '/pedidos', icone: '🛒', rotulo: 'Pedidos e Vendas' },
-      { rota: '/cupom', icone: '⌦', rotulo: 'Cupom Fiscal' },
-      { rota: '/gta', icone: '☙', rotulo: 'GTA (trânsito animal)' },
-      { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },
-      { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (buscar na SEFAZ)' },
       { grupo: 'Análise' },
       { rota: '/relatorios', icone: '▦', rotulo: 'Relatórios' },
       { grupo: 'Cadastros' },

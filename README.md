@@ -102,7 +102,11 @@ com o suporte, em vez de dados de pagamento inventados.
 ### Site, cadastro e assinatura
 
 - **Página inicial** apresentando os recursos, como funciona e os planos, com botões de
-  **Entrar** e **Criar conta grátis**.
+  **Entrar** e **Criar conta grátis**. A chamada e os cinco primeiros cartões são, nesta
+  ordem: **nota fiscal eletrônica (fácil de emitir)**, **vendas na tela de balcão**,
+  **controle de estoque**, **cupom fiscal** e **contratos de assessoria** — é o que o
+  visitante procura, e o contrato continua ali por ser o que diferencia o sistema. O slogan
+  padrão acompanha; quem já escreveu o próprio texto em Config. do site não é mexido.
 - **Auto-cadastro**: o visitante informa nome, e-mail, senha, empresa e o plano pretendido
   (plano e prazo na mesma escolha).
   A conta é criada já com plano de contas, centros de custo e operações padrão.
@@ -120,6 +124,15 @@ com o suporte, em vez de dados de pagamento inventados.
   servidor recusa o que está fora dele.
 - **Isolamento entre contas**: cada assinante enxerga somente as próprias empresas e
   usuários; apenas o perfil MASTER administra o sistema.
+
+#### A barra lateral
+
+Um grupo por assunto, em vez de uma lista longa: **Vendas** (pedidos, cupom fiscal,
+contratos), **Fiscal** (notas fiscais, DF-e, GTA), **Estoque**, **Financeiro** (painel,
+receber, pagar, caixa), **Análise**, **Cadastros** e, por último, a área do administrador ou
+a assinatura. Grupo cujo plano não libera nenhum item **some inteiro** — quem está no Plano 1
+não vê um título "Vendas" com o cupom faltando, vê o grupo sem o cupom; e se um dia um grupo
+ficar sem nada, ele não aparece.
 
 #### Os quatro planos
 

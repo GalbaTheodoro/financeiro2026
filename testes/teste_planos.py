@@ -334,6 +334,13 @@ api("PUT", "/api/admin/configuracoes",
 checar("devolver a grade de fábrica devolve os menus",
        sorted(modulos(pa)) == ["CONTRATOS", "FINANCEIRO", "NFE"], str(modulos(pa)))
 
+# ---------------------------------------- a página inicial anuncia o que tem
+recursos = api("GET", "/api/publico/info")
+checar("o slogan da página inicial fala de nota fiscal, venda e estoque",
+       all(palavra in recursos["slogan"].lower()
+           for palavra in ("nota fiscal", "cupom fiscal", "balcão", "estoque")),
+       recursos["slogan"][:80])
+
 # =========================================================================== #
 print("\n=== 8. Exceção combinada com um cliente ===")
 pb, eb = conta("P1_SEMESTRAL", "excecao")

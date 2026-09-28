@@ -260,6 +260,71 @@ const UI = {
       <div class="legenda"><span class="ent">Entradas</span><span class="sai">Saídas</span></div>`;
   },
 
+  /* ------------------------------------------------------------- gráficos */
+  /* Duas formas, e cada uma tem um trabalho:
+
+     colunas  — valor ao longo do tempo. Uma ou duas séries (faturamento e
+                margem), lado a lado na mesma escala — nunca dois eixos, que é
+                a maneira clássica de um gráfico inventar uma correlação que
+                não existe;
+     ranking  — quem é maior. Barras deitadas porque os nomes são compridos, e
+                UMA cor só para todas: pintar a barra mais escura quando é
+                maior é repetir em cor o que o comprimento já disse.
+
+     As marcas são finas, com a ponta do dado arredondada e a base reta, e o
+     que separa uma barra da outra é um vão de 2px na cor do fundo — não um
+     contorno, que acrescentaria tinta que não é dado. */
+
+  graficoColunas(dados, { series, formato = UI.moeda, altura = 190 } = {}) {
+    if (!dados || !dados.length) return '<div class="vazio">Sem movimento no período.</div>';
+    const teto = Math.max(1, ...dados.flatMap((d) => series.map((s) => Number(d[s.campo] || 0))));
+    // quatro linhas de grade: o suficiente para ler a altura, pouco o bastante
+    // para não competir com os dados
+    const grade = [1, 0.75, 0.5, 0.25]
+      .map((f) => `<div class="grafico-linha" style="bottom:${f * 100}%">
+        <span>${formato(teto * f)}</span></div>`).join('');
+    const colunas = dados.map((d) => `
+      <div class="grafico-col" title="${UI.escapar(d.periodo)}: ${series
+        .map((s) => `${s.rotulo} ${formato(d[s.campo])}`).join(' · ')}">
+        <div class="grafico-barra">
+          ${series.map((s) => `<div class="grafico-marca" style="background:${s.cor};
+            height:${Math.max((Number(d[s.campo] || 0) / teto) * 100, 0)}%"></div>`).join('')}
+        </div>
+        <div class="grafico-rotulo">${UI.escapar(d.periodo)}</div>
+      </div>`).join('');
+    return `<div class="grafico-area" style="height:${altura}px">
+        <div class="grafico-grade">${grade}</div>
+        <div class="grafico-colunas">${colunas}</div>
+      </div>
+      ${series.length > 1 ? `<div class="grafico-legenda">${series
+        .map((s) => `<span><i style="background:${s.cor}"></i>${UI.escapar(s.rotulo)}</span>`)
+        .join('')}</div>` : ''}`;
+  },
+
+  graficoRanking(dados, { campo = 'valor', rotulo = 'rotulo', formato = UI.moeda,
+    cor = 'var(--primaria)', limite = 10 } = {}) {
+    const lista = (dados || []).slice(0, limite);
+    if (!lista.length) return '<div class="vazio">Sem movimento no período.</div>';
+    const teto = Math.max(1, ...lista.map((d) => Math.abs(Number(d[campo] || 0))));
+    return `<div class="ranking">${lista.map((d) => {
+      const valor = Number(d[campo] || 0);
+      const largura = Math.max((Math.abs(valor) / teto) * 100, 1.5);
+      // o valor fica DENTRO da barra só quando cabe folgado; senão sai do lado,
+      // em vez de ser cortado no meio
+      const dentro = largura > 32;
+      return `<div class="ranking-linha" title="${UI.escapar(d[rotulo])}: ${formato(valor)}">
+        <div class="ranking-nome">${UI.escapar(d[rotulo])}</div>
+        <div class="ranking-trilho">
+          <div class="ranking-marca" style="width:${largura}%;background:${
+            valor < 0 ? 'var(--vermelho)' : cor}">
+            ${dentro ? `<span class="ranking-valor dentro">${formato(valor)}</span>` : ''}
+          </div>
+          ${dentro ? '' : `<span class="ranking-valor">${formato(valor)}</span>`}
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  },
+
   /* -------------------------------------------------------------- formulário */
   lerFormulario(elemento) {
     const dados = {};

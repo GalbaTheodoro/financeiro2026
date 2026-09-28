@@ -277,6 +277,45 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .grafico-barra{display:flex;gap:3px;align-items:flex-end;height:100%}
 .grafico-barra > div{flex:1;border-radius:4px 4px 0 0;min-height:2px}
 .grafico-rotulo{text-align:center;font-size:11px;color:var(--cinza-500);padding-top:4px}
+
+/* ---------------------------------------------------- gráficos de vendas
+   Marcas finas, ponta do dado arredondada e base reta, vão de 2px na cor do
+   fundo separando barras vizinhas (nunca um contorno), grade em hairline
+   contínua e recuada. O texto usa a cor de texto, nunca a cor da série. */
+.grafico-area{position:relative;padding:6px 0 0 62px}
+.grafico-grade{position:absolute;inset:6px 0 22px 62px;pointer-events:none}
+.grafico-linha{position:absolute;left:0;right:0;border-top:1px solid var(--cinza-200)}
+.grafico-linha span{position:absolute;right:calc(100% + 8px);top:-8px;font-size:10.5px;
+  color:var(--cinza-500);white-space:nowrap;font-variant-numeric:tabular-nums}
+.grafico-colunas{position:relative;display:flex;align-items:flex-end;gap:10px;height:100%}
+.grafico-colunas .grafico-col{flex:1;display:flex;flex-direction:column;
+  justify-content:flex-end;height:100%;min-width:0}
+.grafico-colunas .grafico-barra{display:flex;gap:2px;align-items:flex-end;height:100%;
+  justify-content:center}
+.grafico-marca{flex:1;max-width:24px;min-height:2px;border-radius:4px 4px 0 0}
+.grafico-legenda{display:flex;gap:16px;justify-content:center;margin-top:10px;
+  font-size:11.5px;color:var(--cinza-700)}
+.grafico-legenda span{display:inline-flex;align-items:center;gap:6px}
+.grafico-legenda i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+/* ranking: barras deitadas, uma cor só, valor rente à ponta do dado */
+.ranking{display:flex;flex-direction:column;gap:2px}
+.ranking-linha{display:grid;grid-template-columns:minmax(90px,34%) 1fr;gap:10px;
+  align-items:center;padding:3px 0}
+.ranking-nome{font-size:12.5px;color:var(--cinza-700);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.ranking-trilho{display:flex;align-items:center;gap:8px;min-width:0}
+.ranking-marca{height:18px;border-radius:0 4px 4px 0;display:flex;align-items:center;
+  justify-content:flex-end;min-width:3px}
+.ranking-valor{font-size:11.5px;font-weight:700;color:var(--cinza-700);white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.ranking-valor.dentro{color:#fff;padding-right:8px}
+@media (max-width:760px){
+  .ranking-linha{grid-template-columns:1fr;gap:2px}
+  .ranking-nome{white-space:normal}
+  .grafico-area{padding-left:52px}
+  .grafico-grade{left:52px}
+}
 .legenda{display:flex;gap:14px;font-size:12px;color:var(--cinza-500);margin-top:6px}
 .legenda span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
 .legenda .ent::before{background:var(--verde)}

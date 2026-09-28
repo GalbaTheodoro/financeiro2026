@@ -45,6 +45,8 @@ TELAS = [
     ("estoque/extrato", "Estoque"),
     ("sped", "SPED Fiscal"),
     ("sped/config", "SPED Fiscal"),
+    ("vendas", "Vendas e Margens"),
+    ("vendas/parados", "Vendas e Margens"),
     ("cadastros/usuarios", "Cadastros"),
     ("cadastros/parametros", "Cadastros"),
 ]
@@ -226,7 +228,8 @@ with sync_playwright() as p:
     rotas_menu = lambda: pagina.eval_on_selector_all(   # noqa: E731
         "#menu .menu-item", "els => els.map(e => e.dataset.rota)")
     com_tudo = rotas_menu()
-    ok_p4 = "/cupom" in com_tudo and "/gta" in com_tudo and "/sped" in com_tudo
+    ok_p4 = ("/cupom" in com_tudo and "/gta" in com_tudo
+             and "/sped" in com_tudo and "/vendas" in com_tudo)
     print(f"  [{'OK  ' if ok_p4 else 'FALHA'}] no Plano 4 o menu traz cupom fiscal e GTA")
     if not ok_p4:
         erros.append("menu do Plano 4 sem cupom ou sem GTA")

@@ -129,7 +129,7 @@ com o suporte, em vez de dados de pagamento inventados.
 
 Um grupo por assunto, em vez de uma lista longa: **Vendas** (pedidos, cupom fiscal,
 contratos), **Fiscal** (notas fiscais, DF-e, GTA, SPED Fiscal), **Estoque**, **Financeiro** (painel,
-receber, pagar, caixa), **Análise**, **Cadastros** e, por último, a área do administrador ou
+receber, pagar, caixa), **Análise** (vendas e margens, relatórios), **Cadastros** e, por último, a área do administrador ou
 a assinatura. Grupo cujo plano não libera nenhum item **some inteiro** — quem está no Plano 1
 não vê um título "Vendas" com o cupom faltando, vê o grupo sem o cupom; e se um dia um grupo
 ficar sem nada, ele não aparece.
@@ -1011,6 +1011,63 @@ Código: `backend/estoque.py` (o motor), `backend/routers/estoque.py`, o botão 
 Teste: `python testes/teste_estoque.py` e `python testes/teste_baixa_estoque.py`.
 
 
+### Vendas e Margens
+
+**Análise → Vendas e Margens.** Perguntas de dono de negócio — quanto vendi, para quem, com
+que margem, o que está encalhado. Fica separado de Relatórios de propósito: lá são perguntas
+de contabilidade (DRE, balancete, razão), que vêm dos lançamentos; aqui vêm das vendas e do
+estoque. Seis abas: **Visão geral**, **Melhores clientes**, **Produtos mais vendidos**,
+**Melhores margens**, **Custos** e **Parados em estoque**.
+
+#### De onde vêm as vendas
+
+De duas fontes, somadas sem contar nada em dobro: as **NF-e e os cupons** que a empresa
+emitiu e a SEFAZ autorizou (cancelada não conta, rascunho também não), e as **vendas
+finalizadas sem documento** — o "emitir depois". Venda feita é venda feita, e deixá-la de
+fora esconderia faturamento de verdade. O que impede a contagem em dobro é o vínculo: quando
+a nota daquele pedido sai, o pedido passa a ter nota e **só a nota conta**.
+
+#### De onde vem o custo
+
+Na ordem, e a ordem muda o número: o **movimento de estoque** daquela venda (o custo médio no
+momento em que a mercadoria saiu, que é o custo certo da operação e não muda depois); senão o
+**custo de compra** do cadastro; senão o **custo médio de hoje**.
+
+Produto sem custo nenhum entra na venda mas **fica marcado**, e a tela diz quanto de
+faturamento está sem custo — porque margem incompleta avisada é melhor que margem inflada em
+silêncio.
+
+#### Uma palavra sobre "lucro"
+
+O que esta tela chama de lucro é a **margem bruta**: faturamento menos o custo da mercadoria
+vendida. Não é o lucro da empresa — desse ainda saem despesa fixa, salário, aluguel e
+imposto, e quem responde por ele é o DRE. Os títulos dizem "margem bruta" justamente para
+ninguém confundir os dois.
+
+#### Os gráficos
+
+Dois formatos, cada um com o seu trabalho. **Colunas** para valor ao longo do tempo
+(faturamento e margem lado a lado, na mesma escala e num eixo só — dois eixos num gráfico só
+é a maneira clássica de inventar uma correlação que não existe). **Barras deitadas** para
+ranking, porque os nomes são compridos, e com **uma cor só**: pintar a barra mais escura
+quando é maior seria repetir em cor o que o comprimento já disse. A barra sempre mede a mesma
+coisa pela qual a lista está ordenada, e cada gráfico tem a tabela dele embaixo.
+
+O período muda de leitura sozinho: até uns dois meses a evolução sai **por dia**, acima disso
+**por mês** — senão o gráfico vira uma fileira de traços que não diz nada.
+
+#### Parados em estoque
+
+Produtos que **têm saldo** e não saem há mais de N dias (60 por padrão, ajustável na tela),
+com o dinheiro parado em cada um. Produto zerado não aparece: não está parado, está acabado.
+O que entrou no estoque e nunca saiu aparece marcado como "nunca saiu".
+
+Código: `backend/vendas.py` (as linhas de venda e os agrupamentos),
+`backend/routers/vendas.py`; tela em `frontend/js/vendas.js`, gráficos em `UI.graficoColunas`
+e `UI.graficoRanking` (`frontend/js/ui.js`).
+Teste: `python testes/teste_vendas.py`.
+
+
 ### Formação do preço: o markup
 
 **Cadastros → Produtos → botão Preço**, na linha do produto.
@@ -1462,6 +1519,7 @@ sistema-financeiro/
 │   ├── pedidos.py               Pedido e orçamento: numeração, totais e parcelas
 │   ├── sped.py                  SPED Fiscal: monta o arquivo da EFD ICMS/IPI do mês
 │   ├── precificacao.py          Formação do preço: markup divisor, custos e impostos
+│   ├── vendas.py                Vendas e margens: linhas de venda, custo e rankings
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -1488,7 +1546,7 @@ sistema-financeiro/
 │   ├── styles.css
 │   ├── img/                     logotipo do AgroDock, ícone e favicon
 │   └── js/                      api, ui, site, cadastros, lancamentos, caixa, impressao,
-│                                contratos, dfe, sped, precos, mercado, relatorios,
+│                                contratos, dfe, sped, precos, vendas, mercado, relatorios,
 │                                assinaturas, app
 ├── deploy/                      publicação: nuvem (Neon + Vercel) e servidor Ubuntu
 │   ├── migrar_para_postgres.py  Leva os dados do PC para a nuvem — e traz de volta
@@ -1528,6 +1586,7 @@ sistema-financeiro/
     ├── teste_sped.py            Teste do SPED Fiscal: leiaute, blocos e contagens
     ├── teste_baixa_estoque.py   Teste de quando o estoque baixa: documento ou pedido
     ├── teste_precificacao.py    Teste da formação do preço: markup, impostos e lucro
+    ├── teste_vendas.py          Teste de vendas e margens: sem contar venda em dobro
     ├── capturar_sped.py         Capturas da tela do SPED Fiscal (Playwright)
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
@@ -1570,6 +1629,7 @@ python testes/teste_estoque.py      # estoque: custo médio, entrada pela nota e
 python testes/teste_sped.py         # SPED Fiscal: blocos, C100/C170/C190 e as contagens do 9
 python testes/teste_baixa_estoque.py  # estoque: baixa pelo documento ou pelo pedido
 python testes/teste_precificacao.py   # formação do preço: markup, impostos e lucro real
+python testes/teste_vendas.py         # vendas e margens: custo, ranking e estoque parado
 python testes/teste_planos.py       # os quatro planos, o bloqueio por plano e o menu
 python testes/teste_cupons.py       # cupons de desconto: o valor certo no copia e cola
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)

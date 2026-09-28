@@ -97,7 +97,7 @@ BASE: tuple[str, ...] = ("CONTRATOS", "FINANCEIRO", "NFE")
 ROTAS: dict[str, tuple[str, ...]] = {
     "CONTRATOS": ("/contratos",),
     "FINANCEIRO": ("/painel", "/receber", "/pagar", "/caixa", "/relatorios"),
-    "NFE": ("/notas", "/pedidos", "/dfe", "/estoque", "/sped"),
+    "NFE": ("/notas", "/pedidos", "/dfe", "/estoque", "/sped", "/vendas"),
     "CUPOM": ("/cupom",),
     "GTA": ("/gta",),
 }

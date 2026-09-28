@@ -352,6 +352,8 @@ class ProdutoIn(BaseModel):
     codigo_beneficio: str | None = None
     observacao_fiscal: str | None = None
     tipo_fiscal_id: int | None = None    # classificação usada nas regras fiscais
+    # SPED Fiscal: tipo do item no registro 0200 (00 mercadoria para revenda...)
+    tipo_item_sped: str = "00"
     # estoque: só o produto marcado entra no controle (ver backend/estoque.py).
     # O saldo e o custo médio NÃO vêm da tela — quem move estoque é o motor.
     controla_estoque: bool = False

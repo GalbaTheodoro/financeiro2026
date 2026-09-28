@@ -128,7 +128,7 @@ com o suporte, em vez de dados de pagamento inventados.
 #### A barra lateral
 
 Um grupo por assunto, em vez de uma lista longa: **Vendas** (pedidos, cupom fiscal,
-contratos), **Fiscal** (notas fiscais, DF-e, GTA), **Estoque**, **Financeiro** (painel,
+contratos), **Fiscal** (notas fiscais, DF-e, GTA, SPED Fiscal), **Estoque**, **Financeiro** (painel,
 receber, pagar, caixa), **Análise**, **Cadastros** e, por último, a área do administrador ou
 a assinatura. Grupo cujo plano não libera nenhum item **some inteiro** — quem está no Plano 1
 não vê um título "Vendas" com o cupom faltando, vê o grupo sem o cupom; e se um dia um grupo
@@ -986,6 +986,119 @@ Código: `backend/estoque.py` (o motor), `backend/routers/estoque.py`, o botão 
 Teste: `python testes/teste_estoque.py`.
 
 
+### SPED Fiscal (EFD ICMS/IPI)
+
+**Fiscal → SPED Fiscal** monta o arquivo mensal que o contador entrega ao estado. Não é um
+relatório: é um arquivo de texto com leiaute fechado, que o contador abre no **PVA** (o
+programa da Receita), valida, assina com o certificado e transmite.
+
+Nada é digitado de novo. O arquivo sai das três fontes que já estão no sistema:
+
+| Fonte | O que vira |
+|---|---|
+| Notas que a SEFAZ entregou (**DF-e**) | entradas |
+| **NF-e** que a empresa emitiu (modelo 55) | saídas |
+| **Cupons fiscais** (NFC-e, modelo 65) | saídas |
+| Saldo do **estoque** | bloco H, quando pedido |
+
+Leiaute **020** (Ato COTEPE/ICMS 01/2026, Guia Prático 3.2.3). O código da versão sai do ano
+do período, não do ano de hoje: arquivo de 2025 entregue atrasado sai como **019**.
+
+#### O caminho da tela
+
+1. **Escolher o mês.** A EFD é um arquivo por mês; período que atravessa mês é recusado.
+2. **Conferir.** O sistema aponta antes o que o PVA recusaria. Enquanto houver impedimento,
+   o botão de baixar fica desligado — descobrir no PVA que a nota não tinha CFOP é descobrir
+   tarde. Há um *Baixar assim mesmo* para o contador olhar o arquivo incompleto.
+3. **Completar as notas de entrada**, quando a conferência pedir (abaixo).
+4. **Baixar o arquivo** — `.txt` em ISO-8859-1, com CRLF, no nome
+   `SPED-FISCAL-<CNPJ>-<AAAAMM>.txt`.
+
+A **prévia** mostra o resumo, quantas linhas de cada registro e o começo e o fim do arquivo,
+para conferir sem precisar abrir o `.txt` no Bloco de Notas.
+
+#### Completar as notas de entrada
+
+É o impedimento mais comum, e ele não é um defeito do sistema: a SEFAZ entrega o **resumo**
+de toda nota emitida contra o CNPJ, e só entrega o XML inteiro depois que o destinatário dá
+**ciência da operação**. Sem o XML não há itens nem CFOP — e sem CFOP não há SPED.
+
+O botão **Completar as notas de entrada** faz os três passos de uma vez:
+
+1. dá **ciência da operação** na SEFAZ nas notas que estão só como resumo;
+2. **busca os documentos** de novo, e o XML completo substitui o resumo;
+3. **importa** as notas que já têm o XML mas ainda não têm os itens gravados.
+
+Cada nota é tentada por conta própria: o erro de uma não derruba as outras, e a tela lista o
+que não deu, nota por nota. Depois da ciência a SEFAZ costuma levar algumas horas para
+liberar o documento — se ainda faltar, é só clicar de novo mais tarde.
+
+#### O que entra em cada bloco
+
+| Bloco | O que leva |
+|---|---|
+| **0** | 0000 (abertura), 0005 (endereço), 0100 (contabilista), 0150 (participantes), 0190 (unidades), 0200 (itens) |
+| **B** | só para contribuinte do Distrito Federal; nos outros estados o bloco não aparece |
+| **C** | C100 por documento, C170 (itens) quando cabe, C190 (analítico) |
+| **D** | vazio — serviços de transporte e comunicação, que este sistema não emite |
+| **E** | E100/E110, a apuração do ICMS do mês |
+| **G**, **K** | vazios — CIAP e controle de produção (indústria) |
+| **H** | o inventário, quando marcado na tela |
+| **1**, **9** | outras informações e a contagem de tudo |
+
+Três regras do C170 que costumam ser a origem de arquivo recusado, e que o sistema aplica
+sozinho:
+
+- **cupom fiscal nunca leva item.** O C170 é dos modelos 01, 1B, 04 e 55 — o 65 não está lá.
+- **NF-e de emissão própria também não**, porque a SEFAZ já tem o XML inteiro da nota. O
+  Guia abre exceção "nos casos previstos na legislação estadual", e alguns estados preveem:
+  para esses há um interruptor na aba **Configuração**, desligado de fábrica.
+- **nota cancelada leva só o cabeçalho** — sem item e sem analítico.
+
+O **C190** agrupa por CST + CFOP + alíquota e nunca repete a combinação dentro do documento;
+é essa a validação do PVA.
+
+#### A apuração (bloco E)
+
+Débito é o ICMS das saídas, crédito é o ICMS das entradas, e a diferença vira ICMS a recolher
+ou saldo credor a transportar. O que o sistema **não** sabe — saldo credor do mês anterior,
+ajustes (E111), obrigações a recolher (E116), substituição tributária — fica para o contador,
+no PVA. O sistema não inventa esses números.
+
+**Simples Nacional:** quem é do Simples é, em regra, **dispensado** da EFD ICMS/IPI (Ajuste
+SINIEF 2/2009) — quem apura por lá é o PGDAS-D. Alguns estados e algumas atividades exigem de
+todo jeito, e contador nenhum reclama de receber o arquivo. Então o sistema gera, com todos
+os documentos, mas **o bloco E sai zerado**, porque empresa do Simples não apura ICMS próprio
+ali. A conferência diz isso em letras claras, para ninguém achar que o número sumiu.
+
+#### O de/para CSOSN → CST
+
+Outro detalhe do Simples: o item da nota leva **CSOSN** (101, 102, 500...) e o SPED Fiscal só
+conhece a tabela de **CST**. Não existe de/para oficial, então o padrão do sistema é o
+conservador — **90 (Outras)** para quase tudo, que não afirma benefício nenhum, e **60** no
+único caso de equivalência limpa (CSOSN 500 = ICMS já cobrado antes por substituição). Quem
+quiser outro escreve na aba Configuração, no formato `102=20;500=60`. Quem sabe qual usar no
+estado é o contador.
+
+#### O que o sistema não faz
+
+- **Não valida como o PVA valida.** O PVA é a palavra final — ele conhece as regras do estado.
+  O que a tela faz é apontar antes o que sabidamente derruba o arquivo.
+- **Não transmite.** Quem assina e transmite é o contador.
+- **Não faz os ajustes da apuração** nem os blocos de indústria (K) e de ativo imobilizado (G).
+- **O inventário é o saldo de agora**, não uma foto do dia 31 — o motor de estoque mantém o
+  saldo corrente e não guarda histórico por data. Gerar o inventário de um mês fechado há
+  muito tempo traz o saldo de hoje.
+
+Configuração da empresa (aba **Configuração**): perfil do arquivo (A, B ou C — quem diz é o
+contador; nasce A), tipo de atividade, o contabilista do registro 0100 e o de/para do CSOSN.
+No cadastro do produto há o **tipo do item** (registro 0200): quem revende café é
+`00 — Mercadoria para revenda`, que é o padrão.
+
+Código: `backend/sped.py` (o gerador), `backend/routers/sped.py`; tela em `frontend/js/sped.js`.
+Teste: `python testes/teste_sped.py`. Capturas: `python testes/capturar_sped.py`.
+
+
 ### GTA — Guia de Trânsito Animal
 
 **Movimento → GTA (trânsito animal)** guarda e vigia as guias dos produtores atendidos, e
@@ -1258,6 +1371,7 @@ sistema-financeiro/
 │   ├── descontos.py             Cupons de desconto da assinatura (não é o cupom fiscal)
 │   ├── sefaz_enderecos.py       Endereços da NFC-e por estado, editáveis na tela
 │   ├── pedidos.py               Pedido e orçamento: numeração, totais e parcelas
+│   ├── sped.py                  SPED Fiscal: monta o arquivo da EFD ICMS/IPI do mês
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -1284,7 +1398,7 @@ sistema-financeiro/
 │   ├── styles.css
 │   ├── img/                     logotipo do AgroDock, ícone e favicon
 │   └── js/                      api, ui, site, cadastros, lancamentos, caixa, impressao,
-│                                contratos, dfe, mercado, relatorios, assinaturas, app
+│                                contratos, dfe, sped, mercado, relatorios, assinaturas, app
 ├── deploy/                      publicação: nuvem (Neon + Vercel) e servidor Ubuntu
 │   ├── migrar_para_postgres.py  Leva os dados do PC para a nuvem — e traz de volta
 │   ├── subir-para-nuvem.bat     Atalho do Windows para a primeira carga
@@ -1320,6 +1434,8 @@ sistema-financeiro/
     ├── teste_cupom_estados.py   Teste do cupom em MG, SP, GO e TO
     ├── teste_classificacao.py   Teste da categoria e da marca do produto
     ├── teste_pedidos.py         Teste do pedido, das parcelas e da finalização
+    ├── teste_sped.py            Teste do SPED Fiscal: leiaute, blocos e contagens
+    ├── capturar_sped.py         Capturas da tela do SPED Fiscal (Playwright)
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
     └── teste_interface.py       Teste do site e das telas (Playwright)
@@ -1358,6 +1474,7 @@ python testes/teste_email.py        # nota por e-mail, com servidor SMTP de ment
 python testes/teste_cupom.py        # cupom fiscal (NFC-e): XML no schema e QR Code
 python testes/teste_gta.py          # GTA: conferência, validade, resumo e ficha de preparo
 python testes/teste_estoque.py      # estoque: custo médio, entrada pela nota e baixa na venda
+python testes/teste_sped.py         # SPED Fiscal: blocos, C100/C170/C190 e as contagens do 9
 python testes/teste_planos.py       # os quatro planos, o bloqueio por plano e o menu
 python testes/teste_cupons.py       # cupons de desconto: o valor certo no copia e cola
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)

@@ -759,6 +759,12 @@ class Produto(Base):
     # classificação usada para achar a regra fiscal da nota (ver TipoFiscal)
     tipo_fiscal_id = Column(Integer, ForeignKey("tipos_fiscais.id"), index=True)
 
+    # ---- SPED Fiscal ----
+    # Tipo do item no registro 0200 da EFD ICMS/IPI: 00 mercadoria para revenda,
+    # 01 matéria-prima, 07 material de uso e consumo, 09 serviços... Quem revende
+    # café é 00, e é esse o padrão — o cadastro muda quando for outra coisa.
+    tipo_item_sped = Column(String(2), nullable=False, default="00")
+
     # ---- venda ----
     # Preço sugerido na tela de balcão. Fica no cadastro porque quem atende no
     # balcão não pode ficar decidindo preço a cada venda; na tela dá para mudar
@@ -1084,6 +1090,55 @@ class ConfigCupom(Base):
     serie = Column(String(3), nullable=False, default="1")
     ativo = Column(Boolean, nullable=False, default=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
+
+
+class ConfigSped(Base):
+    """O que o SPED Fiscal pede da empresa e não cabe no cadastro dela.
+
+    São três coisas:
+
+    * o **perfil** do arquivo (A, B ou C) — quanto detalhe o estado exige. Quem
+      diz qual é o contador; nasce A, que é o que a maioria dos estados pede;
+    * o **contabilista** (registro 0100) — nome, CRC e endereço de quem assina a
+      escrituração. Não é o dono da empresa: é o escritório;
+    * o **de/para CSOSN → CST**, para empresa do Simples Nacional. O item da nota
+      leva CSOSN e o SPED só conhece CST; sem de/para o arquivo sai com o código
+      errado. Ver ``backend/sped.py`` para o padrão de fábrica.
+    """
+
+    __tablename__ = "config_sped"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False,
+                        unique=True, index=True)
+    # A | B | C
+    perfil = Column(String(1), nullable=False, default="A")
+    # IND_ATIV do registro 0000: 0 industrial ou equiparado, 1 outros
+    atividade = Column(String(1), nullable=False, default="1")
+    # de/para escrito como "101=20;102=90" — vazio usa o padrão do sistema
+    csosn_para_cst = Column(String(300))
+    # Escriturar o item (C170) também nas NF-e que a própria empresa emitiu.
+    # O Guia Prático manda NÃO informar — a SEFAZ já tem o XML da nota inteira —
+    # "exceto nos casos previstos em legislação estadual". Alguns estados preveem.
+    # Nasce desligado: quem liga é o contador, quando o estado dele exige.
+    itens_das_saidas = Column(Boolean, nullable=False, default=False)
+
+    # ---- contabilista (registro 0100) ----
+    contador_nome = Column(String(120))
+    contador_cpf = Column(String(20))
+    contador_crc = Column(String(20))
+    contador_cnpj = Column(String(20))
+    contador_cep = Column(String(12))
+    contador_logradouro = Column(String(160))
+    contador_numero = Column(String(20))
+    contador_complemento = Column(String(80))
+    contador_bairro = Column(String(80))
+    contador_telefone = Column(String(30))
+    contador_email = Column(String(160))
+    contador_codigo_municipio = Column(String(7))
+
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime)
     atualizado_em = Column(DateTime, default=datetime.utcnow)
 
 

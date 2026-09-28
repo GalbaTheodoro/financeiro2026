@@ -82,6 +82,16 @@ def endereco_linha(obj) -> str:
     return f"{texto} - CEP {cep}" if cep and texto else (texto or (f"CEP {cep}" if cep else ""))
 
 
+def so_numeros(valor) -> str:
+    """Só os dígitos: '12.345.678/0001-90' vira '12345678000190'.
+
+    Usado sempre que um número documenta alguma coisa — CNPJ, CPF, CEP, código
+    do município, chave da nota. Comparar documento com pontuação é onde nasce
+    "o CNPJ não bate" com os dois iguais na tela.
+    """
+    return "".join(c for c in str(valor or "") if c.isdigit())
+
+
 def moeda_br(valor) -> str:
     """Formata um número no padrão brasileiro: R$ 1.234,56."""
     return f"R$ {float(valor or 0):,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")

@@ -76,7 +76,7 @@ MODULOS: dict[str, tuple[str, str]] = {
         "Emissão de NF-e",
         "Pedido e orçamento na tela de balcão, NF-e 4.00 assinada e transmitida à "
         "SEFAZ, DANFE, envio por e-mail, busca dos documentos emitidos contra o "
-        "CNPJ e controle de estoque.",
+        "CNPJ, controle de estoque e o arquivo do SPED Fiscal para o contador.",
     ),
     "CUPOM": (
         "Cupom fiscal eletrônico",
@@ -97,7 +97,7 @@ BASE: tuple[str, ...] = ("CONTRATOS", "FINANCEIRO", "NFE")
 ROTAS: dict[str, tuple[str, ...]] = {
     "CONTRATOS": ("/contratos",),
     "FINANCEIRO": ("/painel", "/receber", "/pagar", "/caixa", "/relatorios"),
-    "NFE": ("/notas", "/pedidos", "/dfe", "/estoque"),
+    "NFE": ("/notas", "/pedidos", "/dfe", "/estoque", "/sped"),
     "CUPOM": ("/cupom",),
     "GTA": ("/gta",),
 }

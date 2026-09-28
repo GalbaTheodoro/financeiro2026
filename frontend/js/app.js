@@ -18,6 +18,7 @@ const App = {
     '/gta': { titulo: 'GTA — Guia de Trânsito Animal', subtitulo: 'Controle das guias dos produtores e ficha de preparo para o portal do estado', acao: () => GTA.tela() },
     '/estoque': { titulo: 'Estoque', subtitulo: 'Saldo e custo médio de cada produto — a entrada vem da nota, a saída é baixada sozinha', acao: (aba) => Estoque.tela(aba) },
     '/dfe': { titulo: 'DF-e — Documentos fiscais', subtitulo: 'Notas emitidas contra o CNPJ da empresa: XML, DANFE, manifestação e importação', acao: (aba) => DFe.tela(aba) },
+    '/sped': { titulo: 'SPED Fiscal', subtitulo: 'O arquivo mensal da EFD ICMS/IPI para o contador, montado das notas do sistema', acao: (aba) => Sped.tela(aba) },
     '/relatorios': { titulo: 'Relatórios', subtitulo: 'DRE, balancete e relatórios gerenciais', acao: () => Relatorios.tela() },
     '/cadastros': { titulo: 'Cadastros', subtitulo: 'Todos os cadastros do sistema em um só lugar', acao: (aba) => Cadastros.hub(aba) },
     '/assinatura': { titulo: 'Minha Assinatura', subtitulo: 'Plano, pagamento por Pix e situação da conta', acao: () => Assinaturas.minha() },
@@ -44,7 +45,7 @@ const App = {
 
   /* Só estas rotas dependem do plano; o resto é de toda conta. */
   ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/notas',
-    '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios'],
+    '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios', '/sped'],
 
   menu() {
     /* Um grupo por assunto: o que é venda fica junto, o que é fiscal fica junto,
@@ -59,6 +60,7 @@ const App = {
       { rota: '/notas', icone: '⛁', rotulo: 'Notas Fiscais' },
       { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (buscar na SEFAZ)' },
       { rota: '/gta', icone: '☙', rotulo: 'GTA (trânsito animal)' },
+      { rota: '/sped', icone: '🗄', rotulo: 'SPED Fiscal' },
       { grupo: 'Estoque' },
       { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },
       { grupo: 'Financeiro' },
@@ -118,21 +120,21 @@ const App = {
   ABAS_ANTIGAS: ['parceiros', 'bancos', 'centros-custo', 'operacoes', 'plano-contas',
     'empresas', 'usuarios', 'parametros', 'produtos', 'unidades', 'modalidades', 'icms'],
 
+  /* Telas que têm abas: o segundo pedaço do endereço é o nome da aba, e é
+     passado para a tela. Fora daqui, endereço com barra não existe. */
+  ROTAS_COM_ABA: ['/cadastros', '/dfe', '/estoque', '/sped'],
+
   async navegar() {
     if (!Estado.token) return;
     let caminho = location.hash.replace('#', '') || '/painel';
     if (App.ABAS_ANTIGAS.includes(caminho.slice(1))) caminho = `/cadastros${caminho}`;
 
+    // telas com abas: #/estoque/extrato abre a tela /estoque na aba "extrato"
     let aba = null;
-    if (caminho.startsWith('/cadastros')) {
+    const comAba = App.ROTAS_COM_ABA.find((r) => caminho === r || caminho.startsWith(`${r}/`));
+    if (comAba) {
       aba = caminho.split('/')[2] || null;
-      caminho = '/cadastros';
-    } else if (caminho.startsWith('/dfe')) {
-      aba = caminho.split('/')[2] || null;
-      caminho = '/dfe';
-    } else if (caminho.startsWith('/estoque')) {
-      aba = caminho.split('/')[2] || null;
-      caminho = '/estoque';
+      caminho = comAba;
     }
     const rota = App.rotas[caminho] || App.rotas['/painel'];
     if (rota.master && !Api.ehMaster()) return App.irPara('/painel');

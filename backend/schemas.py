@@ -109,6 +109,8 @@ class EmpresaIn(BaseModel):
     crt: str | None = "1"                # 1 Simples | 2 Simples excesso | 3 Normal | 4 MEI
     cnae: str | None = None
     texto_nota: str | None = None        # entra nas informações complementares da NF-e
+    # quando o estoque baixa: DOCUMENTO (autorização da nota/cupom) | PEDIDO
+    estoque_baixa: str = "DOCUMENTO"
     ativo: bool = True
     criar_plano_padrao: bool = True
 

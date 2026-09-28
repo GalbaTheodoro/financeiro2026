@@ -23,6 +23,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from .. import estoque
 from .. import pedidos as regras
 from ..database import get_db
 from ..deps import acesso_liberado, exigir_modulo, validar_empresa
@@ -308,6 +309,14 @@ def finalizar(pedido_id: int, dados: FinalizarPedidoIn, db: Session = Depends(ge
     pedido = _pedido(db, pedido_id, usuario)
     _conferir_finalizacao(pedido, dados)
 
+    # Estoque: na empresa que baixa pelo pedido, a falta de saldo barra AQUI —
+    # antes de gastar número de nota e antes de o título nascer. Depois de a
+    # SEFAZ autorizar não dá para voltar atrás.
+    if estoque.momento_da_baixa(db, pedido.empresa_id) == "PEDIDO":
+        faltas = estoque.conferir_pedido(db, pedido)
+        if faltas:
+            raise HTTPException(400, "Falta estoque para esta venda. " + " ".join(faltas))
+
     condicao = dados.condicao
     quantidade = max(1, int(dados.parcelas or 1)) if condicao == "PRAZO" else 1
     primeiro = dados.primeiro_vencimento or date.today()
@@ -464,6 +473,7 @@ def _finalizar_cupom(db: Session, usuario: Usuario, pedido: Pedido,
                    for i in itens],
             pagamentos=[PagamentoVendaIn(codigo=dados.forma_pagamento or "01",
                                          valor=float(pedido.valor_total or 0))],
+            pedido_id=pedido.id,
         ), db, usuario)
     except HTTPException as erro:
         return None, str(erro.detail)
@@ -492,6 +502,10 @@ def _finalizar_nota(db: Session, usuario: Usuario, pedido: Pedido,
                                 valor=p["valor"]) for p in parcelas],
     ), db, usuario)
     nota = db.get(Nota, ficha["nota"]["id"])
+    # antes de transmitir: é este vínculo que impede a baixa dobrada de estoque
+    # na empresa que baixa pelo pedido (ver backend/estoque.py)
+    nota.pedido_id = pedido.id
+    db.flush()
     try:
         retorno = transmitir(nota.id, TransmitirNotaIn(
             empresa_id=pedido.empresa_id,

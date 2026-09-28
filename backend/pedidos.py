@@ -25,6 +25,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import Integer, func
 from sqlalchemy.orm import Session
 
+from . import estoque
 from .models import Pedido, PedidoItem
 from .utils import adicionar_meses, dinheiro
 
@@ -218,6 +219,13 @@ def concluir(db: Session, pedido: Pedido, nota, condicao: str, quantidade: int,
     pedido.situacao = "FINALIZADO"
     pedido.finalizado_em = datetime.utcnow()
 
+    # Estoque: nas empresas que baixam **pelo pedido**, a mercadoria sai agora —
+    # a venda foi fechada e o cliente levou. Nas que baixam pelo documento, quem
+    # baixa é a autorização da nota ou do cupom, e aqui não se mexe em nada.
+    baixa = None
+    if estoque.momento_da_baixa(db, pedido.empresa_id) == "PEDIDO":
+        baixa = estoque.saida_do_pedido(db, pedido, getattr(usuario, "id", None))
+
     mensagem = f"Pedido nº {pedido.numero} finalizado."
     if condicao == "PRAZO":
         if nota is not None:
@@ -233,9 +241,12 @@ def concluir(db: Session, pedido: Pedido, nota, condicao: str, quantidade: int,
                      f"a primeira em {primeiro.strftime('%d/%m/%Y')}.")
     else:
         mensagem += " À vista: nada foi lançado em contas a receber."
+    if baixa and baixa["movimentos"]:
+        mensagem += f" {len(baixa['movimentos'])} produto(s) saíram do estoque."
     if documento == "SEM":
-        mensagem += (" O documento fiscal ficou para depois — o estoque só baixa quando "
-                     "a nota ou o cupom sair.")
+        mensagem += " O documento fiscal ficou para depois"
+        mensagem += ("." if baixa
+                     else " — o estoque só baixa quando a nota ou o cupom sair.")
     db.flush()
     return mensagem
 

@@ -516,6 +516,20 @@ const Cadastros = {
           largura: 2, linhas: 2,
           dica: 'entra nas informações complementares de toda NF-e emitida',
         },
+        { tipo: 'secao', rotulo: 'Estoque',
+          dica: 'quando a mercadoria sai do saldo — depende de quando ela sai da '
+            + 'prateleira, e isso muda de negócio para negócio' },
+        { nome: 'estoque_baixa', rotulo: 'Quando o estoque baixa', tipo: 'select',
+          vazio: false, padrao: 'DOCUMENTO', largura: 2,
+          opcoes: () => [
+            { valor: 'DOCUMENTO', rotulo: 'Pelo documento fiscal (nota ou cupom)' },
+            { valor: 'PEDIDO', rotulo: 'Pelo pedido (venda finalizada)' },
+          ],
+          dica: 'Pelo documento fiscal: a mercadoria sai quando a SEFAZ autoriza a nota '
+            + 'ou o cupom; venda finalizada sem documento não mexe no saldo até o documento '
+            + 'sair. Pelo pedido: a mercadoria sai quando a venda é fechada no balcão, mesmo '
+            + 'que a nota saia depois — e a nota daquele pedido não baixa de novo. Nos dois '
+            + 'casos, falta de saldo barra a venda antes de ela acontecer.' },
         { tipo: 'secao', rotulo: 'Impressão do contrato' },
         {
           nome: 'logo', rotulo: 'Logotipo', tipo: 'imagem', largura: 2,

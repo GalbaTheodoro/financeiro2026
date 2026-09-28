@@ -192,10 +192,23 @@ def listar_empresas(db: Session = Depends(get_db), atual: Usuario = Depends(aces
     return serializar_lista(query.order_by(Empresa.razao_social).all())
 
 
+def _conferir_estoque_baixa(dados: EmpresaIn) -> None:
+    """Momento da baixa do estoque: só DOCUMENTO ou PEDIDO entram no banco.
+
+    Vale a pena recusar em vez de corrigir em silêncio: um valor estranho aqui
+    faria a empresa parar de baixar estoque sem ninguém entender por quê.
+    """
+    if (dados.estoque_baixa or "DOCUMENTO") not in estoque.MOMENTOS:
+        raise HTTPException(
+            400, "Quando o estoque baixa: escolha entre a autorização do documento "
+                 "fiscal e a finalização do pedido.")
+
+
 @router.post("/empresas")
 def criar_empresa(
     dados: EmpresaIn, db: Session = Depends(get_db), atual: Usuario = Depends(acesso_liberado)
 ):
+    _conferir_estoque_baixa(dados)
     empresa = Empresa()
     _aplicar(empresa, dados.model_dump(), ignorar=("criar_plano_padrao",))
     if atual.perfil != "MASTER":
@@ -220,6 +233,7 @@ def atualizar_empresa(
     db: Session = Depends(get_db),
     atual: Usuario = Depends(acesso_liberado),
 ):
+    _conferir_estoque_baixa(dados)
     empresa = validar_empresa(db, empresa_id, atual)
     dono = empresa.dono_id
     _aplicar(empresa, dados.model_dump(), ignorar=("criar_plano_padrao",))

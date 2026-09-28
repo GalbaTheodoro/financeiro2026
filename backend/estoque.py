@@ -45,11 +45,34 @@ movimento em outra unidade é **recusado**, com a frase dizendo o que fazer:
 somar saca com quilo estraga o estoque em silêncio, e estoque errado é pior
 que estoque nenhum.
 
+Quando a saída acontece
+-----------------------
+Depende da empresa (*Cadastros → Empresas → Quando o estoque baixa*), porque
+depende de **quando a mercadoria sai da prateleira**, e isso muda de negócio
+para negócio:
+
+``DOCUMENTO`` (o padrão)
+    A mercadoria sai quando a SEFAZ autoriza a NF-e ou o cupom. É o caso de
+    quem só entrega contra documento fiscal. Pedido finalizado sem documento
+    não mexe no saldo — ele mexe quando o documento sair.
+
+``PEDIDO``
+    A mercadoria sai quando a venda é fechada no balcão, **com ou sem
+    documento fiscal**. É o caso de quem entrega na hora e emite a nota
+    depois: o saldo tem de acompanhar a prateleira, não o papel.
+
+Baixar duas vezes é o erro que este módulo não pode cometer, então a regra é
+uma só: cada venda baixa **uma vez**. Na empresa que baixa pelo pedido, a nota
+que nasceu daquele pedido (``Nota.pedido_id``) não baixa de novo — e nota
+emitida fora de pedido continua baixando na autorização, senão o saldo nunca
+andaria para quem vende pelas outras telas.
+
 Falta de saldo
 --------------
-A venda é **barrada** antes de ir para a SEFAZ (``conferir_venda``), porque a
-nota autorizada não volta atrás. A mensagem diz o produto, quanto tem e quanto
-a nota quer.
+A venda é **barrada** antes de acontecer, porque não dá para desfazer depois:
+no modo DOCUMENTO, antes de a nota ir para a SEFAZ (``conferir_venda``); no
+modo PEDIDO, antes de a finalização começar (``conferir_pedido``). A mensagem
+diz o produto, quanto tem e quanto a venda quer.
 """
 from __future__ import annotations
 
@@ -57,11 +80,18 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from .models import MovimentoEstoque, Nota, NotaItem, Produto
+from .models import Empresa, MovimentoEstoque, Nota, NotaItem, Pedido, Produto
 from .utils import dinheiro
 
 # Origens possíveis de um movimento (ver o docstring do modelo).
-ORIGENS = ("NOTA", "SAIDA", "CUPOM", "AJUSTE", "SALDO_INICIAL", "ESTORNO")
+ORIGENS = ("NOTA", "SAIDA", "CUPOM", "PEDIDO", "AJUSTE", "SALDO_INICIAL", "ESTORNO")
+
+# Quando a mercadoria sai do saldo, por empresa.
+MOMENTOS: dict[str, str] = {
+    "DOCUMENTO": "Quando a nota fiscal ou o cupom for autorizado pela SEFAZ",
+    "PEDIDO": "Quando a venda for finalizada no balcão, com ou sem documento fiscal",
+}
+MOMENTO_PADRAO = "DOCUMENTO"
 
 # quantidade menor que isto é zero: evita saldo "0,00001" por arredondamento
 MIGALHA = 0.0001
@@ -133,6 +163,8 @@ def registrar(
     data_movimento: date | None = None,
     nota: Nota | None = None,
     nota_item_id: int | None = None,
+    pedido: Pedido | None = None,
+    pedido_item_id: int | None = None,
     documento: str = "",
     parceiro_id: int | None = None,
     historico: str = "",
@@ -187,6 +219,8 @@ def registrar(
         origem=origem if origem in ORIGENS else "AJUSTE",
         nota_id=nota.id if nota is not None else None,
         nota_item_id=nota_item_id,
+        pedido_id=pedido.id if pedido is not None else None,
+        pedido_item_id=pedido_item_id,
         documento=(documento or "")[:40] or None,
         parceiro_id=parceiro_id,
         historico=(historico or "")[:200] or None,
@@ -312,8 +346,15 @@ def saida_da_nota(db: Session, nota: Nota, usuario_id: int | None = None) -> dic
 
     Não levanta erro: a nota já está autorizada na SEFAZ, e travar aqui não
     desfaz nada. O que não puder ser baixado volta como aviso.
+
+    Na empresa que baixa **pelo pedido**, a nota que nasceu de um pedido não
+    baixa nada: quem baixa é o pedido, na finalização. Nota emitida fora de
+    pedido continua baixando aqui — senão o saldo nunca andaria para quem vende
+    pela tela de notas ou de cupom.
     """
     if nota.estoque_em:
+        return {"movimentos": [], "aviso": ""}
+    if nota.pedido_id and momento_da_baixa(db, nota.empresa_id) == "PEDIDO":
         return {"movimentos": [], "aviso": ""}
     origem = "CUPOM" if (nota.modelo or "") == "65" else "SAIDA"
     documento = _documento(nota)
@@ -339,6 +380,155 @@ def saida_da_nota(db: Session, nota: Nota, usuario_id: int | None = None) -> dic
         nota.estoque_por_id = usuario_id
     db.flush()
     return {"movimentos": movidos, "aviso": " ".join(avisos)}
+
+
+# --------------------------------------------------------------------------- #
+# O pedido de balcão
+# --------------------------------------------------------------------------- #
+def momento_da_baixa(db: Session, empresa_id: int) -> str:
+    """DOCUMENTO (na autorização) ou PEDIDO (ao finalizar a venda)."""
+    empresa = db.get(Empresa, empresa_id)
+    escolhido = (empresa.estoque_baixa if empresa else "") or MOMENTO_PADRAO
+    return escolhido if escolhido in MOMENTOS else MOMENTO_PADRAO
+
+
+def itens_do_pedido(db: Session, pedido: Pedido) -> list:
+    """Os itens do pedido que mexem no estoque, já com o produto do cadastro."""
+    saida = []
+    for item in pedido.itens:
+        if not item.produto_id:
+            continue
+        produto = db.get(Produto, item.produto_id)
+        if controla(produto) and _q(item.quantidade) > 0:
+            saida.append((item, produto))
+    return saida
+
+
+def conferir_pedido(db: Session, pedido: Pedido) -> list[str]:
+    """O que impede a venda de fechar, por causa de estoque. Vazia = pode.
+
+    Roda **antes** da finalização, na empresa que baixa pelo pedido: depois que
+    a nota foi transmitida e o título nasceu, não dá para voltar atrás.
+    """
+    problemas: list[str] = []
+    pedidos_por_produto: dict[int, float] = {}
+    for item, produto in itens_do_pedido(db, pedido):
+        try:
+            conferir_unidade(produto, item.unidade)
+        except ErroEstoque as erro:
+            problemas.append(str(erro))
+            continue
+        pedidos_por_produto[produto.id] = _q(
+            pedidos_por_produto.get(produto.id, 0) + _q(item.quantidade))
+
+    for produto_id, quantidade in pedidos_por_produto.items():
+        produto = db.get(Produto, produto_id)
+        disponivel = saldo(produto)
+        if quantidade - disponivel > MIGALHA:
+            unidade = unidade_do_saldo(produto) or ""
+            problemas.append(
+                f"{produto.nome}: a venda tira {_texto(quantidade)} {unidade} e o estoque "
+                f"tem {_texto(disponivel)} {unidade}. Lance a entrada da mercadoria ou "
+                "acerte o saldo em Movimento > Estoque.".replace("  ", " ").strip()
+            )
+    return problemas
+
+
+def saida_do_pedido(db: Session, pedido: Pedido, usuario_id: int | None = None) -> dict:
+    """Baixa o estoque da venda de balcão finalizada.
+
+    Levanta erro quando falta saldo — ao contrário da baixa pela nota, aqui dá
+    para voltar atrás: a finalização inteira é desfeita e o pedido continua
+    aberto. Por isso a conferência (``conferir_pedido``) roda antes de tudo, e
+    esta função é a segunda tranca.
+    """
+    if pedido.estoque_em:
+        return {"movimentos": [], "aviso": ""}
+    documento = f"Pedido {pedido.numero}"
+    data_pedido = pedido.data or date.today()
+    movidos = []
+    for item, produto in itens_do_pedido(db, pedido):
+        registrar(
+            db, produto, "S", _q(item.quantidade), unidade=item.unidade,
+            origem="PEDIDO", data_movimento=data_pedido,
+            pedido=pedido, pedido_item_id=item.id, documento=documento,
+            parceiro_id=pedido.parceiro_id,
+            historico=f"Saída pela venda do pedido nº {pedido.numero}"[:200],
+            usuario_id=usuario_id,
+        )
+        movidos.append({"produto": produto.nome, "quantidade": _q(item.quantidade),
+                        "unidade": unidade_do_saldo(produto), "saldo": saldo(produto)})
+    if movidos:
+        pedido.estoque_em = datetime.utcnow()
+        pedido.estoque_por_id = usuario_id
+    db.flush()
+    return {"movimentos": movidos, "aviso": ""}
+
+
+def estornar_pedido(db: Session, pedido: Pedido, usuario_id: int | None = None,
+                    motivo: str = "") -> dict:
+    """Devolve ao estoque o que a venda do pedido tirou, sem apagar nada."""
+    if not pedido.estoque_em:
+        raise ErroEstoque("Este pedido não mexeu no estoque.")
+    originais = (
+        db.query(MovimentoEstoque)
+        .filter(MovimentoEstoque.pedido_id == pedido.id,
+                MovimentoEstoque.origem != "ESTORNO")
+        .order_by(MovimentoEstoque.id)
+        .all()
+    )
+    ja_estornados = {
+        m.pedido_item_id for m in db.query(MovimentoEstoque)
+        .filter(MovimentoEstoque.pedido_id == pedido.id,
+                MovimentoEstoque.origem == "ESTORNO").all()
+    }
+    documento = f"Pedido {pedido.numero}"
+    desfeitos = []
+    for movimento in originais:
+        if movimento.pedido_item_id in ja_estornados:
+            continue
+        produto = db.get(Produto, movimento.produto_id)
+        if produto is None:
+            continue
+        registrar(
+            db, produto, "S" if movimento.tipo == "E" else "E", _q(movimento.quantidade),
+            custo_unitario=_c(movimento.custo_unitario),
+            unidade=movimento.unidade or "", origem="ESTORNO",
+            pedido=pedido, pedido_item_id=movimento.pedido_item_id, documento=documento,
+            parceiro_id=pedido.parceiro_id,
+            historico=(motivo or f"Estorno do estoque do pedido nº {pedido.numero}")[:200],
+            usuario_id=usuario_id,
+        )
+        desfeitos.append({"produto": produto.nome, "quantidade": _q(movimento.quantidade),
+                          "saldo": saldo(produto)})
+    pedido.estoque_em = None
+    pedido.estoque_por_id = None
+    db.flush()
+    return {"movimentos": desfeitos,
+            "mensagem": f"{len(desfeitos)} movimento(s) estornado(s)."}
+
+
+def estornar_venda(db: Session, nota: Nota, usuario_id: int | None = None,
+                   motivo: str = "") -> dict | None:
+    """Devolve ao estoque o que **esta venda** tirou, tenha a baixa sido de onde for.
+
+    Cancelar a nota desfaz a venda, e a mercadoria volta — tanto faz se quem
+    baixou foi a própria nota (empresa que baixa pelo documento) ou o pedido de
+    balcão que a gerou (empresa que baixa pelo pedido). Sem isto, cancelar a
+    nota de uma empresa que baixa pelo pedido deixaria o saldo furado.
+
+    Devolve ``None`` quando não havia nada a estornar.
+    """
+    try:
+        if nota.estoque_em:
+            return estornar_nota(db, nota, usuario_id, motivo)
+        if nota.pedido_id:
+            pedido = db.get(Pedido, nota.pedido_id)
+            if pedido is not None and pedido.estoque_em:
+                return estornar_pedido(db, pedido, usuario_id, motivo)
+    except ErroEstoque:
+        return None
+    return None
 
 
 def estornar_nota(db: Session, nota: Nota, usuario_id: int | None = None,

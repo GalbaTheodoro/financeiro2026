@@ -90,7 +90,7 @@ const Api = {
     if (!forcar && Estado.cache.empresaId === eid) return;
     const [contas, centros, operacoes, bancos, parceiros,
       unidades, modalidades, produtos, usuarios, icms,
-      categorias, marcas] = await Promise.all([
+      categorias, marcas, empresas] = await Promise.all([
       Api.get('/api/contas-contabeis', { empresa_id: eid }),
       Api.get('/api/centros-custo', { empresa_id: eid }),
       Api.get('/api/operacoes', { empresa_id: eid }),
@@ -103,7 +103,11 @@ const Api = {
       Api.get('/api/icms', { empresa_id: eid }).catch(() => []),
       Api.get('/api/categorias-produto', { empresa_id: eid }).catch(() => []),
       Api.get('/api/marcas-produto', { empresa_id: eid }).catch(() => []),
+      // as empresas vêm junto para não ficarem velhas: quem muda um dado da
+      // empresa (o momento da baixa do estoque, a UF) vê a mudança na hora
+      Api.get('/api/empresas').catch(() => null),
     ]);
+    if (Array.isArray(empresas) && empresas.length) Estado.empresas = empresas;
     Estado.cache = {
       empresaId: eid, contas, centros, operacoes, bancos, parceiros,
       unidades, modalidades, produtos, usuarios, icms, categorias, marcas,

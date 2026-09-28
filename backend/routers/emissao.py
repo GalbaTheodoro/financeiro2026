@@ -859,15 +859,12 @@ def cancelar(nota_id: int, dados: CancelarNotaIn, db: Session = Depends(get_db),
     nota.cancelamento_justificativa = (dados.justificativa or "").strip()[:255]
     nota.cancelamento_protocolo = retorno["protocolo"]
     nota.cancelada_em = retorno["registrado_em"] or datetime.utcnow()
-    # a mercadoria volta para o estoque: a venda deixou de existir
-    devolvido = None
-    if nota.estoque_em:
-        try:
-            devolvido = estoque.estornar_nota(
-                db, nota, usuario.id,
-                motivo=f"Devolução ao estoque: nota {nota.numero or ''} cancelada")
-        except estoque.ErroEstoque:
-            devolvido = None
+    # A mercadoria volta para o estoque: a venda deixou de existir. Tanto faz
+    # quem baixou — a própria nota, ou o pedido de balcão que a gerou, nas
+    # empresas que baixam pelo pedido.
+    devolvido = estoque.estornar_venda(
+        db, nota, usuario.id,
+        motivo=f"Devolução ao estoque: nota {nota.numero or ''} cancelada")
     db.commit()
     db.refresh(nota)
     return {

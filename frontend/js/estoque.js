@@ -1,9 +1,11 @@
 /* Estoque: a posição de cada produto e o extrato dos movimentos.
 
    O estoque aqui não é um número que alguém digita: é a soma dos movimentos.
-   A entrada vem do botão da nota de entrada, a saída é baixada sozinha quando
-   a SEFAZ autoriza a nota de saída ou o cupom, e o que sobra — inventário,
-   perda, saldo inicial — é o acerto à mão desta tela, que sempre pede o motivo. */
+   A entrada vem do botão da nota de entrada; a saída é baixada sozinha — na
+   autorização da nota/cupom, ou ao finalizar o pedido, conforme o que a empresa
+   escolheu em Cadastros > Empresas > Quando o estoque baixa. O que sobra —
+   inventário, perda, saldo inicial — é o acerto à mão desta tela, que sempre
+   pede o motivo. */
 const Estoque = {
   _aba: 'posicao',
   _posicao: null,
@@ -19,6 +21,7 @@ const Estoque = {
     NOTA: 'Nota de entrada',
     SAIDA: 'Nota de saída',
     CUPOM: 'Cupom fiscal',
+    PEDIDO: 'Venda de balcão (pedido)',
     AJUSTE: 'Acerto à mão',
     SALDO_INICIAL: 'Saldo inicial',
     ESTORNO: 'Estorno',

@@ -93,6 +93,15 @@ class Empresa(Base):
     # texto fixo que entra em "Informações complementares" de toda nota emitida
     texto_nota = Column(Text)
 
+    # ---- estoque ----
+    # Quando a mercadoria sai do saldo, nesta empresa:
+    #   DOCUMENTO  na autorização da NF-e ou do cupom (o padrão)
+    #   PEDIDO     ao finalizar a venda no balcão, com ou sem documento fiscal
+    # Não é gosto: é o momento em que a mercadoria realmente sai da prateleira.
+    # Quem entrega na hora e emite a nota depois precisa do PEDIDO; quem só
+    # entrega contra documento fica no DOCUMENTO.
+    estoque_baixa = Column(String(10), nullable=False, default="DOCUMENTO")
+
     # Usuário assinante dono desta empresa (isolamento entre contas)
     dono_id = Column(Integer, index=True)
     ativo = Column(Boolean, nullable=False, default=True)
@@ -428,6 +437,11 @@ class Pedido(Base):
     documento = Column(String(6))              # NFE | CUPOM
     nota_id = Column(Integer, ForeignKey("notas.id"), index=True)
     lancamento_id = Column(Integer, ForeignKey("lancamentos.id"), index=True)
+
+    # quando este pedido baixou o estoque (só nas empresas que baixam pelo
+    # pedido). Vazio = não mexeu, ou já foi estornado.
+    estoque_em = Column(DateTime)
+    estoque_por_id = Column(Integer, ForeignKey("usuarios.id"))
 
     criado_por_id = Column(Integer, ForeignKey("usuarios.id"))
     criado_em = Column(DateTime, default=datetime.utcnow)
@@ -816,6 +830,9 @@ class MovimentoEstoque(Base):
         NOTA           nota fiscal de entrada, pelo botão "Gerar estoque"
         SAIDA          NF-e de saída, baixada sozinha ao ser autorizada
         CUPOM          cupom fiscal (NFC-e), idem
+        PEDIDO         venda de balcão finalizada, nas empresas que baixam pelo
+                       pedido — a mercadoria sai quando o cliente leva, e o
+                       documento fiscal pode sair depois
         AJUSTE         acerto feito à mão na tela de estoque
         SALDO_INICIAL  o que já existia quando o controle começou
         ESTORNO        devolução de um movimento (nota cancelada, por exemplo)
@@ -839,6 +856,10 @@ class MovimentoEstoque(Base):
     origem = Column(String(15), nullable=False, default="AJUSTE", index=True)
     nota_id = Column(Integer, ForeignKey("notas.id"), index=True)
     nota_item_id = Column(Integer)
+    # quando a baixa é pelo pedido de balcão, o movimento se prende ao pedido —
+    # a nota pode nem existir ainda
+    pedido_id = Column(Integer, ForeignKey("pedidos.id"), index=True)
+    pedido_item_id = Column(Integer)
     documento = Column(String(40))                    # número da nota, no extrato
     parceiro_id = Column(Integer, ForeignKey("parceiros.id"))
     historico = Column(String(200))
@@ -1312,6 +1333,11 @@ class Nota(Base):
     status_emissao = Column(String(12), index=True)
     ambiente = Column(String(1))              # 1 produção | 2 homologação
     contrato_id = Column(Integer, ForeignKey("contratos.id"), index=True)
+    # O pedido de balcão que gerou esta nota. É o que diz ao estoque quem já
+    # baixou: na empresa que baixa pelo pedido, a nota do pedido não baixa de novo.
+    # Sem ForeignKey de propósito: o pedido já aponta para a nota, e as duas
+    # chaves juntas fariam um ciclo entre as tabelas que o SQLite não sabe criar.
+    pedido_id = Column(Integer, index=True)
     cfop = Column(String(5))
     codigo_sefaz = Column(String(5))          # cStat do retorno
     mensagem_sefaz = Column(String(300))      # xMotivo do retorno

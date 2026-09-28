@@ -105,8 +105,11 @@ from backend.seed import garantir_classificacao    # noqa: E402
 
 # o banco antigo do teste só tinha contratos; a empresa entra agora, como numa
 # base de verdade que já vinha rodando
-con.execute("INSERT INTO empresas (id, razao_social, ativo) "
-            "VALUES (1, 'Assessoria Antiga', 1)")
+# Este INSERT é SQL puro, então não passa pelos padrões do SQLAlchemy: toda
+# coluna obrigatória cujo padrão é do Python (e não do banco) precisa vir escrita
+# aqui. É o caso de `ativo` e de `estoque_baixa`.
+con.execute("INSERT INTO empresas (id, razao_social, ativo, estoque_baixa) "
+            "VALUES (1, 'Assessoria Antiga', 1, 'DOCUMENTO')")
 con.commit()
 
 sessao = SessionLocal()

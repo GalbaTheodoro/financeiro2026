@@ -10,6 +10,12 @@
    misturá-los é o que faz o operador errar a forma de pagamento com o cliente
    esperando. */
 const Pedidos = {
+  /** Esta empresa baixa o estoque na finalização da venda, e não no documento? */
+  baixaPeloPedido() {
+    const empresa = (Estado.empresas || []).find((e) => e.id === Estado.empresaId);
+    return (empresa && empresa.estoque_baixa) === 'PEDIDO';
+  },
+
   _lista: null,
   _atual: null,          // o pedido que está sendo montado (ou editado)
   _itens: [],
@@ -551,9 +557,13 @@ const Pedidos = {
           <div class="mini">fecha a venda e gera o financeiro; a nota ou o cupom sai depois</div></button>
       </div>
       <div id="aviso-sem-documento" class="aviso-caixa oculto" style="margin-top:10px">
-        A venda fecha e as contas a receber nascem agora. O <b>estoque só baixa quando o
-        documento sair</b> — até lá o saldo continua contando a mercadoria. O pedido fica
-        marcado como <b>falta emitir</b> na lista, e o botão de emitir está nele.
+        A venda fecha e as contas a receber nascem agora. ${Pedidos.baixaPeloPedido()
+          ? `O <b>estoque baixa agora</b>, na finalização — é o que esta empresa escolheu
+             em Cadastros &rsaquo; Empresas. Quando a nota ou o cupom sair, o saldo não
+             mexe de novo.`
+          : `O <b>estoque só baixa quando o documento sair</b> — até lá o saldo continua
+             contando a mercadoria.`}
+        O pedido fica marcado como <b>falta emitir</b> na lista, e o botão de emitir está nele.
       </div>
 
       <div class="linha-campos" style="margin-top:12px">

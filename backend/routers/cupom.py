@@ -74,6 +74,10 @@ class VendaIn(BaseModel):
     consumidor_nome: str | None = None
     troco: float = 0
     confirmo_producao: bool = False
+    # o pedido de balcão que gerou este cupom, quando veio de lá. Serve ao
+    # estoque: na empresa que baixa pelo pedido, o cupom do pedido não baixa de
+    # novo. Só é aceito se o pedido for da mesma empresa.
+    pedido_id: int | None = None
 
 
 def config_do_cupom(db: Session, empresa_id: int) -> ConfigCupom | None:
@@ -194,6 +198,11 @@ def vender(dados: VendaIn, db: Session = Depends(get_db),
     ficha = criar_rascunho(corpo, db, usuario)
     nota = db.get(Nota, ficha["nota"]["id"])
     nota.modelo = "65"
+    if dados.pedido_id:
+        from ..models import Pedido
+        pedido = db.get(Pedido, dados.pedido_id)
+        if pedido is not None and pedido.empresa_id == dados.empresa_id:
+            nota.pedido_id = pedido.id
     nota.consumidor_documento = (dados.consumidor_documento or "").strip() or None
     nota.consumidor_nome = (dados.consumidor_nome or "").strip() or None
     # troco: o que o consumidor deu a mais. Vai no XML, não é desconto nem venda

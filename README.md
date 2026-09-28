@@ -945,9 +945,34 @@ relatório de virar um amontoado.
 | De onde vem | Como acontece |
 |---|---|
 | **Entrada** | O botão **+ Estoque** na linha da nota de entrada. É manual de propósito: nota de entrada chega da SEFAZ o tempo todo e nem toda ela é mercadoria que a empresa guarda. |
-| **Saída** | **Sozinha**, no momento em que a SEFAZ autoriza a NF-e de saída ou o cupom fiscal. Autorizou, saiu do estoque. |
+| **Saída** | **Sozinha** — no momento em que a SEFAZ autoriza a NF-e ou o cupom, ou ao finalizar o pedido de balcão. Qual dos dois é escolha da empresa (abaixo). |
 | **Devolução** | Nota cancelada devolve o que tinha tirado. |
 | **Acerto** | A tela de estoque, para inventário, perda e saldo inicial — sempre com o motivo escrito. |
+
+#### Quando a saída acontece: pelo documento ou pelo pedido
+
+Em **Cadastros → Empresas → Estoque → Quando o estoque baixa**, por empresa. Não é gosto:
+é **quando a mercadoria sai da prateleira**, e isso muda de negócio para negócio.
+
+| Escolha | A mercadoria sai quando |
+|---|---|
+| **Pelo documento fiscal** (padrão) | a SEFAZ autoriza a NF-e ou o cupom. É quem só entrega contra documento. Venda finalizada sem documento **não** mexe no saldo — ele mexe quando o documento sair. |
+| **Pelo pedido** | a venda é fechada no balcão, **com ou sem documento fiscal**. É quem entrega na hora e emite a nota depois: o saldo acompanha a prateleira, não o papel. |
+
+Toda instalação que já existia continua **pelo documento** — a atualização não muda o
+comportamento de ninguém.
+
+A regra que não pode ser quebrada é: **cada venda baixa uma vez só**. No modo *pelo
+pedido*, a nota que nasceu daquele pedido não baixa de novo (a nota guarda de qual pedido
+veio); nota emitida **fora** de pedido continua baixando na autorização, senão o saldo
+nunca andaria para quem vende pela tela de notas ou de cupom.
+
+Nos dois modos a **falta de saldo barra a venda antes de ela acontecer** — no modo
+documento, antes de a nota ir para a SEFAZ; no modo pedido, antes de a finalização
+começar, com o pedido continuando aberto, sem ter gasto número de nota nem gerado título.
+
+E nos dois modos **cancelar a nota devolve** a mercadoria, tenha a baixa saído da própria
+nota ou do pedido que a gerou.
 
 #### O custo médio
 
@@ -983,7 +1008,7 @@ um** — assim um erro antigo fica visível em vez de sumir numa soma).
 Código: `backend/estoque.py` (o motor), `backend/routers/estoque.py`, o botão em
 `backend/routers/notas.py` e a baixa em `backend/routers/emissao.py`; tela em
 `frontend/js/estoque.js`.
-Teste: `python testes/teste_estoque.py`.
+Teste: `python testes/teste_estoque.py` e `python testes/teste_baixa_estoque.py`.
 
 
 ### SPED Fiscal (EFD ICMS/IPI)
@@ -1435,6 +1460,7 @@ sistema-financeiro/
     ├── teste_classificacao.py   Teste da categoria e da marca do produto
     ├── teste_pedidos.py         Teste do pedido, das parcelas e da finalização
     ├── teste_sped.py            Teste do SPED Fiscal: leiaute, blocos e contagens
+    ├── teste_baixa_estoque.py   Teste de quando o estoque baixa: documento ou pedido
     ├── capturar_sped.py         Capturas da tela do SPED Fiscal (Playwright)
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
@@ -1475,6 +1501,7 @@ python testes/teste_cupom.py        # cupom fiscal (NFC-e): XML no schema e QR C
 python testes/teste_gta.py          # GTA: conferência, validade, resumo e ficha de preparo
 python testes/teste_estoque.py      # estoque: custo médio, entrada pela nota e baixa na venda
 python testes/teste_sped.py         # SPED Fiscal: blocos, C100/C170/C190 e as contagens do 9
+python testes/teste_baixa_estoque.py  # estoque: baixa pelo documento ou pelo pedido
 python testes/teste_planos.py       # os quatro planos, o bloqueio por plano e o menu
 python testes/teste_cupons.py       # cupons de desconto: o valor certo no copia e cola
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)

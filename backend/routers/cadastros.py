@@ -609,12 +609,24 @@ def excluir_banco(banco_id: int, db: Session = Depends(get_db)):
 # --------------------------------------------------------------------------- #
 # Unidades, modalidades e produtos (usados nos contratos)
 # --------------------------------------------------------------------------- #
-def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None, validar=None):
+def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None, validar=None,
+                  preservar=()):
     """Monta os quatro endpoints de um cadastro simples por empresa.
 
     `validar(db, registro)` roda antes de gravar, na criação e na edição, para as
     regras que são só daquele cadastro.
+
+    `preservar` lista campos que, vindo **em branco**, ficam como estão em vez de
+    serem gravados como vazio. É para o que é preenchido numa tela e salvo por
+    outra: sem isto, gravar o cadastro do produto apagaria a formação do preço,
+    que o formulário do cadastro nem manda.
     """
+
+    def _limpar(dados: dict) -> dict:
+        for campo in preservar:
+            if dados.get(campo) is None:
+                dados.pop(campo, None)
+        return dados
 
     def listar(
         empresa_id: int,
@@ -649,7 +661,7 @@ def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None, valid
         ):
             raise HTTPException(400, f"Já existe {rotulo} com o código {codigo}")
         registro = model()
-        _aplicar(registro, dados.model_dump())
+        _aplicar(registro, _limpar(dados.model_dump()))
         registro.codigo = codigo
         if validar:
             validar(db, registro)
@@ -663,7 +675,7 @@ def _crud_simples(nome_rota: str, model, schema, rotulo: str, extras=None, valid
         if not registro:
             raise HTTPException(404, f"{rotulo.capitalize()} não encontrado")
         validar_empresa(db, registro.empresa_id, usuario)
-        _aplicar(registro, dados.model_dump(), ignorar=("empresa_id",))
+        _aplicar(registro, _limpar(dados.model_dump()), ignorar=("empresa_id",))
         if validar:
             validar(db, registro)
         db.commit()
@@ -743,6 +755,11 @@ _crud_simples(
         "estoque": estoque.ficha_produto(p) if p.controla_estoque else None,
     },
     validar=_conferir_classificacao,
+    # a formação do preço é editada em tela própria; o formulário do cadastro
+    # manda só o markup, e o que ele não manda não pode ser apagado
+    preservar=("markup", "custo_compra", "outros_custos", "perc_despesas",
+               "perc_comissao", "perc_cartao", "perc_frete", "perc_lucro",
+               "perc_simples"),
 )
 
 

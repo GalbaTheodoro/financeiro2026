@@ -1011,6 +1011,70 @@ Código: `backend/estoque.py` (o motor), `backend/routers/estoque.py`, o botão 
 Teste: `python testes/teste_estoque.py` e `python testes/teste_baixa_estoque.py`.
 
 
+### Formação do preço: o markup
+
+**Cadastros → Produtos → botão Preço**, na linha do produto.
+
+Quase todo mundo forma preço errado do mesmo jeito: pega o custo e soma a margem que quer
+ganhar. Custo 1.000 e 20% de lucro viram 1.200 — e no fim do mês o lucro não é 20%, porque
+imposto, comissão e taxa de cartão saem **do preço de venda**, não do custo.
+
+A conta certa é a do **markup divisor**. Tudo que é percentual sobre a venda entra num bolo,
+e o preço é o custo dividido pelo que sobra:
+
+    soma   = impostos + comissão + cartão + frete + despesa fixa + lucro   (em %)
+    markup = 1 / (1 − soma/100)
+    preço  = custo × markup
+
+No exemplo, com 20% de lucro, 10% de imposto e 5% de comissão a soma é 35%: o markup é
+1,5385 e o preço é **1.538,50**. Vendendo pelos 1.200 da conta errada, o lucro real é de
+**1,67%** — e é isso que a tela mostra, em vermelho, quando você informa o preço praticado.
+
+A conta **fecha**: multiplicando cada percentual pelo preço, cada real vai para um lugar, e o
+que sobra é exatamente o custo. É o quadro "para onde vai cada real do preço".
+
+#### O que entra na conta
+
+| Entra no markup | Não entra |
+|---|---|
+| ICMS, PIS e COFINS — ou, na empresa do Simples, a alíquota única do **DAS** no lugar dos três | **IPI**, que é por fora: soma ao preço e é cobrado do cliente, sem comer a margem. Sai como "preço com IPI" |
+| Comissão, taxa de cartão, frete e despesa fixa | |
+| Lucro desejado (sobre o preço, não sobre o custo) | |
+
+**Base do custo**, nesta ordem: o **custo de compra** (o de reposição, o que custa comprar
+hoje) quando estiver preenchido; senão o **custo médio** que o estoque mantém. Somam-se os
+**outros custos por unidade** — embalagem, rótulo —, que são reais e não percentual.
+
+Um aviso honesto que a própria tela dá: o custo médio é o valor da nota de entrada. Empresa
+de regime normal que se credita do ICMS da compra tem custo real menor que isso — nesse caso
+informe o custo líquido no campo Custo de compra.
+
+#### Os dois caminhos
+
+- **dos percentuais para o preço** — preenche e recebe o markup e o preço sugerido;
+- **do markup para o preço** — digita o markup direto (ou o preço que já pratica) e recebe
+  quanto de lucro **sobra de verdade** depois de tudo. É a conta que mostra um preço no
+  prejuízo antes de o mês fechar.
+
+Percentuais somando 100% ou mais não viram preço: viram aviso, porque não existe preço que
+pague isso e ainda cubra o custo.
+
+#### O que a tela não faz
+
+**Não grava preço sozinho.** Preço é decisão, não resultado de fórmula. São dois botões, e
+eles fazem coisas diferentes de propósito: *Salvar os percentuais* guarda o estudo; *Usar
+este preço* muda o que o balcão vai cobrar — e só aí o markup gravado passa a ser o do preço
+que vale de verdade.
+
+Os percentuais ficam **no produto**, um jogo por produto: café e insumo formam preço com
+contas diferentes. O formulário do cadastro não os mostra (são muitos), e por isso salvar o
+cadastro **não os apaga** — campo em branco ali quer dizer "não mexer".
+
+Código: `backend/precificacao.py` (a conta), `backend/routers/precificacao.py`; tela em
+`frontend/js/precos.js`.
+Teste: `python testes/teste_precificacao.py`.
+
+
 ### SPED Fiscal (EFD ICMS/IPI)
 
 **Fiscal → SPED Fiscal** monta o arquivo mensal que o contador entrega ao estado. Não é um
@@ -1397,6 +1461,7 @@ sistema-financeiro/
 │   ├── sefaz_enderecos.py       Endereços da NFC-e por estado, editáveis na tela
 │   ├── pedidos.py               Pedido e orçamento: numeração, totais e parcelas
 │   ├── sped.py                  SPED Fiscal: monta o arquivo da EFD ICMS/IPI do mês
+│   ├── precificacao.py          Formação do preço: markup divisor, custos e impostos
 │   ├── fiscal.py                Regras fiscais: cruza CFOP, UFs, tipo de cliente e de item
 │   ├── cclasstrib.py            Tabela de classificação tributária do IBS/CBS (NT 2025.002)
 │   ├── migracao.py              Atualização automática do banco
@@ -1423,7 +1488,8 @@ sistema-financeiro/
 │   ├── styles.css
 │   ├── img/                     logotipo do AgroDock, ícone e favicon
 │   └── js/                      api, ui, site, cadastros, lancamentos, caixa, impressao,
-│                                contratos, dfe, sped, mercado, relatorios, assinaturas, app
+│                                contratos, dfe, sped, precos, mercado, relatorios,
+│                                assinaturas, app
 ├── deploy/                      publicação: nuvem (Neon + Vercel) e servidor Ubuntu
 │   ├── migrar_para_postgres.py  Leva os dados do PC para a nuvem — e traz de volta
 │   ├── subir-para-nuvem.bat     Atalho do Windows para a primeira carga
@@ -1461,6 +1527,7 @@ sistema-financeiro/
     ├── teste_pedidos.py         Teste do pedido, das parcelas e da finalização
     ├── teste_sped.py            Teste do SPED Fiscal: leiaute, blocos e contagens
     ├── teste_baixa_estoque.py   Teste de quando o estoque baixa: documento ou pedido
+    ├── teste_precificacao.py    Teste da formação do preço: markup, impostos e lucro
     ├── capturar_sped.py         Capturas da tela do SPED Fiscal (Playwright)
     ├── smtp_de_mentira.py       Servidor SMTP falso usado pelo teste de e-mail
     ├── teste_schema_nfe.py      Valida o XML contra o schema oficial 4.00 (xsd/)
@@ -1502,6 +1569,7 @@ python testes/teste_gta.py          # GTA: conferência, validade, resumo e fich
 python testes/teste_estoque.py      # estoque: custo médio, entrada pela nota e baixa na venda
 python testes/teste_sped.py         # SPED Fiscal: blocos, C100/C170/C190 e as contagens do 9
 python testes/teste_baixa_estoque.py  # estoque: baixa pelo documento ou pelo pedido
+python testes/teste_precificacao.py   # formação do preço: markup, impostos e lucro real
 python testes/teste_planos.py       # os quatro planos, o bloqueio por plano e o menu
 python testes/teste_cupons.py       # cupons de desconto: o valor certo no copia e cola
 python testes/teste_schema_nfe.py   # valida o XML no schema oficial (precisa de lxml)

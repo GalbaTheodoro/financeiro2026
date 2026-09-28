@@ -165,7 +165,8 @@ const Cadastros = {
             controle = `<input type="number" step="0.01" name="${campo.nome}" value="${valor ?? 0}">`;
             break;
           case 'numero':
-            controle = `<input type="number" name="${campo.nome}" value="${valor ?? ''}">`;
+            // sem `step`, o navegador só aceita número inteiro — e markup é 1,80
+            controle = `<input type="number" step="${campo.passo || 1}" name="${campo.nome}" value="${valor ?? ''}">`;
             break;
           case 'data':
             controle = `<input type="date" name="${campo.nome}" value="${(valor || '').slice(0, 10)}">`;
@@ -1331,6 +1332,9 @@ const Cadastros = {
         { rotulo: 'Todas as marcas', campo: 'marca_id',
           opcoes: () => Api.marcasAtivas().map((m) => ({ valor: m.id, rotulo: m.nome })) },
       ],
+      // a formação do preço é uma conta com muitos números: abre em tela própria,
+      // em vez de virar mais uma seção espremida no cadastro
+      acoesLinha: [{ rotulo: () => 'Preço', acao: (r) => Precos.abrir(r) }],
       colunas: [
         { titulo: 'Código', valor: (r) => `<span class="forte">${UI.escapar(r.codigo)}</span>` },
         { titulo: 'Produto', valor: (r) => UI.escapar(r.nome) },
@@ -1340,7 +1344,9 @@ const Cadastros = {
           : '<span class="mini negativo">sem classificação</span>') },
         { titulo: 'Unidade', valor: (r) => UI.escapar(r.unidade_nome || '-') },
         { titulo: 'Preço', classe: 'num', valor: (r) => (r.preco_venda
-          ? UI.moeda(r.preco_venda) : '<span class="mini">sem preço</span>') },
+          ? `${UI.moeda(r.preco_venda)}${r.markup
+              ? `<div class="mini">markup ${UI.numero(r.markup, 2)}</div>` : ''}`
+          : '<span class="mini">sem preço</span>') },
         { titulo: 'Fiscal', valor: (r) => (r.ncm
           ? `NCM ${UI.escapar(r.ncm)}<div class="mini">${UI.escapar(r.cfop_padrao || '')}</div>`
           : '<span class="mini">sem NCM</span>') },
@@ -1367,6 +1373,9 @@ const Cadastros = {
         { nome: 'embalagem', rotulo: 'Embalagem', dica: 'a granel, sacaria...' },
         { nome: 'preco_venda', rotulo: 'Preço de venda', tipo: 'dinheiro', padrao: 0,
           dica: 'o que aparece na tela de balcão; dá para mudar na hora da venda' },
+        { nome: 'markup', rotulo: 'Markup', tipo: 'numero', padrao: 0, passo: 0.0001,
+          dica: 'índice sobre o custo (1,80 = custo x 1,80). O botão Preço da lista '
+            + 'calcula a partir dos impostos, das despesas e do lucro desejado' },
         { nome: 'descricao', rotulo: 'Descrição', largura: 2 },
         { tipo: 'secao', rotulo: 'Classificação',
           dica: 'é por ela que você filtra a lista, filtra o estoque e soma o relatório' },

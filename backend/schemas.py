@@ -330,6 +330,19 @@ class ProdutoIn(BaseModel):
     categoria_id: int | None = None
     marca_id: int | None = None
     preco_venda: float = 0            # preço sugerido na tela de balcão
+    # Formação do preço (ver backend/precificacao.py). Em branco = **não mexer**:
+    # estes campos são preenchidos na tela de formação do preço, e o formulário
+    # do cadastro não os manda. Se viessem com zero padrão, salvar o produto
+    # apagaria em silêncio o estudo de preço inteiro.
+    markup: float | None = None       # índice: custo x markup = preço
+    custo_compra: float | None = None # custo de reposição por unidade
+    outros_custos: float | None = None  # embalagem e afins, em R$ por unidade
+    perc_despesas: float | None = None
+    perc_comissao: float | None = None
+    perc_cartao: float | None = None
+    perc_frete: float | None = None
+    perc_lucro: float | None = None
+    perc_simples: float | None = None   # DAS, só na empresa do Simples Nacional
     # dados fiscais (NF-e) — ficam em branco enquanto o produto for só de contrato
     ncm: str | None = None
     cest: str | None = None

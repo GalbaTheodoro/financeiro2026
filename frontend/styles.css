@@ -153,6 +153,9 @@ thead th{background:var(--cinza-50);text-align:left;padding:9px 12px;font-size:1
 tbody td{padding:9px 12px;border-bottom:1px solid var(--cinza-100);vertical-align:middle}
 tbody tr:hover{background:var(--cinza-50)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* "direita" fora da tabela é margin-left:auto (flex); dentro dela é alinhar o
+   número à direita, que é o que as telas de estoque, SPED e preço pedem */
+td.direita,th.direita{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 td.centro,th.centro{text-align:center}
 tfoot td{padding:10px 12px;font-weight:700;border-top:2px solid var(--cinza-300);background:var(--cinza-50)}
 .vazio{padding:34px;text-align:center;color:var(--cinza-500)}

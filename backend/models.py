@@ -785,6 +785,26 @@ class Produto(Base):
     # o valor do item, e o cadastro continua sendo o padrão.
     preco_venda = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
 
+    # ---- formação do preço (ver backend/precificacao.py) ----
+    # O markup é o índice que multiplica o custo: 1,80 quer dizer custo x 1,80.
+    # Nasce zerado; a tela calcula a partir dos percentuais abaixo e só grava
+    # quando alguém manda — preço é decisão, não resultado de fórmula.
+    markup = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    # custo de reposição por unidade (o que custa comprar hoje). Quando está
+    # preenchido, manda na conta; senão a base é o custo médio do estoque.
+    custo_compra = Column(Numeric(15, 6, asdecimal=False), nullable=False, default=0)
+    # custos em reais por unidade que não são percentuais: embalagem, rótulo
+    outros_custos = Column(Numeric(15, 6, asdecimal=False), nullable=False, default=0)
+    # percentuais que saem de dentro do preço de venda
+    perc_despesas = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    perc_comissao = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    perc_cartao = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    perc_frete = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    perc_lucro = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+    # alíquota única do DAS — só vale na empresa do Simples Nacional, e nela
+    # substitui o ICMS, o PIS e a COFINS do cadastro fiscal
+    perc_simples = Column(Numeric(9, 4, asdecimal=False), nullable=False, default=0)
+
     # ---- estoque ----
     # Só entra no controle de estoque o produto marcado aqui. Comissão, frete e
     # serviço continuam saindo em nota sem mexer em saldo nenhum.

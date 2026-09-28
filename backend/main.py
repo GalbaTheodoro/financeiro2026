@@ -30,6 +30,7 @@ from .routers import (
     lancamentos,
     notas,
     pedidos,
+    precificacao,
     publico,
     relatorios,
     sped,
@@ -113,6 +114,7 @@ app.include_router(dfe.router)
 app.include_router(notas.router)
 app.include_router(emissao.router)
 app.include_router(pedidos.router)
+app.include_router(precificacao.router)
 app.include_router(estoque.router)
 app.include_router(lancamentos.router)
 app.include_router(caixa.router)

@@ -103,7 +103,7 @@ quadro = api("GET", "/api/admin/sefaz?modelo=65", None, tm)
 ufs = {l["uf"]: l for l in quadro["linhas"]}
 checar("a tabela traz MG, SP, GO e TO", {"MG", "SP", "GO", "TO"} <= set(ufs), str(sorted(ufs)))
 checar("Minas e São Paulo emitem", ufs["MG"]["emite"] and ufs["SP"]["emite"])
-checar("Goiás emite (autorização pelo SVRS e QR Code próprio)", ufs["GO"]["emite"],
+checar("Goiás emite (servidor próprio da SEFAZ-GO e QR Code próprio)", ufs["GO"]["emite"],
        str(ufs["GO"]["faltando"]))
 checar("o Tocantins ainda não emite: falta o QR Code, e a tela diz isso",
        ufs["TO"]["emite"] is False
@@ -113,9 +113,11 @@ checar("cada estado mostra de onde veio o padrão",
 checar("São Paulo aponta para o webservice da NFC-e paulista, não o da NF-e",
        "nfce.fazenda.sp.gov.br" in ufs["SP"]["campos"]["autorizacao_producao"]["valor"],
        ufs["SP"]["campos"]["autorizacao_producao"]["valor"])
-checar("Goiás e Tocantins autorizam pelo SVRS",
-       "nfce.svrs.rs.gov.br" in ufs["GO"]["campos"]["autorizacao_producao"]["valor"]
-       and "nfce.svrs.rs.gov.br" in ufs["TO"]["campos"]["autorizacao_producao"]["valor"])
+checar("Goiás autoriza no servidor próprio (não no SVRS — daria a rejeição 410)",
+       "nfe.sefaz.go.gov.br" in ufs["GO"]["campos"]["autorizacao_producao"]["valor"]
+       and "homolog.sefaz.go.gov.br" in ufs["GO"]["campos"]["autorizacao_homologacao"]["valor"])
+checar("Tocantins autoriza pelo SVRS",
+       "nfce.svrs.rs.gov.br" in ufs["TO"]["campos"]["autorizacao_producao"]["valor"])
 
 # =========================================================================== #
 print("\n=== 2. O QR Code sai com a URL de cada estado ===")

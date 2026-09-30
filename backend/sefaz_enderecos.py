@@ -27,8 +27,9 @@ Cada linha leva uma ``fonte``, que a tela mostra, porque a confiança não é a 
 * ``SP`` — conferido no portal da SEFAZ-SP (portal.fazenda.sp.gov.br, serviços da
   NFC-e → WebServices);
 * ``SVRS`` — conferido no portal do SVRS (dfe-portal.svrs.rs.gov.br/Nfce/Servicos);
-* ``GO`` (QR Code) — Informe Técnico 2025.003, por fonte secundária: **confira no
-  portal da SEFAZ-GO antes de usar em produção**;
+* ``GO`` — autorização e evento no servidor próprio da SEFAZ-GO (não é SVRS),
+  conferidos no portal do SVRS (seção SEFAZ Goiás); QR Code do Informe Técnico
+  2025.003;
 * o que não foi confirmado fica **em branco** de propósito.
 
 Prazo de cancelamento
@@ -101,16 +102,24 @@ PADRAO_65: dict[str, dict] = {
     },
     "GO": {
         "nome": "Goiás",
-        "fonte": "autorização pelo SVRS; QR Code do Informe Técnico 2025.003 "
-                 "(fonte secundária — confira no portal da SEFAZ-GO)",
-        "onde": "goias.gov.br/economia → NFC-e (Informe Técnico 2025.003)",
+        "fonte": "autorização e evento no servidor próprio da SEFAZ-GO (os mesmos "
+                 "endereços da NF-e modelo 55), conferidos em "
+                 "dfe-portal.svrs.rs.gov.br/Nfce/Servicos; QR Code do Informe Técnico "
+                 "2025.003; consulta por chave em www.sefaz.go.gov.br/nfce/consulta",
+        "onde": "dfe-portal.svrs.rs.gov.br/Nfce/Servicos → SEFAZ Goiás (GO); "
+                "goias.gov.br/economia → NFC-e (Informe Técnico 2025.003)",
         "minutos_cancelamento": 30,
-        "autorizacao": dict(_SVRS_AUT),
-        "evento": dict(_SVRS_EVT),
+        # Goiás NÃO usa o SVRS para o cupom: mandar para o SVRS dá a rejeição 410
+        # ("UF informada no campo cUF não é atendida pelo Web Service").
+        "autorizacao": {"1": "https://nfe.sefaz.go.gov.br/nfe/services/NFeAutorizacao4",
+                        "2": "https://homolog.sefaz.go.gov.br/nfe/services/NFeAutorizacao4"},
+        "evento": {"1": "https://nfe.sefaz.go.gov.br/nfe/services/NFeRecepcaoEvento4",
+                   "2": "https://homolog.sefaz.go.gov.br/nfe/services/NFeRecepcaoEvento4"},
         "qrcode": {"1": "https://nfeweb.sefaz.go.gov.br/nfeweb/sites/nfce/danfeNFCe",
                    "2": "https://nfewebhomolog.sefaz.go.gov.br/nfeweb/sites/nfce/danfeNFCe"},
-        # a consulta pela chave de Goiás eu não confirmei em fonte oficial
-        "consulta": {"1": "", "2": ""},
+        # a mesma nos dois ambientes (página da SEFAZ-GO, no ar)
+        "consulta": {"1": "http://www.sefaz.go.gov.br/nfce/consulta",
+                     "2": "http://www.sefaz.go.gov.br/nfce/consulta"},
     },
     "TO": {
         "nome": "Tocantins",

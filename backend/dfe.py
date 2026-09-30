@@ -50,6 +50,10 @@ FUSO_BR = timezone(timedelta(hours=-3))
 
 AMBIENTES = {"1": "Produção", "2": "Homologação"}
 
+# Autoridades certificadoras da ICP-Brasil (ver _contexto_ssl)
+CADEIA_ICP_BRASIL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "certs", "icp_brasil.pem")
+
 # Código do IBGE de cada estado (vai no cUFAutor da consulta e no cOrgao do evento)
 CODIGO_UF = {
     "RO": "11", "AC": "12", "AM": "13", "RR": "14", "PA": "15", "AP": "16", "TO": "17",
@@ -235,6 +239,12 @@ def _contexto_ssl(chave, certificado, cadeia):
         caminho.write(pem)
         caminho.close()
         contexto = ssl.create_default_context()
+        # Vários servidores da SEFAZ (SVRS — que atende GO e TO no cupom —, e outros)
+        # usam certificado SSL da ICP-Brasil, que não vem na lista padrão do
+        # Python/Linux. Soma-se a cadeia da ICP-Brasil à lista padrão: a conexão
+        # continua conferida, só passa a reconhecer também quem o governo reconhece.
+        if os.path.exists(CADEIA_ICP_BRASIL):
+            contexto.load_verify_locations(cafile=CADEIA_ICP_BRASIL)
         # alguns servidores da SEFAZ ainda negociam TLS 1.2 com cifras antigas
         contexto.set_ciphers("DEFAULT@SECLEVEL=1")
         contexto.load_cert_chain(caminho.name)
@@ -276,6 +286,14 @@ def _enviar(url: str, corpo_xml: str, acao_ns: str, contexto) -> str:
             detalhe=f"Endereço: {url}\nAção: {acao_ns}\n\n{bruto[:4000]}",
         ) from None
     except urllib.error.URLError as erro:
+        if isinstance(erro.reason, ssl.SSLCertVerificationError):
+            raise ErroDFe(
+                "Não foi possível conferir o certificado de segurança do servidor da SEFAZ "
+                "(a conexão não chegou a enviar a nota). Isso não é problema da nota nem do "
+                "cadastro: é a lista de autoridades certificadoras do sistema, em "
+                "backend/certs/icp_brasil.pem. Mande esta mensagem para o suporte.",
+                detalhe=f"Endereço: {url}\n{erro.reason}",
+            ) from None
         raise ErroDFe(
             f"Não foi possível falar com a SEFAZ: {erro.reason}. "
             "Tente de novo em alguns minutos."

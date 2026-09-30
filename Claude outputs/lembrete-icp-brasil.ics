@@ -1,0 +1,19 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//AgroDock//Lembrete ICP-Brasil//PT
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:agrodock-icp-brasil-20280819@agrodock
+DTSTAMP:20260930T110000Z
+DTSTART:20280819T120000Z
+DTEND:20280819T123000Z
+SUMMARY:AgroDock - renovar cadeia ICP-Brasil (icp_brasil.pem)
+DESCRIPTION:Faltam 180 dias: o certificado SERPRO Final SSL vence em 15/02/2029 e a Raiz Brasileira v5 em 02/03/2029. Sem atualizar\, o cupom e a nota voltam a falhar com CERTIFICATE_VERIFY_FAILED.\n\n1) Baixar o arquivo unico compactado das ACs da ICP-Brasil no site do ITI (ou a versao nova do pacote certifi-icpbr no PyPI).\n2) Substituir C:\\ProjetoGalba\\financeiro2026\\backend\\certs\\icp_brasil.pem.\n3) Rodar python -m testes.teste_cadeia_icp.\n4) Rodar publicar.bat.
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Renovar cadeia ICP-Brasil do AgroDock
+TRIGGER:-PT0M
+END:VALARM
+END:VEVENT
+END:VCALENDAR

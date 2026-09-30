@@ -8,7 +8,7 @@
      Desfaturar -> apaga esse título e libera a nota de novo. Só no AgroDock:
                    a nota na SEFAZ não é tocada. */
 const Notas = {
-  filtros: { inicio: '', fim: '', situacao: '', faturamento: '', sentido: '', origem: '', busca: '' },
+  filtros: { inicio: '', fim: '', situacao: '', faturamento: '', sentido: '', origem: '', tipo: '', busca: '' },
   selecionadas: new Set(),
 
   SITUACOES: [
@@ -28,6 +28,17 @@ const Notas = {
     { valor: 'DFE', rotulo: 'Recebidas (vieram da SEFAZ)' },
     { valor: 'EMITIDA', rotulo: 'Emitidas por mim' },
   ],
+  // tipo do documento = origem (emitida aqui / importada) + modelo (55 NF-e, 65 NFC-e)
+  TIPOS: [
+    { valor: 'NFE_EMITIDA', rotulo: 'NF-e emitidas' },
+    { valor: 'NFCE_EMITIDA', rotulo: 'NFC-e emitidas (cupom)' },
+    { valor: 'NFE_IMPORTADA', rotulo: 'NF-e importadas' },
+    { valor: 'NFCE_IMPORTADA', rotulo: 'NFC-e importadas' },
+  ],
+  TAG_TIPO: {
+    NFE_EMITIDA: 'tag-pago', NFCE_EMITIDA: 'tag-parcial',
+    NFE_IMPORTADA: 'tag-aberto', NFCE_IMPORTADA: 'tag-aberto',
+  },
   TAG_EMISSAO: {
     RASCUNHO: 'tag-aberto', ENVIADA: 'tag-parcial', AUTORIZADA: 'tag-pago',
     REJEITADA: 'tag-vencido', CANCELADA: 'tag-cancelado',
@@ -86,6 +97,7 @@ const Notas = {
           ${UI.campo('Emissão até', `<input type="date" name="fim" value="${f.fim}">`)}
           ${UI.campo('Faturamento', UI.select('faturamento', Notas.FATURAMENTO, f.faturamento, { vazio: 'Todas' }))}
           ${UI.campo('Entrada ou saída', UI.select('sentido', Notas.SENTIDOS, f.sentido, { vazio: 'Todas' }))}
+          ${UI.campo('Tipo', UI.select('tipo', Notas.TIPOS, f.tipo, { vazio: 'Todos' }))}
           ${UI.campo('Origem', UI.select('origem', Notas.ORIGENS, f.origem, { vazio: 'Todas' }))}
           ${UI.campo('Situação', UI.select('situacao', Notas.SITUACOES, f.situacao, { vazio: 'Todas' }))}
           ${UI.campo('Buscar', `<input name="busca" value="${UI.escapar(f.busca)}" placeholder="emitente, número, chave...">`)}
@@ -164,6 +176,9 @@ const Notas = {
             : '') },
         { titulo: 'Emissão', valor: (n) => `${UI.data(n.data_emissao)}
             <div class="mini">${n.sentido}</div>` },
+        { titulo: 'Tipo', classe: 'centro',
+          valor: (n) => `<span class="tag ${Notas.TAG_TIPO[n.tipo_documento] || ''}">${
+            UI.escapar(n.tipo_documento_nome || '-')}</span>` },
         { titulo: 'Nota', valor: (n) => `<span class="forte">${UI.escapar(n.numero || '-')}</span>
             <div class="mini">série ${UI.escapar(n.serie || '-')}</div>` },
         { titulo: 'Emitente', valor: (n) => `${UI.escapar(n.emitente_nome || '-')}

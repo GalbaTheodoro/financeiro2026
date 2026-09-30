@@ -86,6 +86,31 @@ def _resumo_estoque(db: Session, nota: Nota, entrada: bool) -> dict:
     }
 
 
+# --------------------------------------------------------------------------- #
+# Tipo do documento: junta a origem (emitida aqui ou importada) com o modelo
+# (55 = NF-e, 65 = NFC-e/cupom). Nota sem modelo gravado conta como NF-e.
+# --------------------------------------------------------------------------- #
+TIPOS_DOCUMENTO = {
+    "NFE_EMITIDA": ("EMITIDA", False, "NF-e emitida"),
+    "NFCE_EMITIDA": ("EMITIDA", True, "NFC-e emitida"),
+    "NFE_IMPORTADA": ("DFE", False, "NF-e importada"),
+    "NFCE_IMPORTADA": ("DFE", True, "NFC-e importada"),
+}
+
+
+def tipo_documento(nota: Nota) -> str:
+    cupom = (nota.modelo or "55") == "65"
+    emitida = nota.origem == "EMITIDA"
+    return ("NFCE" if cupom else "NFE") + ("_EMITIDA" if emitida else "_IMPORTADA")
+
+
+def _filtrar_tipo(consulta, tipo: str):
+    origem, cupom, _ = TIPOS_DOCUMENTO[tipo]
+    modelo = func.coalesce(Nota.modelo, "55")
+    return consulta.filter(Nota.origem == origem,
+                           modelo == "65" if cupom else modelo != "65")
+
+
 def linha(db: Session, nota: Nota, cnpj_empresa: str) -> dict:
     titulo = _resumo_titulo(db, nota)
     entrada = regras.sentido(nota, cnpj_empresa) == "Entrada"
@@ -95,6 +120,8 @@ def linha(db: Session, nota: Nota, cnpj_empresa: str) -> dict:
         "chave_formatada": motor.formatar_chave(nota.chave),
         "manifestacao_nome": motor.ROTULO_EVENTO.get(nota.manifestacao or "", ""),
         "sentido": regras.sentido(nota, cnpj_empresa),
+        "tipo_documento": tipo_documento(nota),
+        "tipo_documento_nome": TIPOS_DOCUMENTO[tipo_documento(nota)][2],
         "tem_xml": bool(nota.xml) and not nota.resumo,
         "parceiro_nome": nota.parceiro.nome if nota.parceiro else None,
         "faturada": titulo is not None,
@@ -119,6 +146,8 @@ def listar(
     faturamento: str | None = Query(None, description="faturadas | a-faturar"),
     sentido: str | None = Query(None, description="entrada | saida"),
     origem: str | None = Query(None, description="DFE (recebidas) | EMITIDA"),
+    tipo: str | None = Query(None, description="NFE_EMITIDA | NFCE_EMITIDA | "
+                                               "NFE_IMPORTADA | NFCE_IMPORTADA"),
     parceiro_id: int | None = None,
     busca: str | None = None,
     limite: int = 400,
@@ -141,6 +170,8 @@ def listar(
         consulta = consulta.filter(Nota.lancamento_id.is_(None))
     if origem in ("DFE", "EMITIDA"):
         consulta = consulta.filter(Nota.origem == origem)
+    if tipo and tipo.upper() in TIPOS_DOCUMENTO:
+        consulta = _filtrar_tipo(consulta, tipo.upper())
     if parceiro_id:
         consulta = consulta.filter(Nota.parceiro_id == parceiro_id)
     if busca:
@@ -178,6 +209,8 @@ def listar(
             "a_faturar": sum(1 for x in validas if not x["faturada"]),
             "emitidas": sum(1 for x in linhas if x["origem"] == "EMITIDA"),
             "rascunhos": sum(1 for x in linhas if x.get("status_emissao") == "RASCUNHO"),
+            "por_tipo": {t: sum(1 for x in linhas if x["tipo_documento"] == t)
+                         for t in TIPOS_DOCUMENTO},
             "valor_a_faturar": dinheiro(
                 sum(x["valor_total"] for x in validas if not x["faturada"])),
         },

@@ -45,6 +45,11 @@ TELAS = [
     ("estoque/extrato", "Estoque"),
     ("sped", "SPED Fiscal"),
     ("sped/config", "SPED Fiscal"),
+    ("livros", "Relatórios Fiscais"),
+    ("livros/saidas", "Relatórios Fiscais"),
+    ("livros/cfop", "Relatórios Fiscais"),
+    ("livros/uf", "Relatórios Fiscais"),
+    ("livros/estoque", "Relatórios Fiscais"),
     ("vendas", "Vendas e Margens"),
     ("vendas/parados", "Vendas e Margens"),
     ("cadastros/usuarios", "Cadastros"),
@@ -240,7 +245,8 @@ with sync_playwright() as p:
     so_basico = rotas_menu()
     ok_p1 = "/cupom" not in so_basico and "/gta" not in so_basico \
         and "/contratos" in so_basico and "/notas" in so_basico \
-        and "/sped" in so_basico       # o SPED é da nota fiscal: está em todo plano
+        and "/sped" in so_basico \
+        and "/livros" in so_basico     # SPED e livros são da nota fiscal: estão em todo plano
     print(f"  [{'OK  ' if ok_p1 else 'FALHA'}] no Plano 1 eles somem do menu, o resto fica "
           f"({len(so_basico)} itens)")
     if not ok_p1:

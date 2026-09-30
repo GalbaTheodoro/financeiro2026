@@ -28,6 +28,7 @@ from .routers import (
     gta,
     icms,
     lancamentos,
+    livros,
     notas,
     pedidos,
     precificacao,
@@ -121,6 +122,7 @@ app.include_router(lancamentos.router)
 app.include_router(caixa.router)
 app.include_router(relatorios.router)
 app.include_router(sped.router)
+app.include_router(livros.router)
 app.include_router(vendas.router)
 
 

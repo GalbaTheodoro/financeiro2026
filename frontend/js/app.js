@@ -19,6 +19,7 @@ const App = {
     '/estoque': { titulo: 'Estoque', subtitulo: 'Saldo e custo médio de cada produto — a entrada vem da nota, a saída é baixada sozinha', acao: (aba) => Estoque.tela(aba) },
     '/dfe': { titulo: 'DF-e — Documentos fiscais', subtitulo: 'Notas emitidas contra o CNPJ da empresa: XML, DANFE, manifestação e importação', acao: (aba) => DFe.tela(aba) },
     '/sped': { titulo: 'SPED Fiscal', subtitulo: 'O arquivo mensal da EFD ICMS/IPI para o contador, montado das notas do sistema', acao: (aba) => Sped.tela(aba) },
+    '/livros': { titulo: 'Relatórios Fiscais', subtitulo: 'Livros de entradas e saídas, resumo por CFOP e por estado, e o livro de estoque', acao: (aba) => Livros.tela(aba) },
     '/relatorios': { titulo: 'Relatórios', subtitulo: 'DRE, balancete e relatórios gerenciais', acao: () => Relatorios.tela() },
     '/vendas': { titulo: 'Vendas e Margens', subtitulo: 'Quanto vendeu, para quem, com que margem — e o que está parado no estoque', acao: (aba) => Vendas.tela(aba) },
     '/cadastros': { titulo: 'Cadastros', subtitulo: 'Todos os cadastros do sistema em um só lugar', acao: (aba) => Cadastros.hub(aba) },
@@ -46,7 +47,7 @@ const App = {
 
   /* Só estas rotas dependem do plano; o resto é de toda conta. */
   ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/notas',
-    '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios', '/sped',
+    '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios', '/sped', '/livros',
     '/vendas'],
 
   menu() {
@@ -63,6 +64,7 @@ const App = {
       { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (buscar na SEFAZ)' },
       { rota: '/gta', icone: '☙', rotulo: 'GTA (trânsito animal)' },
       { rota: '/sped', icone: '🗄', rotulo: 'SPED Fiscal' },
+      { rota: '/livros', icone: '▥', rotulo: 'Relatórios Fiscais' },
       { grupo: 'Estoque' },
       { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },
       { grupo: 'Financeiro' },
@@ -125,7 +127,7 @@ const App = {
 
   /* Telas que têm abas: o segundo pedaço do endereço é o nome da aba, e é
      passado para a tela. Fora daqui, endereço com barra não existe. */
-  ROTAS_COM_ABA: ['/cadastros', '/dfe', '/estoque', '/sped', '/vendas'],
+  ROTAS_COM_ABA: ['/cadastros', '/dfe', '/estoque', '/sped', '/livros', '/vendas'],
 
   async navegar() {
     if (!Estado.token) return;

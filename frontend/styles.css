@@ -1003,3 +1003,11 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
     padding-right:max(24px, calc((100% - 1560px) / 2));
   }
 }
+
+/* Livros fiscais: o cabeçalho que o livro de papel tem (empresa, CNPJ, IE, período) */
+.livro-cabecalho{margin:10px 0 4px;padding:10px 12px;border:1px solid var(--borda,#e3e6ea);border-radius:8px;line-height:1.5}
+@media print{
+  .livro-cabecalho{border:none;padding:0 0 8px;margin:0 0 8px;border-bottom:1px solid #999;border-radius:0}
+  #livro-conteudo table{font-size:10px}
+  #livro-conteudo .kpi-nota{display:none}
+}

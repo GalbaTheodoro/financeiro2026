@@ -1678,3 +1678,83 @@ class Partida(Base):
 
     conta_debito = relationship("ContaContabil", foreign_keys=[conta_debito_id])
     conta_credito = relationship("ContaContabil", foreign_keys=[conta_credito_id])
+
+
+class AmostraCafe(Base):
+    """Amostra de café recebida para classificação — e o laudo que sai dela.
+
+    A classificação segue a **Classificação Oficial Brasileira (COB)**, da
+    Instrução Normativa MAPA nº 8/2003, mais a **prova de xícara** no protocolo
+    da SCA (pontuação de 0 a 100) quando a amostra é provada:
+
+    * **tipo** — pela soma dos defeitos em 300 g (tipo 2 a 8, ou fora de tipo);
+    * **peneiras** — quanto da amostra (100 g) ficou em cada peneira;
+    * **bebida** — estritamente mole, mole, apenas mole, dura, riada, rio, rio zona;
+    * **sensorial** — as notas da prova, que viram o gráfico de aranha do laudo.
+
+    Contagens e notas ficam em texto JSON (``defeitos``, ``peneiras``,
+    ``sensorial``): são listas que mudam com o protocolo, e uma coluna por
+    defeito faria cada ajuste virar migração de banco. Os números que a lista e
+    os filtros usam (tipo, total de defeitos, pontuação) são gravados à parte,
+    já calculados, a cada vez que a amostra é salva.
+    """
+
+    __tablename__ = "amostras_cafe"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    numero = Column(Integer, nullable=False, index=True)      # sequência por empresa
+    situacao = Column(String(12), nullable=False, default="RECEBIDA")  # RECEBIDA | CLASSIFICADA
+    data_recebimento = Column(Date, default=date.today, index=True)
+    data_classificacao = Column(Date)
+
+    # de quem é e de onde veio
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    produtor_nome = Column(String(160))
+    fazenda = Column(String(160))
+    municipio = Column(String(80))
+    uf = Column(String(2))
+    contrato_id = Column(Integer, ForeignKey("contratos.id"), index=True)
+    lote = Column(String(40))
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    armazem = Column(String(120))
+    safra = Column(String(9))                 # 2025/2026
+    especie = Column(String(10), default="ARABICA")   # ARABICA | CONILON
+    variedade = Column(String(60))
+    preparo = Column(String(20))              # NATURAL | CEREJA_DESCASCADO | ...
+    altitude = Column(Integer)
+
+    # análise física
+    peso_amostra = Column(Numeric(9, 2, asdecimal=False), nullable=False, default=300)
+    peso_peneiras = Column(Numeric(9, 2, asdecimal=False), nullable=False, default=100)
+    umidade = Column(Numeric(5, 2, asdecimal=False))
+    catacao = Column(Numeric(5, 2, asdecimal=False))
+    impurezas = Column(Numeric(5, 2, asdecimal=False))
+    cor = Column(String(30))
+    aspecto = Column(String(15))
+    torracao = Column(String(15))
+    defeitos = Column(Text)                   # JSON {chave: quantidade}
+    peneiras = Column(Text)                   # JSON {peneira: gramas}
+
+    # análise sensorial
+    bebida = Column(String(20))
+    gostos_estranhos = Column(String(200))
+    sensorial = Column(Text)                  # JSON {atributo: nota}
+    sensorial_defeitos = Column(Numeric(5, 2, asdecimal=False), nullable=False, default=0)
+    descritores = Column(String(300))
+
+    # resultado (calculado a cada salvamento; o tipo pode ser corrigido à mão)
+    total_defeitos = Column(Numeric(9, 2, asdecimal=False), nullable=False, default=0)
+    tipo = Column(String(15))
+    tipo_manual = Column(Boolean, nullable=False, default=False)
+    pontuacao = Column(Numeric(6, 2, asdecimal=False))
+    padrao = Column(String(120))
+
+    classificador = Column(String(120))
+    registro_classificador = Column(String(40))
+    observacao = Column(Text)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    parceiro = relationship("Parceiro")
+    contrato = relationship("Contrato")

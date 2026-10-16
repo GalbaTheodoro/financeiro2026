@@ -13,6 +13,7 @@ from .config import EM_VERCEL, ERRO_CONFIG, FRONTEND_DIR
 from .diagnostico import pagina_html, resumo_erro
 from .migracao import preparar_banco
 from .routers import (
+    amostras,
     assinatura,
     auth,
     cadastros,
@@ -123,6 +124,7 @@ app.include_router(caixa.router)
 app.include_router(relatorios.router)
 app.include_router(sped.router)
 app.include_router(livros.router)
+app.include_router(amostras.router)
 app.include_router(vendas.router)
 
 

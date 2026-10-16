@@ -12,6 +12,7 @@ const App = {
     '/pagar': { titulo: 'Contas a Pagar', subtitulo: 'Títulos, pagamentos e baixas', acao: () => Lancamentos.contas('PAGAR') },
     '/caixa': { titulo: 'Caixa e Bancos', subtitulo: 'Saldos, extrato e movimentos', acao: () => Caixa.tela() },
     '/contratos': { titulo: 'Contratos', subtitulo: 'Corretagem, compra e venda de café — com contas a receber e a pagar', acao: () => Contratos.tela() },
+    '/amostras': { titulo: 'Amostras e Classificação', subtitulo: 'Cadastro da amostra de café, classificação física e sensorial e o laudo com o gráfico de aranha', acao: () => Amostras.tela() },
     '/notas': { titulo: 'Notas Fiscais', subtitulo: 'Gestão das notas: itens, cliente/fornecedor, faturar e desfaturar', acao: () => Notas.tela() },
     '/pedidos': { titulo: 'Pedidos e orçamentos', subtitulo: 'Monte a venda no balcão e finalize à vista ou a prazo', acao: () => Pedidos.tela() },
     '/cupom': { titulo: 'Cupom Fiscal', subtitulo: 'Venda de balcão: NFC-e em uma tela só, com impressão em 80 mm', acao: () => Cupom.tela() },
@@ -46,7 +47,7 @@ const App = {
   },
 
   /* Só estas rotas dependem do plano; o resto é de toda conta. */
-  ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/notas',
+  ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/amostras', '/notas',
     '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios', '/sped', '/livros',
     '/vendas'],
 
@@ -59,6 +60,7 @@ const App = {
       { rota: '/pedidos', icone: '🛒', rotulo: 'Pedidos e Vendas' },
       { rota: '/cupom', icone: '⌦', rotulo: 'Cupom Fiscal' },
       { rota: '/contratos', icone: '§', rotulo: 'Contratos' },
+      { rota: '/amostras', icone: '☕', rotulo: 'Amostras de Café' },
       { grupo: 'Fiscal' },
       { rota: '/notas', icone: '⛁', rotulo: 'Notas Fiscais' },
       { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (buscar na SEFAZ)' },

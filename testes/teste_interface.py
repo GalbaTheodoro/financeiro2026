@@ -26,6 +26,7 @@ TELAS = [
     ("pagar", "Contas a Pagar"),
     ("caixa", "Caixa e Bancos"),
     ("contratos", "Contratos"),
+    ("amostras", "Amostras e Classificação"),
     ("dfe", "DF-e"),
     ("dfe/certificado", "DF-e"),
     ("relatorios", "Relatórios"),
@@ -246,7 +247,8 @@ with sync_playwright() as p:
     ok_p1 = "/cupom" not in so_basico and "/gta" not in so_basico \
         and "/contratos" in so_basico and "/notas" in so_basico \
         and "/sped" in so_basico \
-        and "/livros" in so_basico     # SPED e livros são da nota fiscal: estão em todo plano
+        and "/livros" in so_basico \
+        and "/amostras" in so_basico   # SPED, livros e amostras estão em todo plano
     print(f"  [{'OK  ' if ok_p1 else 'FALHA'}] no Plano 1 eles somem do menu, o resto fica "
           f"({len(so_basico)} itens)")
     if not ok_p1:

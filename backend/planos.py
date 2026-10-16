@@ -95,7 +95,7 @@ BASE: tuple[str, ...] = ("CONTRATOS", "FINANCEIRO", "NFE")
 # Rotas do menu que cada módulo libera. O que não está aqui é de todo mundo
 # (cadastros, minha assinatura e a área do administrador).
 ROTAS: dict[str, tuple[str, ...]] = {
-    "CONTRATOS": ("/contratos",),
+    "CONTRATOS": ("/contratos", "/amostras"),
     "FINANCEIRO": ("/painel", "/receber", "/pagar", "/caixa", "/relatorios"),
     "NFE": ("/notas", "/pedidos", "/dfe", "/estoque", "/sped", "/livros", "/vendas"),
     "CUPOM": ("/cupom",),

@@ -1011,3 +1011,9 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
   #livro-conteudo table{font-size:10px}
   #livro-conteudo .kpi-nota{display:none}
 }
+
+/* Amostras de café: tabela pequena de defeitos dentro do formulário */
+.tabela-simples{border-collapse:collapse;font-size:13px}
+.tabela-simples th,.tabela-simples td{padding:5px 8px;border-bottom:1px solid var(--borda)}
+.tabela-simples th{text-align:left;font-size:11.5px;text-transform:uppercase;color:var(--cinza-500,#64748b)}
+.tabela-simples .num{text-align:right}

@@ -170,6 +170,10 @@ const Contratos = {
     const unidades = opcoes(Api.unidadesAtivas(), (u) => `${u.codigo} - ${u.nome}`);
     const representantes = opcoes(Api.representantes(), (u) => u.nome);
 
+    /* amostras de café que podem estar sendo negociadas (opcional) */
+    const amostras = await Contratos.amostrasDisponiveis();
+    const ligadas = new Set((contrato && contrato.amostras ? contrato.amostras : []).map((a) => a.id));
+
     /* número automático: só sugere; a numeração final sai do servidor ao salvar */
     let sugestao = '';
     if (!edicao) {
@@ -230,7 +234,8 @@ const Contratos = {
           ${UI.campo('Alíquota de ICMS (%)', `<input type="number" inputmode="decimal" step="0.01" min="0" name="icms_percentual" value="${v('icms_percentual', 0)}">`, 'vem da tabela de ICMS; pode ajustar')}
           ${UI.campo('Valor do ICMS', '<input type="text" name="icms_valor_tela" readonly tabindex="-1">', 'valor negociado × alíquota')}
         </div>
-        <div class="mini" id="icms-info" style="margin-top:8px"></div>`,
+        <div class="mini" id="icms-info" style="margin-top:8px"></div>
+        ${Contratos.blocoAmostras(amostras, ligadas)}`,
 
       corretagem: `
         <div class="linha-campos" id="bloco-corretagem">
@@ -514,6 +519,10 @@ const Contratos = {
         icms_percentual: Number(d.icms_percentual || 0),
       };
       delete payload.icms_valor_tela;
+      // amostras marcadas (amo_<id>) — opcional; sem nenhuma marcada o contrato fica sem amostra
+      payload.amostras = Object.keys(d).filter((k) => k.startsWith('amo_') && d[k] === true)
+        .map((k) => Number(k.slice(4)));
+      Object.keys(payload).forEach((k) => { if (k.startsWith('amo_') || k === 'filtro_amostras') delete payload[k]; });
       try {
         const salvo = registroId
           ? await Api.put(`/api/contratos/${registroId}`, payload)
@@ -677,6 +686,17 @@ const Contratos = {
           <div class="kpi-nota">${compra ? 'café + comissão do agente' : 'a receber do café e a pagar do agente'}</div></div>
       </div>`}
 
+      <h4 class="titulo-bloco">Amostras negociadas
+        <button type="button" class="btn btn-mini" id="btn-amostras-contrato" style="margin-left:8px">Escolher amostras</button></h4>
+      <div style="margin-bottom:14px">${(c.amostras || []).length ? c.amostras.map((a) => `
+        <div class="forma-cartao"><div class="forma-topo">
+          <div><span class="forte">Amostra ${String(a.numero).padStart(5, '0')}</span>
+            <span class="mini"> ${UI.escapar([a.produtor_nome, a.lote && `lote ${a.lote}`,
+              a.sacas ? `${UI.numero(a.sacas, 0)} sc` : ''].filter(Boolean).join(' · '))}</span></div>
+          <div class="mini">${UI.escapar([a.tipo && `Tipo ${a.tipo}`, a.bebida,
+            a.pontuacao ? `${UI.numero(a.pontuacao)} pts` : ''].filter(Boolean).join(' · '))}</div>
+        </div></div>`).join('') : '<div class="mini">Nenhuma amostra ligada a este contrato (é opcional).</div>'}</div>
+
       <h4 class="titulo-bloco">Situação financeira</h4>
       <div class="grade g4" style="margin-bottom:14px">
         <div class="kpi"><div class="kpi-rotulo">${compra ? 'Virou conta a pagar' : 'Virou título'}</div>
@@ -817,5 +837,58 @@ const Contratos = {
     }
 
     UI.abrirModal({ titulo: `${UI.escapar(c.tipo_nome || 'Contrato')} ${c.numero}`, corpo, largo: true, botoes });
+    const escolher = corpo.querySelector('#btn-amostras-contrato');
+    if (escolher) escolher.onclick = () => Contratos.escolherAmostras(c);
+  },
+
+  /* ------------------------------------------------ amostras negociadas (opcional) */
+  async amostrasDisponiveis() {
+    try {
+      return (await Api.get('/api/amostras', { empresa_id: Estado.empresaId })).amostras || [];
+    } catch (e) {
+      return [];          // sem amostras (ou sem acesso): o contrato segue sem elas
+    }
+  },
+
+  /** Lista de marcar com busca. Nenhuma marcada = contrato sem amostra (é opcional). */
+  blocoAmostras(amostras, ligadas) {
+    const rotulo = (a) => [`Amostra ${String(a.numero).padStart(5, '0')}`,
+      a.produtor_nome || a.parceiro_nome, a.lote && `lote ${a.lote}`,
+      a.sacas ? `${UI.numero(a.sacas, 0)} sc` : '', a.padrao].filter(Boolean).join(' · ');
+    return `
+      <h4 class="titulo-bloco">Amostras negociadas <span class="mini" style="font-weight:400">opcional — marque a(s) amostra(s) deste negócio</span></h4>
+      ${amostras.length ? `
+        <input name="filtro_amostras" data-nao-suja placeholder="procurar amostra (nº, produtor, lote...)"
+          style="max-width:340px;margin-bottom:8px"
+          oninput="const t=this.value.trim().toLowerCase();this.nextElementSibling.querySelectorAll('label').forEach((l)=>l.classList.toggle('oculto',!!t&&!l.textContent.toLowerCase().includes(t)))">
+        <div class="lista-marcar">
+          ${amostras.map((a) => `<label><input type="checkbox" name="amo_${a.id}" ${ligadas.has(a.id) ? 'checked' : ''}>
+            ${UI.escapar(rotulo(a))}</label>`).join('')}
+        </div>` : '<div class="mini">Nenhuma amostra cadastrada (Vendas → Amostras de Café).</div>'}`;
+  },
+
+  /** Troca só as amostras do contrato — vale mesmo depois de gerar os títulos. */
+  async escolherAmostras(c) {
+    const amostras = await Contratos.amostrasDisponiveis();
+    const ligadas = new Set((c.amostras || []).map((a) => a.id));
+    UI.abrirModal({
+      titulo: `Amostras do contrato ${c.numero}`,
+      largo: true,
+      corpo: Contratos.blocoAmostras(amostras, ligadas),
+      botoes: [
+        { rotulo: 'Voltar', acao: () => Contratos.ficha(c.id) },
+        { rotulo: 'Salvar', classe: 'btn-primario', acao: async (area) => {
+          const d = UI.lerFormulario(area);
+          const ids = Object.keys(d).filter((k) => k.startsWith('amo_') && d[k] === true)
+            .map((k) => Number(k.slice(4)));
+          try {
+            await Api.put(`/api/contratos/${c.id}/amostras`, { amostras: ids });
+            UI.modalSalvo();
+            UI.sucesso('Amostras do contrato salvas.');
+            Contratos.ficha(c.id);
+          } catch (e) { UI.erro(e.message); }
+        } },
+      ],
+    });
   },
 };

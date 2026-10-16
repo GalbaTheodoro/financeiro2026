@@ -445,6 +445,8 @@ class ContratoIn(BaseModel):
     centro_custo_id: int | None = None
     operacao_id: int | None = None
     observacao: str | None = None
+    # amostras de café que estão sendo negociadas (opcional). None = não mexe.
+    amostras: list[int] | None = None
 
 
 class GerarRecebiveisIn(BaseModel):

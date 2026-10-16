@@ -15,6 +15,7 @@ Todos os títulos saem classificados e contabilizados.
 """
 from datetime import date, datetime, timedelta
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
@@ -24,6 +25,8 @@ from ..icms import calcular_icms
 from ..database import get_db
 from ..deps import acesso_liberado, exigir_modulo, validar_empresa
 from ..models import (
+    AmostraCafe,
+    AmostraContrato,
     Contrato,
     ContaContabil,
     Empresa,
@@ -439,11 +442,49 @@ def contrato_dict(db: Session, c: Contrato, completo: bool = False) -> dict:
         },
     )
     if completo:
+        dados["amostras"] = amostras_do_contrato(db, c)
         dados["recebivel_comprador"] = _saldo_lancamento(db, c.lancamento_comprador_id)
         dados["recebivel_vendedor"] = _saldo_lancamento(db, c.lancamento_vendedor_id)
         dados["titulo_mercadoria"] = _saldo_lancamento(db, c.lancamento_mercadoria_id)
         dados["titulo_agente"] = _saldo_lancamento(db, c.lancamento_agente_id)
     return dados
+
+
+# --------------------------------------------------------------------------- #
+# Amostras negociadas (opcional) — a mesma ligação que a ficha da amostra usa
+# --------------------------------------------------------------------------- #
+def amostras_do_contrato(db: Session, c: Contrato) -> list[dict]:
+    ligadas = (db.query(AmostraCafe)
+               .filter(AmostraCafe.id.in_(db.query(AmostraContrato.amostra_id)
+                                          .filter(AmostraContrato.contrato_id == c.id))
+                       | (AmostraCafe.contrato_id == c.id))
+               .order_by(AmostraCafe.numero).all())
+    return [{"id": a.id, "numero": a.numero, "produtor_nome": a.produtor_nome,
+             "lote": a.lote, "sacas": a.sacas, "tipo": a.tipo, "bebida": a.bebida,
+             "pontuacao": a.pontuacao, "padrao": a.padrao} for a in ligadas]
+
+
+def ligar_amostras(db: Session, c: Contrato, ids: list[int] | None) -> None:
+    """Deixa o contrato ligado exatamente às amostras escolhidas. None = não mexe."""
+    if ids is None:
+        return
+    ids = list(dict.fromkeys(int(x) for x in ids if x))
+    for amostra_id in ids:
+        amostra = db.get(AmostraCafe, amostra_id)
+        if not amostra or amostra.empresa_id != c.empresa_id:
+            raise HTTPException(400, "Amostra não encontrada nesta empresa.")
+    atuais = {lig.amostra_id: lig for lig in
+              db.query(AmostraContrato).filter(AmostraContrato.contrato_id == c.id).all()}
+    for amostra_id, ligacao in atuais.items():
+        if amostra_id not in ids:
+            db.delete(ligacao)
+    for amostra_id in ids:
+        if amostra_id not in atuais:
+            db.add(AmostraContrato(amostra_id=amostra_id, contrato_id=c.id))
+    # a ligação antiga (coluna única na amostra) também sai quando desmarcada
+    for antiga in db.query(AmostraCafe).filter(AmostraCafe.contrato_id == c.id).all():
+        if antiga.id not in ids:
+            antiga.contrato_id = None
 
 
 # --------------------------------------------------------------------------- #
@@ -514,6 +555,8 @@ def criar_contrato(
         contrato.conta_contabil_id = conta_do_contrato(db, contrato)
     aplicar_cadastros(db, contrato, dados)
     db.add(contrato)
+    db.flush()
+    ligar_amostras(db, contrato, dados.amostras)
     db.commit()
     db.refresh(contrato)
     return contrato_dict(db, contrato, completo=True)
@@ -697,8 +740,30 @@ def atualizar_contrato(
     if not contrato.conta_contabil_id:
         contrato.conta_contabil_id = conta_do_contrato(db, contrato)
     aplicar_cadastros(db, contrato, dados)
+    ligar_amostras(db, contrato, dados.amostras)
     db.commit()
     return contrato_dict(db, contrato, completo=True)
+
+
+class AmostrasDoContratoIn(BaseModel):
+    amostras: list[int] = []
+
+
+@router.put("/{contrato_id}/amostras")
+def trocar_amostras(
+    contrato_id: int,
+    dados: AmostrasDoContratoIn,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(acesso_liberado),
+):
+    """Só as amostras — vale mesmo com títulos gerados: não mexe em valor nenhum."""
+    contrato = db.get(Contrato, contrato_id)
+    if not contrato:
+        raise HTTPException(404, "Contrato não encontrado")
+    validar_empresa(db, contrato.empresa_id, usuario)
+    ligar_amostras(db, contrato, dados.amostras)
+    db.commit()
+    return {"amostras": amostras_do_contrato(db, contrato)}
 
 
 @router.delete("/{contrato_id}")
@@ -713,6 +778,8 @@ def excluir_contrato(
         raise HTTPException(
             400, "Estorne os títulos gerados por este contrato antes de excluí-lo."
         )
+    # as amostras continuam; só a ligação com este contrato sai
+    ligar_amostras(db, contrato, [])
     db.delete(contrato)
     db.commit()
     return {"ok": True}

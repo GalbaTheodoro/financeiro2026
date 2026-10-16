@@ -162,6 +162,12 @@ const Amostras = {
 
   numero(n) { return String(n || 0).padStart(5, '0'); },
 
+  /** "Peneira 17", "Peneira 12 e menor", "Moca 11", "Fundo" — sem o "chato" na frente. */
+  nomePeneira(x) {
+    if (x.formato === 'Fundo') return 'Fundo';
+    return x.formato === 'Moca' ? `Moca ${x.rotulo}` : `Peneira ${x.rotulo}`;
+  },
+
   ligarAbas() {
     document.querySelectorAll('[data-aba-am]').forEach((b) => {
       b.onclick = () => App.irPara(`/amostras/${b.dataset.abaAm}`);
@@ -329,7 +335,7 @@ const Amostras = {
     )).join('');
 
     const peneirasDe = (formato) => t.peneiras.filter((x) => x.formato === formato).map((x) => UI.campo(
-      formato === 'Fundo' ? 'Fundo' : `${formato} ${x.rotulo}`,
+      Amostras.nomePeneira(x),
       num(`pen_${x.chave}`, a.peneiras[x.chave]),
     )).join('');
 
@@ -401,7 +407,7 @@ const Amostras = {
             ${UI.campo('Peso passado nas peneiras (g)', num('peso_peneiras', a.peso_peneiras ?? 100),
               'normalmente 100 g; digite em cada peneira quanto ficou retido')}
           </div>
-          <h4 class="titulo-bloco">Chato</h4>
+          <h4 class="titulo-bloco">Peneiras</h4>
           <div class="linha-campos">${peneirasDe('Chato')}</div>
           <h4 class="titulo-bloco">Moca</h4>
           <div class="linha-campos">${peneirasDe('Moca')}${peneirasDe('Fundo')}</div>
@@ -1206,14 +1212,14 @@ const Amostras = {
           <h3>Peneiras (${n(r.peneiras.soma || a.peso_peneiras, 0)} g)</h3>
           ${peneiras.length ? `<table class="grade">
             <thead><tr><th>Peneira</th><th class="num">g</th><th class="num">%</th><th style="width:38%"></th></tr></thead>
-            <tbody>${peneiras.map((x) => `<tr><td>${esc(x.formato === 'Fundo' ? 'Fundo' : `${x.formato} ${x.rotulo}`)}</td>
+            <tbody>${peneiras.map((x) => `<tr><td>${esc(Amostras.nomePeneira(x))}</td>
               <td class="num">${n(x.gramas, 1)}</td><td class="num">${n(x.percentual, 1)}</td>
               <td><div class="barra" style="width:${Math.min(100, x.percentual).toFixed(1)}%"></div></td></tr>`).join('')}
             </tbody></table>
             <table class="dados" style="margin-top:4px">
-              ${linha('Chato graúdo (17 e acima)', `${n(g.chato_graudo, 1)}%`)}
-              ${linha('Chato médio (15 e 16)', `${n(g.chato_medio, 1)}%`)}
-              ${linha('Chato miúdo (14 e abaixo)', `${n(g.chato_miudo, 1)}%`)}
+              ${linha('Graúdo (peneira 17 e acima)', `${n(g.chato_graudo, 1)}%`)}
+              ${linha('Médio (peneiras 15 e 16)', `${n(g.chato_medio, 1)}%`)}
+              ${linha('Miúdo (peneira 14 e abaixo)', `${n(g.chato_miudo, 1)}%`)}
               ${linha('Moca', `${n(g.moca_total, 1)}%`)}
               ${linha('Fundo', `${n(g.fundo, 1)}%`)}
             </table>` : '<div>Peneiras não informadas.</div>'}

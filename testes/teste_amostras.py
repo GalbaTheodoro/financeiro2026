@@ -289,6 +289,34 @@ checar("amostra de outra empresa não entra na impressão", r.get("_status") == 
 r = api("GET", f"/api/amostras/impressao?empresa_id={eid}&amostras=abc", None, t, esperar_erro=True)
 checar("lista de códigos inválida: 400", r.get("_status") == 400, r)
 
+# =========================================================================== #
+print("\n=== 10. No contrato: escolher a amostra negociada (opcional) ===")
+novo_ctr = api("POST", "/api/contratos", {
+    "empresa_id": eid, "tipo": "CORRETAGEM", "comprador_id": comprador["id"],
+    "vendedor_id": produtor["id"], "quantidade": 100, "preco_unitario": 1500,
+    "amostras": [a1["id"]]}, t)
+checar("contrato criado já ligado à amostra",
+       [x["id"] for x in novo_ctr["amostras"]] == [a1["id"]], novo_ctr.get("amostras"))
+ficha_am = api("GET", f"/api/amostras/{a1['id']}", None, t)
+checar("a amostra enxerga o contrato novo",
+       novo_ctr["id"] in [c["id"] for c in ficha_am["contratos"]])
+sem = api("POST", "/api/contratos", {
+    "empresa_id": eid, "tipo": "CORRETAGEM", "comprador_id": comprador["id"],
+    "vendedor_id": produtor["id"], "quantidade": 10, "preco_unitario": 1500}, t)
+checar("contrato sem amostra continua valendo (é opcional)", sem["amostras"] == [])
+troca = api("PUT", f"/api/contratos/{novo_ctr['id']}/amostras",
+            {"amostras": [a1["id"], outra_amostra["id"]]}, t)
+checar("trocar só as amostras do contrato",
+       sorted(x["id"] for x in troca["amostras"]) == sorted([a1["id"], outra_amostra["id"]]))
+r = api("PUT", f"/api/contratos/{novo_ctr['id']}/amostras", {"amostras": [999999]}, t,
+        esperar_erro=True)
+checar("amostra que não existe é recusada no contrato", r.get("_status") == 400, r)
+api("DELETE", f"/api/contratos/{sem['id']}", None, t)
+api("DELETE", f"/api/contratos/{novo_ctr['id']}", None, t)
+ficha_am = api("GET", f"/api/amostras/{a1['id']}", None, t)
+checar("excluir o contrato desliga a amostra, a amostra continua",
+       novo_ctr["id"] not in [c["id"] for c in ficha_am["contratos"]])
+
 api("DELETE", f"/api/amostras/envios/{e2['id']}", None, t)
 checar("apagar envio", api("GET", f"/api/amostras/envios?empresa_id={eid}", None, t)["resumo"]["total"] == 1)
 

@@ -192,9 +192,109 @@ checar("amostra de outra conta não abre", r.get("_status") in (403, 404), r.get
 r = api("GET", f"/api/amostras/{a1['id']}/laudo", None, outra["token"], esperar_erro=True)
 checar("nem o laudo", r.get("_status") in (403, 404), r.get("_status"))
 
+# =========================================================================== #
+print("\n=== 7. Uma amostra em vários contratos ===")
+from datetime import date as _date                              # noqa: E402
+from backend.database import SessionLocal                        # noqa: E402
+from backend.models import AmostraCafe, Contrato                 # noqa: E402
+
+sessao = SessionLocal()
+contratos = []
+for n in ("C-100", "C-101", "C-102"):
+    c = Contrato(empresa_id=eid, numero=f"{n}-{sufixo}", data=_date.today())
+    sessao.add(c)
+    sessao.flush()
+    contratos.append(c.id)
+# banco antigo: a amostra apontava para um contrato só
+legado = sessao.get(AmostraCafe, a1["id"])
+legado.contrato_id = contratos[2]
+sessao.commit()
+sessao.close()
+
+aberta = api("GET", f"/api/amostras/{a1['id']}", None, t)
+checar("contrato antigo (coluna única) aparece na lista de contratos",
+       [c["id"] for c in aberta["contratos"]] == [contratos[2]], aberta["contratos"])
+ligada = api("PUT", f"/api/amostras/{a1['id']}", {**base, "contratos": contratos[:2]}, t)
+checar("a amostra fica ligada aos dois contratos marcados (e o antigo sai)",
+       sorted(c["id"] for c in ligada["contratos"]) == sorted(contratos[:2]), ligada["contratos"])
+outra_amostra = api("POST", "/api/amostras", {**base, "lote": "L-03", "contratos": [contratos[0]]}, t)
+por_contrato = api("GET", f"/api/amostras?empresa_id={eid}&contrato_id={contratos[0]}", None, t)
+checar("o mesmo contrato tem as duas amostras (filtro por contrato)",
+       sorted(x["id"] for x in por_contrato["amostras"]) == sorted([a1["id"], outra_amostra["id"]]))
+checar("a lista mostra os números dos contratos",
+       len(next(x for x in por_contrato["amostras"] if x["id"] == a1["id"])["contratos"]) == 2)
+tirou = api("PUT", f"/api/amostras/{a1['id']}", {**base, "contratos": [contratos[1]]}, t)
+checar("desmarcar desliga só aquele contrato",
+       [c["id"] for c in tirou["contratos"]] == [contratos[1]], tirou["contratos"])
+r = api("PUT", f"/api/amostras/{a1['id']}", {**base, "contratos": [999999]}, t, esperar_erro=True)
+checar("contrato que não existe é recusado", r.get("_status") == 400, r)
+
+# =========================================================================== #
+print("\n=== 8. Controle de envio ===")
+comprador = api("POST", "/api/parceiros", {
+    "empresa_id": eid, "tipo": "CLIENTE", "nome": "TORREFACAO PAULISTA LTDA",
+    "logradouro": "RUA DAS FLORES", "numero": "10", "bairro": "CENTRO",
+    "cidade": "SAO PAULO", "uf": "SP", "cep": "01000-000"}, t)
+e1 = api("POST", f"/api/amostras/{a1['id']}/envios", {
+    "destinatario_id": comprador["id"], "quantidade_g": 300, "forma_envio": "CORREIOS",
+    "rastreio": "AA123BR"}, t)
+checar("envio nasce aguardando, com o endereço do cadastro",
+       e1["situacao"] == "AGUARDANDO" and e1["destinatario_cidade"] == "SAO PAULO"
+       and "RUA DAS FLORES" in (e1["destinatario_endereco"] or "") and e1["destinatario_cep"] == "01000-000",
+       e1)
+e2 = api("POST", f"/api/amostras/{a1['id']}/envios", {
+    "destinatario_nome": "EXPORTADORA SANTOS", "destinatario_cidade": "SANTOS",
+    "destinatario_uf": "SP", "data_envio": "2026-01-02", "forma_envio": "TRANSPORTADORA"}, t)
+resp = api("PUT", f"/api/amostras/envios/{e1['id']}", {
+    **{k: e1[k] for k in ("destinatario_id", "quantidade_g", "forma_envio", "rastreio")},
+    "situacao": "APROVADA", "preco_oferecido": 1850}, t)
+checar("resposta aprovada ganha a data de retorno e o preço",
+       resp["situacao"] == "APROVADA" and resp["data_retorno"] and resp["preco_oferecido"] == 1850, resp)
+lista_env = api("GET", f"/api/amostras/envios?empresa_id={eid}", None, t)
+checar("lista de envios: 2, 1 aguardando, 1 aprovada",
+       lista_env["resumo"]["total"] == 2 and lista_env["resumo"]["aguardando"] == 1
+       and lista_env["resumo"]["aprovadas"] == 1, lista_env["resumo"])
+checar("envio antigo sem resposta conta como atrasado (mais de 7 dias)",
+       lista_env["resumo"]["atrasados"] == 1, lista_env["resumo"])
+checar("aprovação de 100% das que responderam", lista_env["resumo"]["aprovacao"] == 100)
+so_aprov = api("GET", f"/api/amostras/envios?empresa_id={eid}&situacao=APROVADA", None, t)
+checar("filtro por situação", [x["id"] for x in so_aprov["envios"]] == [e1["id"]])
+ficha = api("GET", f"/api/amostras/{a1['id']}", None, t)
+checar("a ficha da amostra traz os envios", len(ficha["envios"]) == 2)
+listadas = api("GET", f"/api/amostras?empresa_id={eid}&busca=L-01", None, t)
+checar("a lista de amostras conta envios aguardando e aprovados",
+       listadas["amostras"][0]["envios"] == 2 and listadas["amostras"][0]["envios_aprovados"] == 1)
+for corpo, frase in (({"destinatario_nome": ""}, "sem destinatário"),
+                     ({"destinatario_nome": "X", "situacao": "PERDIDA"}, "situação inventada"),
+                     ({"destinatario_nome": "X", "forma_envio": "POMBO"}, "forma inventada"),
+                     ({"destinatario_nome": "X", "data_envio": "2026-03-10",
+                       "data_retorno": "2026-03-01", "situacao": "RECUSADA"}, "retorno antes do envio")):
+    r = api("POST", f"/api/amostras/{a1['id']}/envios", corpo, t, esperar_erro=True)
+    checar(f"envio {frase} é recusado", r.get("_status") == 400, r)
+r = api("PUT", f"/api/amostras/envios/{e1['id']}", {"destinatario_nome": "X"}, outra["token"],
+        esperar_erro=True)
+checar("envio de outra conta não abre", r.get("_status") in (403, 404), r.get("_status"))
+
+# =========================================================================== #
+print("\n=== 9. Dados para fitilhos e etiquetas ===")
+imp = api("GET", f"/api/amostras/impressao?empresa_id={eid}&amostras={a1['id']},{outra_amostra['id']}"
+                 f"&envios={e1['id']}", None, t)
+checar("traz as duas amostras, o envio e a empresa (remetente)",
+       len(imp["amostras"]) == 2 and len(imp["envios"]) == 1 and imp["empresa"]["razao_social"])
+checar("a amostra impressa traz o padrão calculado",
+       bool(imp["amostras"][0]["resultado"]["padrao"]))
+r = api("GET", f"/api/amostras/impressao?empresa_id={outra['empresa']['id']}&amostras={a1['id']}",
+        None, outra["token"], esperar_erro=True)
+checar("amostra de outra empresa não entra na impressão", r.get("_status") == 404, r)
+r = api("GET", f"/api/amostras/impressao?empresa_id={eid}&amostras=abc", None, t, esperar_erro=True)
+checar("lista de códigos inválida: 400", r.get("_status") == 400, r)
+
+api("DELETE", f"/api/amostras/envios/{e2['id']}", None, t)
+checar("apagar envio", api("GET", f"/api/amostras/envios?empresa_id={eid}", None, t)["resumo"]["total"] == 1)
+
 api("DELETE", f"/api/amostras/{a2['id']}", None, t)
 lista = api("GET", f"/api/amostras?empresa_id={eid}", None, t)
-checar("apagar tira da lista", lista["resumo"]["total"] == 1)
+checar("apagar tira da lista", lista["resumo"]["total"] == 2)
 
 print("\n" + "=" * 60)
 if erros:

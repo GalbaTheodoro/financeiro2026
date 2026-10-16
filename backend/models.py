@@ -1714,6 +1714,9 @@ class AmostraCafe(Base):
     fazenda = Column(String(160))
     municipio = Column(String(80))
     uf = Column(String(2))
+    # Antigo: a amostra apontava para UM contrato. Agora a ligação é muitos para
+    # muitos (tabela amostra_contratos) — a mesma amostra serve de base para vários
+    # contratos. A coluna fica só para ler bancos antigos (vira ligação ao salvar).
     contrato_id = Column(Integer, ForeignKey("contratos.id"), index=True)
     lote = Column(String(40))
     sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
@@ -1758,3 +1761,63 @@ class AmostraCafe(Base):
 
     parceiro = relationship("Parceiro")
     contrato = relationship("Contrato")
+    contratos = relationship("AmostraContrato", cascade="all, delete-orphan",
+                             order_by="AmostraContrato.id")
+    envios = relationship("EnvioAmostra", cascade="all, delete-orphan",
+                          order_by="EnvioAmostra.data_envio.desc(), EnvioAmostra.id.desc()",
+                          back_populates="amostra")
+
+
+class AmostraContrato(Base):
+    """Uma amostra pode estar em vários contratos (e um contrato, ter várias amostras)."""
+
+    __tablename__ = "amostra_contratos"
+    __table_args__ = (UniqueConstraint("amostra_id", "contrato_id", name="uq_amostra_contrato"),)
+
+    id = Column(Integer, primary_key=True)
+    amostra_id = Column(Integer, ForeignKey("amostras_cafe.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    contrato_id = Column(Integer, ForeignKey("contratos.id"), nullable=False, index=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    contrato = relationship("Contrato")
+
+
+class EnvioAmostra(Base):
+    """Cada vez que a amostra (ou um pedaço dela) é mandada para alguém.
+
+    O caminho do dia a dia: o corretor manda a amostra para dois ou três
+    compradores, e precisa saber para quem foi, quando, como, e o que cada um
+    respondeu. A situação é a resposta do comprador:
+
+        AGUARDANDO  foi enviada, ainda sem resposta
+        APROVADA    o comprador gostou (com o preço oferecido, se houver)
+        RECUSADA    não serviu — o motivo vai na observação
+        DEVOLVIDA   a amostra voltou
+    """
+
+    __tablename__ = "envios_amostra"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    amostra_id = Column(Integer, ForeignKey("amostras_cafe.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    data_envio = Column(Date, default=date.today, index=True)
+    destinatario_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    destinatario_nome = Column(String(160))
+    destinatario_contato = Column(String(120))
+    destinatario_endereco = Column(String(200))
+    destinatario_cidade = Column(String(80))
+    destinatario_uf = Column(String(2))
+    destinatario_cep = Column(String(12))
+    quantidade_g = Column(Numeric(9, 2, asdecimal=False), nullable=False, default=0)
+    forma_envio = Column(String(15))        # CORREIOS | TRANSPORTADORA | EM_MAOS | ...
+    rastreio = Column(String(60))
+    situacao = Column(String(12), nullable=False, default="AGUARDANDO", index=True)
+    data_retorno = Column(Date)
+    preco_oferecido = Column(Numeric(15, 2, asdecimal=False))   # R$ por saca
+    observacao = Column(String(400))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    amostra = relationship("AmostraCafe", back_populates="envios")
+    destinatario = relationship("Parceiro")

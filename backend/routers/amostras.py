@@ -10,6 +10,15 @@ GET    /api/amostras/{id}        abre, já com o resultado calculado
 PUT    /api/amostras/{id}        salva
 DELETE /api/amostras/{id}        apaga
 GET    /api/amostras/{id}/laudo  tudo o que o laudo impresso precisa
+GET    /api/amostras/impressao   dados dos fitilhos e etiquetas (amostras e/ou envios)
+
+Envios (controle de quem recebeu a amostra e o que respondeu)
+GET    /api/amostras/envios               todos os envios, com filtros
+POST   /api/amostras/{id}/envios          registra um envio
+PUT    /api/amostras/envios/{envio_id}    atualiza (inclusive a resposta do comprador)
+DELETE /api/amostras/envios/{envio_id}    apaga
+
+Contratos: a amostra pode estar em **vários** contratos (tabela amostra_contratos).
 
 O cálculo mora em ``backend/classificacao.py``. Classificar café é o dia a dia de
 quem trabalha com contrato de café, então a tela é do módulo de contratos —
@@ -28,13 +37,35 @@ from sqlalchemy.orm import Session
 from .. import classificacao as regras
 from ..database import get_db
 from ..deps import exigir_modulo, validar_empresa
-from ..models import AmostraCafe, Contrato, Empresa, Parceiro, Usuario
+from ..models import (
+    AmostraCafe,
+    AmostraContrato,
+    Contrato,
+    Empresa,
+    EnvioAmostra,
+    Parceiro,
+    Usuario,
+)
 from ..utils import parse_data, serializar
 
 router = APIRouter(prefix="/api/amostras", tags=["amostras de café"])
 _do_plano = exigir_modulo("CONTRATOS")
 
 SITUACOES = ("RECEBIDA", "CLASSIFICADA")
+SITUACOES_ENVIO = {
+    "AGUARDANDO": "Aguardando resposta",
+    "APROVADA": "Aprovada",
+    "RECUSADA": "Recusada",
+    "DEVOLVIDA": "Devolvida",
+}
+FORMAS_ENVIO = {
+    "CORREIOS": "Correios",
+    "TRANSPORTADORA": "Transportadora",
+    "MOTOBOY": "Motoboy",
+    "EM_MAOS": "Em mãos",
+    "MALOTE": "Malote",
+    "OUTRO": "Outro",
+}
 
 
 class AmostraIn(BaseModel):
@@ -47,7 +78,8 @@ class AmostraIn(BaseModel):
     fazenda: str | None = None
     municipio: str | None = None
     uf: str | None = None
-    contrato_id: int | None = None
+    contratos: list[int] = []
+    contrato_id: int | None = None      # telas antigas: vira um item de `contratos`
     lote: str | None = None
     sacas: float | None = 0
     armazem: str | None = None
@@ -126,8 +158,44 @@ def _ficha(a: AmostraCafe, resultado: dict | None = None) -> dict:
         "peneiras": regras.ler_json(a.peneiras),
         "sensorial": regras.ler_json(a.sensorial),
         "parceiro_nome": a.parceiro.nome if a.parceiro else None,
-        "contrato_numero": a.contrato.numero if a.contrato else None,
+        "contratos": _contratos_da_amostra(a),
+        "envios": [_envio(e) for e in a.envios],
         "resultado": resultado,
+    })
+
+
+def _contrato_resumo(c: Contrato) -> dict:
+    parte = c.comprador.nome if getattr(c, "comprador", None) else (
+        c.vendedor.nome if getattr(c, "vendedor", None) else "")
+    return {"id": c.id, "numero": c.numero, "data": c.data, "parte": parte,
+            "quantidade": c.quantidade, "unidade": c.unidade}
+
+
+def _contratos_da_amostra(a: AmostraCafe) -> list[dict]:
+    vistos = {}
+    for ligacao in a.contratos:
+        if ligacao.contrato:
+            vistos[ligacao.contrato.id] = _contrato_resumo(ligacao.contrato)
+    # banco antigo: o contrato único que a amostra tinha também aparece
+    if a.contrato and a.contrato.id not in vistos:
+        vistos[a.contrato.id] = _contrato_resumo(a.contrato)
+    return list(vistos.values())
+
+
+def _padrao_final(a: AmostraCafe) -> str:
+    """O padrão que vale: o digitado, ou o sugerido pela classificação."""
+    return a.padrao or regras.calcular(_dados_de_calculo(a))["padrao"] or ""
+
+
+def _envio(e: EnvioAmostra) -> dict:
+    return serializar(e, extras={
+        "situacao_nome": SITUACOES_ENVIO.get(e.situacao, e.situacao),
+        "forma_nome": FORMAS_ENVIO.get(e.forma_envio or "", e.forma_envio or ""),
+        "amostra_numero": e.amostra.numero if e.amostra else None,
+        "amostra_padrao": _padrao_final(e.amostra) if e.amostra else None,
+        "amostra_produtor": e.amostra.produtor_nome if e.amostra else None,
+        "amostra_lote": e.amostra.lote if e.amostra else None,
+        "dias": (date.today() - e.data_envio).days if e.data_envio else None,
     })
 
 
@@ -149,13 +217,22 @@ def _aplicar(db: Session, a: AmostraCafe, dados: AmostraIn) -> dict:
         dados.uf = dados.uf or parceiro.uf
     else:
         a.parceiro_id = None
-    if dados.contrato_id:
-        contrato = db.get(Contrato, dados.contrato_id)
+    ids = list(dict.fromkeys(int(x) for x in (dados.contratos or []) if x))
+    if dados.contrato_id and dados.contrato_id not in ids:
+        ids.append(dados.contrato_id)
+    for contrato_id in ids:
+        contrato = db.get(Contrato, contrato_id)
         if not contrato or contrato.empresa_id != a.empresa_id:
             raise HTTPException(400, "Contrato não encontrado nesta empresa.")
-        a.contrato_id = contrato.id
-    else:
-        a.contrato_id = None
+    # troca as ligações pelas da tela: o que saiu é desligado, o que entrou é ligado
+    atuais = {lig.contrato_id: lig for lig in a.contratos}
+    for contrato_id, ligacao in atuais.items():
+        if contrato_id not in ids:
+            a.contratos.remove(ligacao)
+    for contrato_id in ids:
+        if contrato_id not in atuais:
+            a.contratos.append(AmostraContrato(contrato_id=contrato_id))
+    a.contrato_id = None          # a coluna antiga deixa de ser usada
 
     situacao = (dados.situacao or "RECEBIDA").upper()
     if situacao not in SITUACOES:
@@ -231,12 +308,210 @@ def _aplicar(db: Session, a: AmostraCafe, dados: AmostraIn) -> dict:
 # --------------------------------------------------------------------------- #
 @router.get("/tabelas")
 def tabelas(usuario: Usuario = Depends(_do_plano)):
-    return regras.tabelas()
+    return {**regras.tabelas(), "situacoes_envio": SITUACOES_ENVIO,
+            "formas_envio": FORMAS_ENVIO}
 
 
 @router.post("/calcular")
 def calcular(dados: CalcularIn, usuario: Usuario = Depends(_do_plano)):
     return regras.calcular(dados.model_dump())
+
+
+# --------------------------------------------------------------------------- #
+# Envios — declarados antes de /{amostra_id}, senão "envios" seria lido como id
+# --------------------------------------------------------------------------- #
+class EnvioIn(BaseModel):
+    data_envio: str | None = None
+    destinatario_id: int | None = None
+    destinatario_nome: str | None = None
+    destinatario_contato: str | None = None
+    destinatario_endereco: str | None = None
+    destinatario_cidade: str | None = None
+    destinatario_uf: str | None = None
+    destinatario_cep: str | None = None
+    quantidade_g: float | None = 0
+    forma_envio: str | None = None
+    rastreio: str | None = None
+    situacao: str | None = "AGUARDANDO"
+    data_retorno: str | None = None
+    preco_oferecido: float | None = None
+    observacao: str | None = None
+
+
+def _aplicar_envio(db: Session, envio: EnvioAmostra, dados: EnvioIn) -> None:
+    if dados.destinatario_id:
+        parceiro = db.get(Parceiro, dados.destinatario_id)
+        if not parceiro or parceiro.empresa_id != envio.empresa_id:
+            raise HTTPException(400, "Destinatário não encontrado nesta empresa.")
+        envio.destinatario_id = parceiro.id
+        # o endereço da etiqueta vem do cadastro quando a tela não trouxe outro
+        endereco = ", ".join(x for x in (parceiro.logradouro, parceiro.numero,
+                                         parceiro.complemento, parceiro.bairro) if x)
+        dados.destinatario_nome = dados.destinatario_nome or parceiro.nome
+        dados.destinatario_endereco = dados.destinatario_endereco or endereco
+        dados.destinatario_cidade = dados.destinatario_cidade or parceiro.cidade
+        dados.destinatario_uf = dados.destinatario_uf or parceiro.uf
+        dados.destinatario_cep = dados.destinatario_cep or parceiro.cep
+    else:
+        envio.destinatario_id = None
+    if not (dados.destinatario_nome or "").strip():
+        raise HTTPException(400, "Informe para quem a amostra foi enviada.")
+    situacao = (dados.situacao or "AGUARDANDO").upper()
+    if situacao not in SITUACOES_ENVIO:
+        raise HTTPException(400, "Situação do envio inválida.")
+    forma = (dados.forma_envio or "").upper() or None
+    if forma and forma not in FORMAS_ENVIO:
+        raise HTTPException(400, "Forma de envio inválida.")
+    if dados.quantidade_g is not None and dados.quantidade_g < 0:
+        raise HTTPException(400, "A quantidade não pode ser negativa.")
+    if dados.preco_oferecido is not None and dados.preco_oferecido < 0:
+        raise HTTPException(400, "O preço oferecido não pode ser negativo.")
+    try:
+        envio.data_envio = parse_data(dados.data_envio, envio.data_envio or date.today())
+        envio.data_retorno = parse_data(dados.data_retorno)
+    except ValueError:
+        raise HTTPException(400, "Data inválida.") from None
+    if envio.data_retorno and envio.data_envio and envio.data_retorno < envio.data_envio:
+        raise HTTPException(400, "O retorno não pode ser antes do envio.")
+    envio.destinatario_nome = _texto(dados.destinatario_nome, 160)
+    envio.destinatario_contato = _texto(dados.destinatario_contato, 120)
+    envio.destinatario_endereco = _texto(dados.destinatario_endereco, 200)
+    envio.destinatario_cidade = _texto(dados.destinatario_cidade, 80)
+    envio.destinatario_uf = (_texto(dados.destinatario_uf, 2) or "").upper() or None
+    envio.destinatario_cep = _texto(dados.destinatario_cep, 12)
+    envio.quantidade_g = dados.quantidade_g or 0
+    envio.forma_envio = forma
+    envio.rastreio = _texto(dados.rastreio, 60)
+    envio.situacao = situacao
+    envio.preco_oferecido = dados.preco_oferecido
+    envio.observacao = _texto(dados.observacao, 400)
+    # respondeu e ninguém anotou quando: hoje
+    if situacao != "AGUARDANDO" and not envio.data_retorno:
+        envio.data_retorno = date.today()
+    if situacao == "AGUARDANDO":
+        envio.data_retorno = None
+
+
+def _envio_da_conta(db: Session, envio_id: int, usuario: Usuario) -> EnvioAmostra:
+    envio = db.get(EnvioAmostra, envio_id)
+    if not envio:
+        raise HTTPException(404, "Envio não encontrado.")
+    validar_empresa(db, envio.empresa_id, usuario)
+    return envio
+
+
+@router.get("/envios")
+def listar_envios(
+    empresa_id: int,
+    de: str | None = None,
+    ate: str | None = None,
+    situacao: str | None = None,
+    destinatario_id: int | None = None,
+    busca: str | None = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(_do_plano),
+):
+    validar_empresa(db, empresa_id, usuario)
+    consulta = db.query(EnvioAmostra).filter(EnvioAmostra.empresa_id == empresa_id)
+    try:
+        inicio, fim = parse_data(de), parse_data(ate)
+    except ValueError:
+        raise HTTPException(400, "Data inválida.") from None
+    if inicio:
+        consulta = consulta.filter(EnvioAmostra.data_envio >= inicio)
+    if fim:
+        consulta = consulta.filter(EnvioAmostra.data_envio <= fim)
+    if situacao:
+        consulta = consulta.filter(EnvioAmostra.situacao == situacao.upper())
+    if destinatario_id:
+        consulta = consulta.filter(EnvioAmostra.destinatario_id == destinatario_id)
+    if busca:
+        alvo = f"%{busca.strip()}%"
+        consulta = consulta.filter(EnvioAmostra.destinatario_nome.ilike(alvo)
+                                   | EnvioAmostra.rastreio.ilike(alvo))
+    envios = consulta.order_by(EnvioAmostra.data_envio.desc(), EnvioAmostra.id.desc()).limit(500).all()
+    linhas = [_envio(e) for e in envios]
+    respondidos = [x for x in linhas if x["situacao"] in ("APROVADA", "RECUSADA")]
+    return {
+        "envios": linhas,
+        "resumo": {
+            "total": len(linhas),
+            "aguardando": sum(1 for x in linhas if x["situacao"] == "AGUARDANDO"),
+            # aguardando há mais de 7 dias: hora de cobrar uma resposta
+            "atrasados": sum(1 for x in linhas
+                             if x["situacao"] == "AGUARDANDO" and (x["dias"] or 0) > 7),
+            "aprovadas": sum(1 for x in linhas if x["situacao"] == "APROVADA"),
+            "recusadas": sum(1 for x in linhas if x["situacao"] == "RECUSADA"),
+            "aprovacao": (round(100 * sum(1 for x in respondidos if x["situacao"] == "APROVADA")
+                                / len(respondidos), 1) if respondidos else None),
+        },
+    }
+
+
+@router.put("/envios/{envio_id}")
+def salvar_envio(envio_id: int, dados: EnvioIn, db: Session = Depends(get_db),
+                 usuario: Usuario = Depends(_do_plano)):
+    envio = _envio_da_conta(db, envio_id, usuario)
+    _aplicar_envio(db, envio, dados)
+    db.commit()
+    db.refresh(envio)
+    return _envio(envio)
+
+
+@router.delete("/envios/{envio_id}")
+def apagar_envio(envio_id: int, db: Session = Depends(get_db),
+                 usuario: Usuario = Depends(_do_plano)):
+    envio = _envio_da_conta(db, envio_id, usuario)
+    db.delete(envio)
+    db.commit()
+    return {"ok": True}
+
+
+def _empresa_impressao(empresa: Empresa | None) -> dict:
+    if not empresa:
+        return {}
+    endereco = ", ".join(x for x in (empresa.logradouro, empresa.numero, empresa.complemento,
+                                     empresa.bairro) if x)
+    return {
+        "razao_social": empresa.razao_social, "nome_fantasia": empresa.nome_fantasia or "",
+        "cnpj": empresa.cnpj or "", "endereco": endereco, "cidade": empresa.cidade or "",
+        "uf": empresa.uf or "", "cep": empresa.cep or "", "telefone": empresa.telefone or "",
+        "email": empresa.email or "", "logo": empresa.logo,
+    }
+
+
+@router.get("/impressao")
+def impressao(
+    empresa_id: int,
+    amostras: str | None = None,
+    envios: str | None = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(_do_plano),
+):
+    """Os dados dos fitilhos e etiquetas: amostras (``amostras=1,2``) e/ou envios."""
+    validar_empresa(db, empresa_id, usuario)
+
+    def ids(texto):
+        try:
+            return [int(x) for x in (texto or "").split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(400, "Lista de códigos inválida.") from None
+
+    lista_amostras = []
+    for amostra_id in ids(amostras)[:300]:
+        a = db.get(AmostraCafe, amostra_id)
+        if not a or a.empresa_id != empresa_id:
+            raise HTTPException(404, "Amostra não encontrada nesta empresa.")
+        lista_amostras.append(_ficha(a))
+    lista_envios = []
+    for envio_id in ids(envios)[:300]:
+        e = db.get(EnvioAmostra, envio_id)
+        if not e or e.empresa_id != empresa_id:
+            raise HTTPException(404, "Envio não encontrado nesta empresa.")
+        lista_envios.append(_envio(e))
+    return {"empresa": _empresa_impressao(db.get(Empresa, empresa_id)),
+            "amostras": lista_amostras, "envios": lista_envios,
+            "preparos": regras.PREPAROS, "especies": regras.ESPECIES}
 
 
 @router.get("")
@@ -245,6 +520,7 @@ def listar(
     de: str | None = None,
     ate: str | None = None,
     parceiro_id: int | None = None,
+    contrato_id: int | None = None,
     situacao: str | None = None,
     busca: str | None = None,
     db: Session = Depends(get_db),
@@ -252,6 +528,11 @@ def listar(
 ):
     validar_empresa(db, empresa_id, usuario)
     consulta = db.query(AmostraCafe).filter(AmostraCafe.empresa_id == empresa_id)
+    if contrato_id:
+        ligadas = db.query(AmostraContrato.amostra_id).filter(
+            AmostraContrato.contrato_id == contrato_id)
+        consulta = consulta.filter(AmostraCafe.id.in_(ligadas)
+                                   | (AmostraCafe.contrato_id == contrato_id))
     try:
         inicio, fim = parse_data(de), parse_data(ate)
     except ValueError:
@@ -273,7 +554,16 @@ def listar(
         consulta = consulta.filter(filtro)
     amostras = consulta.order_by(AmostraCafe.numero.desc()).limit(500).all()
     linhas = [serializar(a, exclude={"defeitos", "peneiras", "sensorial", "observacao"},
-                         extras={"parceiro_nome": a.parceiro.nome if a.parceiro else None})
+                         extras={
+                             "parceiro_nome": a.parceiro.nome if a.parceiro else None,
+                             "padrao": _padrao_final(a),
+                             "contratos": [c["numero"] for c in _contratos_da_amostra(a)],
+                             "envios": len(a.envios),
+                             "envios_aguardando": sum(
+                                 1 for e in a.envios if e.situacao == "AGUARDANDO"),
+                             "envios_aprovados": sum(
+                                 1 for e in a.envios if e.situacao == "APROVADA"),
+                         })
               for a in amostras]
     pontuadas = [x["pontuacao"] for x in linhas if x["pontuacao"]]
     return {
@@ -334,22 +624,21 @@ def apagar(amostra_id: int, db: Session = Depends(get_db),
 def laudo(amostra_id: int, db: Session = Depends(get_db),
           usuario: Usuario = Depends(_do_plano)):
     amostra = _amostra(db, amostra_id, usuario)
-    empresa = db.get(Empresa, amostra.empresa_id)
-    endereco = ", ".join(x for x in (
-        empresa.logradouro, empresa.numero, empresa.bairro) if x) if empresa else ""
     return {
         "amostra": _ficha(amostra),
-        "empresa": {
-            "razao_social": empresa.razao_social if empresa else "",
-            "nome_fantasia": empresa.nome_fantasia if empresa else "",
-            "cnpj": empresa.cnpj if empresa else "",
-            "endereco": endereco,
-            "cidade": empresa.cidade if empresa else "",
-            "uf": empresa.uf if empresa else "",
-            "telefone": empresa.telefone if empresa else "",
-            "email": empresa.email if empresa else "",
-            "logo": empresa.logo if empresa else None,
-        },
+        "empresa": _empresa_impressao(db.get(Empresa, amostra.empresa_id)),
         "preparos": regras.PREPAROS,
         "especies": regras.ESPECIES,
     }
+
+
+@router.post("/{amostra_id}/envios")
+def criar_envio(amostra_id: int, dados: EnvioIn, db: Session = Depends(get_db),
+                usuario: Usuario = Depends(_do_plano)):
+    amostra = _amostra(db, amostra_id, usuario)
+    envio = EnvioAmostra(empresa_id=amostra.empresa_id, amostra_id=amostra.id)
+    _aplicar_envio(db, envio, dados)
+    db.add(envio)
+    db.commit()
+    db.refresh(envio)
+    return _envio(envio)

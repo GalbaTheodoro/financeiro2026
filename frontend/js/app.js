@@ -12,7 +12,7 @@ const App = {
     '/pagar': { titulo: 'Contas a Pagar', subtitulo: 'Títulos, pagamentos e baixas', acao: () => Lancamentos.contas('PAGAR') },
     '/caixa': { titulo: 'Caixa e Bancos', subtitulo: 'Saldos, extrato e movimentos', acao: () => Caixa.tela() },
     '/contratos': { titulo: 'Contratos', subtitulo: 'Corretagem, compra e venda de café — com contas a receber e a pagar', acao: () => Contratos.tela() },
-    '/amostras': { titulo: 'Amostras e Classificação', subtitulo: 'Cadastro da amostra de café, classificação física e sensorial e o laudo com o gráfico de aranha', acao: () => Amostras.tela() },
+    '/amostras': { titulo: 'Amostras e Classificação', subtitulo: 'Cadastro da amostra de café, classificação física e sensorial e o laudo com o gráfico de aranha', acao: (aba) => Amostras.tela(aba) },
     '/notas': { titulo: 'Notas Fiscais', subtitulo: 'Gestão das notas: itens, cliente/fornecedor, faturar e desfaturar', acao: () => Notas.tela() },
     '/pedidos': { titulo: 'Pedidos e orçamentos', subtitulo: 'Monte a venda no balcão e finalize à vista ou a prazo', acao: () => Pedidos.tela() },
     '/cupom': { titulo: 'Cupom Fiscal', subtitulo: 'Venda de balcão: NFC-e em uma tela só, com impressão em 80 mm', acao: () => Cupom.tela() },
@@ -129,7 +129,7 @@ const App = {
 
   /* Telas que têm abas: o segundo pedaço do endereço é o nome da aba, e é
      passado para a tela. Fora daqui, endereço com barra não existe. */
-  ROTAS_COM_ABA: ['/cadastros', '/dfe', '/estoque', '/sped', '/livros', '/vendas'],
+  ROTAS_COM_ABA: ['/cadastros', '/dfe', '/estoque', '/sped', '/livros', '/amostras', '/vendas'],
 
   async navegar() {
     if (!Estado.token) return;

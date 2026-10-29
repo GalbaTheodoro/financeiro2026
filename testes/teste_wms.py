@@ -16,7 +16,9 @@ O que se confere
     nem do saldo do lote; fechar tira do saldo, reabrir devolve;
   * saída tira do saldo — e é recusada quando passa do que ele tem;
   * serviço registra nome e valor sem mexer no saldo;
-  * transferência tira de um depositante e põe no outro, no mesmo armazém;
+  * guia de transferência: cliente e cliente novo, escolhe lote e posição
+    (parcial); fechar gera o lote novo com "T" no fim ("1/1T", "1/1T2"...),
+    nas mesmas quadras e pilhas; reabrir só se o lote novo não saiu;
   * remoção tira de um armazém e põe no outro, para o mesmo depositante;
   * cada tipo tem a sua numeração;
   * cancelar volta o saldo — e é recusado quando o café da entrada já saiu.
@@ -303,27 +305,74 @@ lista = api("GET", f"/api/wms/movimentos?empresa_id={eid}&tipo=SERVICO", None, t
 checar("a lista de serviços soma o valor", lista["resumo"]["valor"] == 850)
 
 # =========================================================================== #
-print("\n=== 5. Transferência (troca de dono) ===")
-tr = lancar("TRANSFERENCIA", sacas=120, depositante_destino_id=maria["id"])
-checar("transferência lançada", tr.get("depositante_destino_nome") == "Maria Exportadora")
-checar("sem peso digitado, sai o peso médio da saca do lote (60 kg x 120)",
-       tr.get("peso_kg") == 7200, str(tr.get("peso_kg")))
-checar("João ficou com 130", saldo(a1["id"], joao["id"]) == 130)
-checar("Maria ficou com 120 no mesmo armazém", saldo(a1["id"], maria["id"]) == 120)
-mesmo = lancar("TRANSFERENCIA", sacas=1, depositante_destino_id=joao["id"], esperar_erro=True)
-checar("transferir para ele mesmo é recusado", mesmo.get("_status") == 400)
+print("\n=== 5. Guia de transferência (troca de dono) ===")
+TR = "/api/wms/guias-transferencia"
+mesmo = api("POST", TR, {"empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+                         "cliente_novo_id": joao["id"]}, tk, esperar_erro=True)
+checar("transferir para o mesmo cliente é recusado", mesmo.get("_status") == 400)
+direta = lancar("TRANSFERENCIA", sacas=1, depositante_destino_id=maria["id"], esperar_erro=True)
+checar("transferência solta (sem guia) é recusada", direta.get("_status") == 400)
+
+gt1 = api("POST", TR, {
+    "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+    "cliente_novo_id": maria["id"], "documento": "Contrato 45",
+    "itens": [{"posicao_id": p_a1, "sacas": 80}, {"posicao_id": p_a2, "sacas": 40}]}, tk)
+checar("guia de transferência criada aberta, nº 1",
+       gt1.get("numero") == 1 and gt1.get("status") == "ABERTA" and len(gt1["itens"]) == 2)
+checar("guia aberta ainda não mexe no saldo", saldo(a1["id"], joao["id"]) == 250)
+gt1 = api("POST", f"{TR}/{gt1['id']}/fechar", None, tk)
+checar("fecha a guia de transferência", gt1.get("status") == "FECHADA")
+checar("gera o lote novo com T no fim do número de origem", gt1.get("lotes_novos") == ["1/1T"],
+       str(gt1.get("lotes_novos")))
+checar("sem peso digitado, leva o peso médio da pilha (4.800 + 2.400)",
+       sorted(i["peso"] for i in gt1["itens"]) == [2400, 4800], str([i["peso"] for i in gt1["itens"]]))
+checar("João ficou com 130 no lote 1/1", saldo(a1["id"], joao["id"]) == 130)
+checar("Maria ficou com 120 no lote 1/1T", saldo(a1["id"], maria["id"], "1/1T") == 120)
+lote_t = next(l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}", None, tk) if l["codigo"] == "1/1T")
+checar("o lote novo é da Maria, com peneira e padrão do de origem",
+       lote_t["depositante_nome"] == "Maria Exportadora" and lote_t["peneira"] == "17/18")
+checar("e fica nas mesmas quadras e pilhas",
+       sorted((p_["quadra_nome"], p_["pilha"], p_["sacas"]) for p_ in lote_t["posicoes"])
+       == [("A1", "P1", 80), ("A2", "P2", 40)])
+disp = api("GET", f"/api/wms/posicoes-disponiveis?empresa_id={eid}&armazem_id={a1['id']}"
+                  f"&cliente_id={joao['id']}", None, tk)
+checar("a pilha de origem perde as sacas transferidas (A1/P1: 150 -> 70)",
+       next(d for d in disp if d["posicao_id"] == p_a1)["sacas_disponiveis"] == 70)
+quadras_a1 = {q["nome"]: q for q in
+              api("GET", f"/api/wms/quadras?empresa_id={eid}&armazem_id={a1['id']}", None, tk)}
+checar("a quadra continua com o mesmo café (só mudou o dono)", quadras_a1["A1"]["sacas_atuais"] == 250)
+
+gt2 = api("POST", TR, {"empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+                       "cliente_novo_id": maria["id"], "itens": [{"posicao_id": p_a1, "sacas": 10}]}, tk)
+gt2 = api("POST", f"{TR}/{gt2['id']}/fechar", None, tk)
+checar("transferir de novo do mesmo lote não repete o número (1/1T2)",
+       gt2.get("lotes_novos") == ["1/1T2"], str(gt2.get("lotes_novos")))
+gt2 = api("POST", f"{TR}/{gt2['id']}/reabrir", None, tk)
+checar("reabrir desfaz: lote novo some e o saldo volta",
+       gt2.get("status") == "ABERTA" and saldo(a1["id"], maria["id"], "1/1T2") == 0
+       and saldo(a1["id"], joao["id"]) == 130)
+api("POST", f"{TR}/{gt2['id']}/cancelar", {"motivo": "teste"}, tk)
+demais = api("POST", TR, {"empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+                          "cliente_novo_id": maria["id"], "itens": [{"posicao_id": p_a2, "sacas": 61}]}, tk)
+nao = api("POST", f"{TR}/{demais['id']}/fechar", None, tk, esperar_erro=True)
+checar("não transfere mais do que a pilha tem (A2/P2: restam 60)",
+       nao.get("_status") == 400 and "restam 60,00" in str(nao.get("detail")), str(nao.get("detail"))[:100])
+api("POST", f"{TR}/{demais['id']}/cancelar", {"motivo": "teste"}, tk)
+lista_t = api("GET", f"{TR}?empresa_id={eid}", None, tk)
+checar("a lista de transferências esconde as canceladas",
+       lista_t["resumo"]["guias"] == 1 and lista_t["resumo"]["sacas"] == 120, str(lista_t["resumo"]))
 
 # =========================================================================== #
 print("\n=== 6. Remoção (troca de armazém) ===")
 rm = api("POST", "/api/wms/movimentos", {
     "empresa_id": eid, "tipo": "REMOCAO", "armazem_id": a1["id"], "armazem_destino_id": a2["id"],
-    "depositante_id": maria["id"], "lote": "1/1", "sacas": 70}, tk)
+    "depositante_id": maria["id"], "lote": "1/1T", "sacas": 70}, tk)
 checar("remoção lançada", rm.get("armazem_destino_nome") == "Galpão 2")
-checar("Maria ficou com 50 no Central", saldo(a1["id"], maria["id"]) == 50)
-checar("e 70 no Galpão 2", saldo(a2["id"], maria["id"]) == 70)
+checar("Maria ficou com 50 no Central", saldo(a1["id"], maria["id"], "1/1T") == 50)
+checar("e 70 no Galpão 2", saldo(a2["id"], maria["id"], "1/1T") == 70)
 mesmo_arm = api("POST", "/api/wms/movimentos", {
     "empresa_id": eid, "tipo": "REMOCAO", "armazem_id": a1["id"], "armazem_destino_id": a1["id"],
-    "depositante_id": maria["id"], "lote": "1/1", "sacas": 1}, tk, esperar_erro=True)
+    "depositante_id": maria["id"], "lote": "1/1T", "sacas": 1}, tk, esperar_erro=True)
 checar("remoção para o mesmo armazém é recusada", mesmo_arm.get("_status") == 400)
 
 armazens = {a["id"]: a for a in api("GET", f"/api/wms/armazens?empresa_id={eid}", None, tk)}
@@ -346,10 +395,9 @@ gs3 = api("POST", "/api/wms/guias-saida", {
 alem = api("POST", f"/api/wms/guias-saida/{gs3['id']}/fechar", None, tk, esperar_erro=True)
 checar("a guia não tira do lote mais do que o cliente tem no saldo",
        alem.get("_status") == 400 and "180,00" in str(alem.get("detail")), str(alem.get("detail"))[:120])
-gs3["itens"] = [{"posicao_id": p_a1, "sacas": 150}]
 api("PUT", f"/api/wms/guias-saida/{gs3['id']}", {
     "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
-    "itens": [{"posicao_id": p_a1, "sacas": 150}]}, tk)
+    "itens": [{"posicao_id": p_a1, "sacas": 120}, {"posicao_id": p_a2, "sacas": 30}]}, tk)
 api("POST", f"/api/wms/guias-saida/{gs3['id']}/fechar", None, tk)
 checar("com 150 fecha (sobram 30 no lote)", saldo(a1["id"], joao["id"]) == 30)
 nao_da = api("POST", f"/api/wms/guias-entrada/{g1['id']}/reabrir", None, tk, esperar_erro=True)
@@ -367,6 +415,16 @@ checar("guia sem saída reabre", g3.get("status") == "ABERTA")
 checar("e o saldo e os lotes dela somem",
        saldo(a2["id"], maria["id"], "3/1") == 0
        and not api("GET", f"/api/wms/lotes?empresa_id={eid}&guia_id={g3['id']}", None, tk))
+# o lote novo da Maria saiu numa guia de saída: a transferência não reabre mais
+pos_t = {(p_["quadra_nome"]): p_["id"] for p_ in lote_t["posicoes"]}
+gsm = api("POST", "/api/wms/guias-saida", {"empresa_id": eid, "armazem_id": a1["id"],
+                                           "cliente_id": maria["id"],
+                                           "itens": [{"posicao_id": pos_t["A1"], "sacas": 10}]}, tk)
+gsm = api("POST", f"/api/wms/guias-saida/{gsm['id']}/fechar", None, tk)
+checar("o lote 1/1T sai pela guia de saída da Maria", saldo(a1["id"], maria["id"], "1/1T") == 40)
+nao_reabre = api("POST", f"{TR}/{gt1['id']}/reabrir", None, tk, esperar_erro=True)
+checar("transferência cujo lote novo já saiu não reabre",
+       nao_reabre.get("_status") == 400 and "saída" in str(nao_reabre.get("detail")))
 nao_cancela = api("POST", f"/api/wms/guias-saida/{gs3['id']}/cancelar", {"motivo": "x"}, tk,
                   esperar_erro=True)
 checar("guia de saída fechada não se cancela sem reabrir", nao_cancela.get("_status") == 400)

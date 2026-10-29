@@ -1893,6 +1893,9 @@ class MovimentoArmazem(Base):
     guia_entrada_id = Column(Integer, ForeignKey("guias_entrada.id"), index=True)
     # saída gerada ao fechar uma guia de saída (uma por lote da guia)
     guia_saida_id = Column(Integer, ForeignKey("guias_saida.id"), index=True)
+    # transferência gerada por guia: o lote muda de dono e de código ("1/1" -> "1/1T")
+    guia_transferencia_id = Column(Integer, ForeignKey("guias_transferencia.id"), index=True)
+    lote_destino = Column(String(40))      # código do lote no novo dono (vazio = o mesmo)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     criado_em = Column(DateTime, default=datetime.utcnow)
 
@@ -2025,6 +2028,10 @@ class LoteArmazem(Base):
     unidade_id = Column(Integer, ForeignKey("unidades.id"))
     valor_unitario = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
     valor_total = _dinheiro()
+    # lote nascido de transferência: de que lote veio e por qual guia
+    # (guia_id continua apontando a guia de entrada de onde o café veio)
+    lote_origem_id = Column(Integer, ForeignKey("lotes_armazem.id"), index=True)
+    guia_transferencia_id = Column(Integer, ForeignKey("guias_transferencia.id"), index=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     armazem = relationship("Armazem")
@@ -2102,4 +2109,56 @@ class GuiaSaidaItem(Base):
 
     guia = relationship("GuiaSaida", back_populates="itens")
     lote = relationship("LoteArmazem")
+    posicao = relationship("LotePosicao")
+
+
+class GuiaTransferencia(Base):
+    """Guia de transferência: o café muda de dono sem sair do lugar.
+
+    Cabeçalho com o cliente (dono atual) e o cliente novo. Os itens dizem de
+    que lote e de que posição (quadra + pilha) sai cada parte — pode ser só
+    uma parte. Ao FECHAR, cada lote de origem gera um **lote novo** do cliente
+    novo, com o código do lote de origem + "T" ("1/1" -> "1/1T"; se já existir,
+    "1/1T2", "1/1T3"...), nas mesmas quadras e pilhas.
+    """
+
+    __tablename__ = "guias_transferencia"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    numero = Column(Integer, nullable=False, default=0)
+    data = Column(Date, nullable=False, default=date.today, index=True)
+    armazem_id = Column(Integer, ForeignKey("armazens.id"), nullable=False, index=True)
+    cliente_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)        # dono atual
+    cliente_novo_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)  # novo dono
+    documento = Column(String(40))
+    observacao = Column(String(300))
+    status = Column(String(10), nullable=False, default="ABERTA")   # ABERTA | FECHADA | CANCELADA
+    fechada_em = Column(DateTime)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    armazem = relationship("Armazem")
+    cliente = relationship("Parceiro", foreign_keys=[cliente_id])
+    cliente_novo = relationship("Parceiro", foreign_keys=[cliente_novo_id])
+    itens = relationship("GuiaTransferenciaItem", back_populates="guia",
+                         cascade="all, delete-orphan", order_by="GuiaTransferenciaItem.id")
+
+
+class GuiaTransferenciaItem(Base):
+    """Quanto passa para o novo dono, de uma posição de um lote."""
+
+    __tablename__ = "guia_transferencia_itens"
+
+    id = Column(Integer, primary_key=True)
+    guia_id = Column(Integer, ForeignKey("guias_transferencia.id"), nullable=False, index=True)
+    lote_id = Column(Integer, ForeignKey("lotes_armazem.id"), nullable=False, index=True)
+    posicao_id = Column(Integer, ForeignKey("lote_posicoes.id"), nullable=False, index=True)
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    lote_novo_id = Column(Integer, ForeignKey("lotes_armazem.id"))     # preenchido ao fechar
+
+    guia = relationship("GuiaTransferencia", back_populates="itens")
+    lote = relationship("LoteArmazem", foreign_keys=[lote_id])
+    lote_novo = relationship("LoteArmazem", foreign_keys=[lote_novo_id])
     posicao = relationship("LotePosicao")

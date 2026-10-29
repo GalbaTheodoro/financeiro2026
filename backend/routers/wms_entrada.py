@@ -72,18 +72,38 @@ router = APIRouter(prefix="/api/wms", tags=["wms"],
 
 
 def saidas_por_posicao(db: Session, empresa_id: int,
-                       ignorar_guia_id: int | None = None) -> dict[int, dict]:
-    """Quanto já saiu de cada posição (quadra + pilha), pelas guias de saída fechadas."""
-    from ..models import GuiaSaida, GuiaSaidaItem
+                       ignorar_guia_id: int | None = None,
+                       ignorar_transferencia_id: int | None = None) -> dict[int, dict]:
+    """Quanto já deixou cada posição (quadra + pilha): o que saiu pelas guias de
+    saída fechadas e o que passou para outro dono pelas guias de transferência
+    fechadas (esse café vira posição do lote novo)."""
+    from ..models import GuiaSaida, GuiaSaidaItem, GuiaTransferencia, GuiaTransferenciaItem
 
-    consulta = (db.query(GuiaSaidaItem.posicao_id, func.sum(GuiaSaidaItem.sacas),
-                         func.sum(GuiaSaidaItem.peso))
-                .join(GuiaSaida, GuiaSaida.id == GuiaSaidaItem.guia_id)
-                .filter(GuiaSaida.empresa_id == empresa_id, GuiaSaida.status == "FECHADA"))
+    total: dict[int, dict] = {}
+
+    def juntar(linhas):
+        for pid, sc, kg in linhas:
+            atual = total.setdefault(pid, {"sacas": 0.0, "peso": 0.0})
+            atual["sacas"] += float(sc or 0)
+            atual["peso"] += float(kg or 0)
+
+    saidas = (db.query(GuiaSaidaItem.posicao_id, func.sum(GuiaSaidaItem.sacas),
+                       func.sum(GuiaSaidaItem.peso))
+              .join(GuiaSaida, GuiaSaida.id == GuiaSaidaItem.guia_id)
+              .filter(GuiaSaida.empresa_id == empresa_id, GuiaSaida.status == "FECHADA"))
     if ignorar_guia_id:
-        consulta = consulta.filter(GuiaSaida.id != ignorar_guia_id)
-    return {pid: {"sacas": float(sc or 0), "peso": float(kg or 0)}
-            for pid, sc, kg in consulta.group_by(GuiaSaidaItem.posicao_id).all()}
+        saidas = saidas.filter(GuiaSaida.id != ignorar_guia_id)
+    juntar(saidas.group_by(GuiaSaidaItem.posicao_id).all())
+
+    transf = (db.query(GuiaTransferenciaItem.posicao_id, func.sum(GuiaTransferenciaItem.sacas),
+                       func.sum(GuiaTransferenciaItem.peso))
+              .join(GuiaTransferencia, GuiaTransferencia.id == GuiaTransferenciaItem.guia_id)
+              .filter(GuiaTransferencia.empresa_id == empresa_id,
+                      GuiaTransferencia.status == "FECHADA"))
+    if ignorar_transferencia_id:
+        transf = transf.filter(GuiaTransferencia.id != ignorar_transferencia_id)
+    juntar(transf.group_by(GuiaTransferenciaItem.posicao_id).all())
+    return total
 
 
 def _num(valor) -> float:
@@ -553,6 +573,18 @@ def reabrir_guia(guia_id: int, db: Session = Depends(get_db),
         raise HTTPException(400, "Só guia fechada pode ser reaberta.")
     from ..models import GuiaSaida, GuiaSaidaItem
 
+    from ..models import GuiaTransferencia, GuiaTransferenciaItem
+
+    em_transf = (db.query(GuiaTransferencia.numero)
+                 .join(GuiaTransferenciaItem, GuiaTransferenciaItem.guia_id == GuiaTransferencia.id)
+                 .join(LoteArmazem, LoteArmazem.id == GuiaTransferenciaItem.lote_id)
+                 .filter(LoteArmazem.guia_id == guia.id, GuiaTransferencia.status != "CANCELADA")
+                 .distinct().all())
+    if em_transf:
+        numeros = ", ".join(str(n[0]) for n in em_transf)
+        raise HTTPException(
+            400, f"Não dá para reabrir a guia {guia.numero}: os lotes dela estão na(s) guia(s) "
+                 f"de transferência {numeros}. Reabra e tire os itens (ou cancele) essas guias primeiro.")
     em_saida = (db.query(GuiaSaida.numero).join(GuiaSaidaItem, GuiaSaidaItem.guia_id == GuiaSaida.id)
                 .join(LoteArmazem, LoteArmazem.id == GuiaSaidaItem.lote_id)
                 .filter(LoteArmazem.guia_id == guia.id, GuiaSaida.status != "CANCELADA")

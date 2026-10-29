@@ -40,6 +40,7 @@ from .routers import (
     wms,
     wms_entrada,
     wms_saida,
+    wms_transferencia,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
@@ -132,6 +133,7 @@ app.include_router(vendas.router)
 app.include_router(wms.router)
 app.include_router(wms_entrada.router)
 app.include_router(wms_saida.router)
+app.include_router(wms_transferencia.router)
 
 
 @app.exception_handler(Exception)

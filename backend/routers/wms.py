@@ -24,8 +24,8 @@ GET  /api/wms/armazens                  lista dos armazéns
 POST /api/wms/armazens                  novo armazém
 PUT  /api/wms/armazens/{id}             alterar armazém
 GET  /api/wms/movimentos?tipo=ENTRADA   lançamentos de uma tela
-POST /api/wms/movimentos                novo lançamento (entrada e saída são pelas
-                                        guias — ver wms_entrada.py e wms_saida.py)
+POST /api/wms/movimentos                novo lançamento (entrada, saída e transferência
+                                        são pelas guias — wms_entrada/saida/transferencia.py)
 POST /api/wms/movimentos/{id}/cancelar  cancela (com motivo)
 GET  /api/wms/saldos                    saldo por armazém, depositante, produto e lote
 
@@ -187,7 +187,9 @@ def _somar_saldos(db: Session, empresa_id: int,
             somar(origem, -1, m)
         elif m.tipo == "TRANSFERENCIA":
             somar(origem, -1, m)
-            somar((m.armazem_id, m.depositante_destino_id, m.produto_id, lote), +1, m)
+            # pela guia de transferência o lote ganha código novo no novo dono ("1/1T")
+            destino = _lote(m.lote_destino) or lote
+            somar((m.armazem_id, m.depositante_destino_id, m.produto_id, destino), +1, m)
         elif m.tipo == "REMOCAO":
             somar(origem, -1, m)
             somar((m.armazem_destino_id, m.depositante_id, m.produto_id, lote), +1, m)
@@ -348,6 +350,10 @@ def lancar(dados: MovimentoIn, db: Session = Depends(get_db),
         raise HTTPException(
             400, "A entrada agora é feita pela guia de entrada (tela Entrada > Nova guia): "
                  "é ela que gera os lotes e as posições no armazém.")
+    if tipo == "TRANSFERENCIA":
+        raise HTTPException(
+            400, "A transferência agora é feita pela guia de transferência (tela "
+                 "Transferências > Nova guia): ela gera o lote novo do novo dono.")
     if tipo == "SAIDA":
         raise HTTPException(
             400, "A saída agora é feita pela guia de saída (tela Saídas > Nova guia): "
@@ -435,6 +441,9 @@ def cancelar(movimento_id: int, dados: CancelarIn, db: Session = Depends(get_db)
     validar_empresa(db, movimento.empresa_id, usuario)
     if movimento.status == "CANCELADO":
         raise HTTPException(400, "Este lançamento já está cancelado.")
+    if movimento.guia_transferencia_id:
+        raise HTTPException(400, "Esta transferência veio de uma guia de transferência: para "
+                                 "desfazer, reabra a guia na tela Transferências.")
     if movimento.guia_saida_id:
         raise HTTPException(400, "Esta saída veio de uma guia de saída: para desfazer, "
                                  "reabra ou cancele a guia na tela Saídas.")

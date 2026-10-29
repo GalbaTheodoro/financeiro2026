@@ -1034,7 +1034,7 @@ grupo próprio da barra lateral, com cinco telas:
 | **Entrada** | pela **guia de entrada** (abaixo): ao fechar, cada lote soma no saldo |
 | **Saídas** | pela **guia de saída** (abaixo): ao fechar, tira do lote e da quadra/pilha |
 | **Serviços** | rebenefício, padronização, ensaque, armazenagem... registra o serviço e o valor, sem mexer no saldo |
-| **Transferências** | troca de dono no mesmo armazém: sai de um depositante e entra no outro |
+| **Transferências** | pela **guia de transferência** (abaixo): o lote muda de dono e ganha número novo com "T" |
 | **Remoção** | o mesmo café muda de armazém: sai do de origem e entra no de destino |
 
 - **Guia de entrada.** Cabeçalho (data, número automático, armazém, cliente, cliente de
@@ -1056,6 +1056,14 @@ grupo próprio da barra lateral, com cinco telas:
   pode ter levado parte) e tira do saldo; *Reabrir* devolve. O contrato preenche
   destinatário (o comprador) e destino (local de descarga), e a lista mostra quanto do
   contrato já foi embarcado.
+- **Guia de transferência.** Cabeçalho (data, número automático, armazém, cliente — dono
+  atual —, cliente novo, documento, observação) e, embaixo, os lotes do cliente por posição
+  (quadra e pilha), como na saída: digita quantas sacas passam (pode ser parte) ou *Tudo*.
+  *Fechar guia e gerar lote novo* confere a pilha e o saldo do lote e, para cada lote de
+  origem, cria o **lote novo do cliente novo** com o número do lote de origem + **T**
+  (1/1 → 1/1T; se já existir, 1/1T2, 1/1T3… — nunca fica número repetido), com a mesma
+  peneira, padrão, unidade e valor por saca, nas mesmas quadras e pilhas. O lote de origem
+  e as pilhas dele perdem essas sacas. *Reabrir* desfaz, enquanto o lote novo não saiu.
 - **Quadras** (botão *Quadras* na tela Entrada): nome, X e Y, dentro de cada armazém, com a
   planta desenhada pelas coordenadas e as sacas que estão em cada quadra hoje (entrou pela
   guia de entrada, menos o que saiu pela guia de saída).
@@ -1072,8 +1080,8 @@ grupo próprio da barra lateral, com cinco telas:
   com a grade de fábrica antiga do Plano 4 recebe o WMS sozinha; grade montada à mão em
   *Configurações do site > Menus de cada plano* fica como está.
 
-Código: `backend/routers/wms.py`, `wms_entrada.py` e `wms_saida.py`; `frontend/js/wms.js`,
-`wms_entrada.js` e `wms_saida.js`.
+Código: `backend/routers/wms.py`, `wms_entrada.py`, `wms_saida.py` e `wms_transferencia.py`;
+`frontend/js/wms.js`, `wms_entrada.js`, `wms_saida.js` e `wms_transferencia.js`.
 Teste: `python testes/teste_wms.py`.
 
 ### Vendas e Margens

@@ -1018,12 +1018,24 @@ grupo próprio da barra lateral, com cinco telas:
 
 | Tela | O que faz no saldo |
 |---|---|
-| **Entrada** | soma no armazém / depositante / produto / lote |
+| **Entrada** | pela **guia de entrada** (abaixo): ao fechar, cada lote soma no saldo |
 | **Saídas** | tira do saldo — recusada se passar do que o depositante tem |
 | **Serviços** | rebenefício, padronização, ensaque, armazenagem... registra o serviço e o valor, sem mexer no saldo |
 | **Transferências** | troca de dono no mesmo armazém: sai de um depositante e entra no outro |
 | **Remoção** | o mesmo café muda de armazém: sai do de origem e entra no de destino |
 
+- **Guia de entrada.** Cabeçalho (data, número automático, armazém, cliente, cliente de
+  origem, contrato de compra, produto, unidade, total de peso e sacas do ticket), os
+  **lotes** (número/sequência — 15/1, 15/2 —, peneira, padrão, sacas, peso, unidade e valor
+  por saca) e, em cada lote, os **locais** (quadra, pilha, sacas e peso). Enquanto aberta,
+  *Salvar* grava o rascunho. *Fechar guia e gerar lotes* confere que os lotes somam o
+  cabeçalho e que os locais somam cada lote (local sem peso recebe a parte proporcional
+  às sacas) e gera os lotes (`lotes_armazem`), as posições (`lote_posicoes`) e a entrada
+  no saldo. *Reabrir* desfaz tudo — só se nenhum lote da guia teve saída, transferência
+  ou remoção. O contrato preenche cliente de origem (o vendedor), produto e unidade, e a
+  lista mostra quanto do contrato já foi recebido.
+- **Quadras** (botão *Quadras* na tela Entrada): nome, X e Y, dentro de cada armazém, com a
+  planta desenhada pelas coordenadas e as sacas que entraram em cada quadra.
 - O saldo não é digitado: é a soma dos lançamentos ativos. O botão **Saldo do armazém**
   mostra quanto cada depositante tem, por armazém, produto e lote.
 - Os armazéns se cadastram pelo botão **Armazéns** (com capacidade em sacas, para mostrar a
@@ -1037,7 +1049,8 @@ grupo próprio da barra lateral, com cinco telas:
   com a grade de fábrica antiga do Plano 4 recebe o WMS sozinha; grade montada à mão em
   *Configurações do site > Menus de cada plano* fica como está.
 
-Código: `backend/routers/wms.py`, `frontend/js/wms.js`. Teste: `python testes/teste_wms.py`.
+Código: `backend/routers/wms.py` e `wms_entrada.py`, `frontend/js/wms.js` e `wms_entrada.js`.
+Teste: `python testes/teste_wms.py`.
 
 ### Vendas e Margens
 

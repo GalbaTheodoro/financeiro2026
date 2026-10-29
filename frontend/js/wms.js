@@ -6,6 +6,9 @@
    digitado em lugar nenhum: é a soma dos lançamentos, e o botão "Saldo do
    armazém" mostra como ele está agora.
 
+   A Entrada tem tela própria — a guia de entrada, com lotes e locais — em
+   wms_entrada.js; este arquivo cuida das outras quatro.
+
    O café do armazém é do depositante, não da empresa — por isso este controle
    é separado do Estoque (que tem custo médio e é mercadoria própria). */
 const WMS = {
@@ -16,9 +19,9 @@ const WMS = {
 
   TIPOS: {
     ENTRADA: {
-      rota: '/wms-entradas', titulo: 'Entradas', novo: 'Nova entrada', icone: '↘',
-      explica: 'café que chegou no armazém e ficou guardado — soma no saldo do depositante',
-      vazio: 'Nenhuma entrada neste filtro. Use "Nova entrada" quando o caminhão descarregar.',
+      rota: '/wms-entradas', titulo: 'Entradas', novo: 'Nova guia de entrada', icone: '↘',
+      explica: 'feita pela guia de entrada (wms_entrada.js): lotes, locais e o saldo ao fechar',
+      vazio: 'Nenhuma entrada neste filtro.',
     },
     SAIDA: {
       rota: '/wms-saidas', titulo: 'Saídas', novo: 'Nova saída', icone: '↗',
@@ -48,6 +51,7 @@ const WMS = {
       WMS._tipo = tipo;
       WMS._filtros.busca = '';
     }
+    if (WMS._tipo === 'ENTRADA') return WMSEntrada.tela();
     const alvo = document.getElementById('pagina');
     alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando...</div></div>';
     try {
@@ -58,6 +62,8 @@ const WMS = {
   },
 
   async carregar() {
+    // a Entrada é a guia de entrada (lotes e locais) — tela própria
+    if (WMS._tipo === 'ENTRADA') return WMSEntrada.carregar();
     const [armazens, dados] = await Promise.all([
       Api.get('/api/wms/armazens', { empresa_id: Estado.empresaId }),
       Api.get('/api/wms/movimentos', {

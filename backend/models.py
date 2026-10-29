@@ -1889,6 +1889,8 @@ class MovimentoArmazem(Base):
 
     observacao = Column(String(300))
     status = Column(String(10), nullable=False, default="ATIVO")   # ATIVO | CANCELADO
+    # entrada gerada ao fechar uma guia de entrada (uma por lote da guia)
+    guia_entrada_id = Column(Integer, ForeignKey("guias_entrada.id"), index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     criado_em = Column(DateTime, default=datetime.utcnow)
 
@@ -1897,3 +1899,151 @@ class MovimentoArmazem(Base):
     depositante = relationship("Parceiro", foreign_keys=[depositante_id])
     depositante_destino = relationship("Parceiro", foreign_keys=[depositante_destino_id])
     produto = relationship("Produto")
+
+
+class QuadraArmazem(Base):
+    """Quadra do armazém: o endereço físico onde as pilhas de sacas ficam.
+
+    ``x`` e ``y`` são a posição da quadra na planta do armazém (coluna e linha,
+    ou metros — o que a empresa usar), para localizar o lote e desenhar o mapa.
+    """
+
+    __tablename__ = "quadras_armazem"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    armazem_id = Column(Integer, ForeignKey("armazens.id"), nullable=False, index=True)
+    nome = Column(String(40), nullable=False)
+    x = Column(Numeric(10, 2, asdecimal=False), nullable=False, default=0)
+    y = Column(Numeric(10, 2, asdecimal=False), nullable=False, default=0)
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    armazem = relationship("Armazem")
+
+
+class GuiaEntrada(Base):
+    """Guia de entrada do armazém: o documento da descarga.
+
+    Enquanto está ABERTA é rascunho e pode ser editada à vontade. Ao FECHAR,
+    o sistema confere os totais (cabeçalho = soma dos lotes; lote = soma dos
+    locais) e gera os lotes (``LoteArmazem``), as posições de cada lote
+    (``LotePosicao``) e a entrada no saldo (``MovimentoArmazem``).
+    """
+
+    __tablename__ = "guias_entrada"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    numero = Column(Integer, nullable=False, default=0)
+    data = Column(Date, nullable=False, default=date.today, index=True)
+    armazem_id = Column(Integer, ForeignKey("armazens.id"), nullable=False, index=True)
+    cliente_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)       # depositante
+    cliente_origem_id = Column(Integer, ForeignKey("parceiros.id"), index=True)
+    contrato_id = Column(Integer, ForeignKey("contratos.id"), index=True)                     # contrato de compra
+    produto_id = Column(Integer, ForeignKey("produtos.id"))
+    unidade_id = Column(Integer, ForeignKey("unidades.id"))
+    peso_total = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    documento = Column(String(40))
+    placa = Column(String(10))
+    motorista = Column(String(120))
+    observacao = Column(String(300))
+    status = Column(String(10), nullable=False, default="ABERTA")   # ABERTA | FECHADA | CANCELADA
+    fechada_em = Column(DateTime)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    armazem = relationship("Armazem")
+    cliente = relationship("Parceiro", foreign_keys=[cliente_id])
+    cliente_origem = relationship("Parceiro", foreign_keys=[cliente_origem_id])
+    contrato = relationship("Contrato")
+    produto = relationship("Produto")
+    unidade = relationship("Unidade")
+    lotes = relationship("GuiaEntradaLote", back_populates="guia",
+                         cascade="all, delete-orphan", order_by="GuiaEntradaLote.sequencia")
+
+
+class GuiaEntradaLote(Base):
+    """Um lote da guia: número/sequência, peneira, padrão, peso, sacas e valor."""
+
+    __tablename__ = "guia_entrada_lotes"
+
+    id = Column(Integer, primary_key=True)
+    guia_id = Column(Integer, ForeignKey("guias_entrada.id"), nullable=False, index=True)
+    sequencia = Column(Integer, nullable=False, default=1)      # o "/1", "/2"...
+    peneira = Column(String(20))
+    padrao = Column(String(60))
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    unidade_id = Column(Integer, ForeignKey("unidades.id"))
+    valor_unitario = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)   # por saca
+    valor_total = _dinheiro()
+
+    guia = relationship("GuiaEntrada", back_populates="lotes")
+    unidade = relationship("Unidade")
+    locais = relationship("GuiaEntradaLocal", back_populates="lote",
+                          cascade="all, delete-orphan", order_by="GuiaEntradaLocal.id")
+
+
+class GuiaEntradaLocal(Base):
+    """Onde aquele lote foi guardado: quadra, pilha, sacas e peso."""
+
+    __tablename__ = "guia_entrada_locais"
+
+    id = Column(Integer, primary_key=True)
+    lote_id = Column(Integer, ForeignKey("guia_entrada_lotes.id"), nullable=False, index=True)
+    quadra_id = Column(Integer, ForeignKey("quadras_armazem.id"), nullable=False)
+    pilha = Column(String(20))
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    lote = relationship("GuiaEntradaLote", back_populates="locais")
+    quadra = relationship("QuadraArmazem")
+
+
+class LoteArmazem(Base):
+    """Lote gerado no fechamento da guia — o café guardado, com código "15/1"."""
+
+    __tablename__ = "lotes_armazem"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    guia_id = Column(Integer, ForeignKey("guias_entrada.id"), nullable=False, index=True)
+    guia_lote_id = Column(Integer, ForeignKey("guia_entrada_lotes.id"))
+    codigo = Column(String(40), nullable=False, index=True)
+    data_entrada = Column(Date, nullable=False, default=date.today)
+    armazem_id = Column(Integer, ForeignKey("armazens.id"), nullable=False, index=True)
+    depositante_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)
+    produto_id = Column(Integer, ForeignKey("produtos.id"))
+    peneira = Column(String(20))
+    padrao = Column(String(60))
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    unidade_id = Column(Integer, ForeignKey("unidades.id"))
+    valor_unitario = Column(Numeric(15, 4, asdecimal=False), nullable=False, default=0)
+    valor_total = _dinheiro()
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    armazem = relationship("Armazem")
+    depositante = relationship("Parceiro")
+    produto = relationship("Produto")
+    unidade = relationship("Unidade")
+    posicoes = relationship("LotePosicao", back_populates="lote",
+                            cascade="all, delete-orphan", order_by="LotePosicao.id")
+
+
+class LotePosicao(Base):
+    """Posição do lote no armazém: quadra + pilha, com as sacas e o peso ali."""
+
+    __tablename__ = "lote_posicoes"
+
+    id = Column(Integer, primary_key=True)
+    lote_id = Column(Integer, ForeignKey("lotes_armazem.id"), nullable=False, index=True)
+    quadra_id = Column(Integer, ForeignKey("quadras_armazem.id"), nullable=False, index=True)
+    pilha = Column(String(20))
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    lote = relationship("LoteArmazem", back_populates="posicoes")
+    quadra = relationship("QuadraArmazem")

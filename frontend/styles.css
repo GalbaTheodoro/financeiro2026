@@ -1023,3 +1023,23 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
   max-height:180px;overflow:auto;border:1px solid var(--borda);border-radius:8px;padding:8px 10px}
 .lista-marcar label{display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer}
 .cartao-interno{border:1px solid var(--borda);border-radius:10px;padding:4px 14px 14px;margin-top:14px;background:var(--cinza-50,#f8fafc)}
+
+/* ---------------------------------------------- WMS: guia de entrada e quadras */
+.guia-conferencia{margin-top:12px;padding:9px 12px;border-radius:8px;background:var(--cinza-100,#f1f5f9);font-size:13px;display:flex;flex-wrap:wrap;gap:4px 6px}
+.guia-lote{border:1px solid var(--borda);border-radius:10px;padding:12px 14px;margin-bottom:12px;background:#fcfdfc}
+.guia-lote-topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.guia-lote-rodape{display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px;flex-wrap:wrap}
+.guia-locais-tabela{width:100%}
+.guia-locais-tabela select,.guia-locais-tabela input{padding:5px 7px;font-size:13px}
+.guia-mapas{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px}
+.guia-mapa{border:1px solid var(--borda);border-radius:10px;padding:8px 10px;background:#fff}
+.quadra-livre{fill:#f1f5f9;stroke:#cbd5e1}
+.quadra-ocupada{fill:#dcfce7;stroke:#16a34a}
+.quadra-nome{font-size:13px;font-weight:700;fill:#0f172a}
+.quadra-sacas{font-size:10.5px;fill:#475569}
+@media (max-width:700px){
+  .guia-locais-tabela thead{display:none}
+  .guia-locais-tabela tr{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px 0;border-bottom:1px solid var(--borda)}
+  .guia-locais-tabela td{border:0;padding:0}
+  .guia-locais-tabela input{width:100% !important}
+}

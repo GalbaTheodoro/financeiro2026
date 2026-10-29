@@ -38,6 +38,12 @@ const Amostras = {
     if (!Amostras._tabelas) Amostras._tabelas = await Api.get('/api/amostras/tabelas');
     await Amostras.carregarContratos();
     await Amostras.carregar();
+    // veio do botão Classificar da tela de Lotes (WMS): abre a ficha da amostra do lote
+    if (Amostras._abrirDepois) {
+      const id = Amostras._abrirDepois;
+      Amostras._abrirDepois = null;
+      await Amostras.abrir(id);
+    }
   },
 
   async carregarContratos(forcar = false) {
@@ -371,7 +377,8 @@ const Amostras = {
           <div class="linha-campos">
             ${UI.campo('Município', `<input name="municipio" value="${v('municipio')}">`)}
             ${UI.campo('UF', UI.select('uf', lista(Amostras.UFS), a.uf || '', { vazio: '—' }))}
-            ${UI.campo('Lote', `<input name="lote" value="${v('lote')}">`)}
+            ${UI.campo('Lote', `<input name="lote" value="${v('lote')}">`,
+              a.lote_armazem_id ? 'amostra do lote do armazém (WMS)' : '')}
             ${UI.campo('Sacas do lote', num('sacas', a.sacas || ''))}
             ${UI.campo('Armazém', `<input name="armazem" value="${v('armazem')}">`)}
           </div>

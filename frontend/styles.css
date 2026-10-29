@@ -1069,3 +1069,5 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
   .saida-tabela td:first-child{grid-column:1/-1}
   .saida-tabela input{width:100% !important}
 }
+/* WMS: posição do lote (quadra/pilha) na lista de lotes */
+.lote-posicao{display:inline-block;padding:1px 7px;margin:1px 2px 1px 0;border-radius:6px;background:var(--cinza-100,#f1f5f9);font-size:12px;white-space:nowrap}

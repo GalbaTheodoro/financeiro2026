@@ -22,6 +22,7 @@ const App = {
     '/sped': { titulo: 'SPED Fiscal', subtitulo: 'O arquivo mensal da EFD ICMS/IPI para o contador, montado das notas do sistema', acao: (aba) => Sped.tela(aba) },
     '/livros': { titulo: 'Relatórios Fiscais', subtitulo: 'Livros de entradas e saídas, resumo por CFOP e por estado, e o livro de estoque', acao: (aba) => Livros.tela(aba) },
     '/relatorios': { titulo: 'Relatórios', subtitulo: 'DRE, balancete e relatórios gerenciais', acao: () => Relatorios.tela() },
+    '/wms-lotes': { titulo: 'WMS / Armazém — Lotes', subtitulo: 'Onde está cada lote, quanto sobra e a classificação', acao: () => WMSLotes.tela() },
     '/wms-entradas': { titulo: 'WMS / Armazém — Entradas', subtitulo: 'Café que chegou e ficou guardado para o depositante', acao: () => WMS.tela('ENTRADA') },
     '/wms-saidas': { titulo: 'WMS / Armazém — Saídas', subtitulo: 'Café retirado ou expedido do armazém', acao: () => WMS.tela('SAIDA') },
     '/wms-servicos': { titulo: 'WMS / Armazém — Serviços', subtitulo: 'Rebenefício, padronização, ensaque e demais serviços sobre o lote', acao: () => WMS.tela('SERVICO') },
@@ -54,7 +55,7 @@ const App = {
   /* Só estas rotas dependem do plano; o resto é de toda conta. */
   ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/amostras', '/notas',
     '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios', '/sped', '/livros',
-    '/vendas', '/wms-entradas', '/wms-saidas', '/wms-servicos', '/wms-transferencias',
+    '/vendas', '/wms-lotes', '/wms-entradas', '/wms-saidas', '/wms-servicos', '/wms-transferencias',
     '/wms-remocoes'],
 
   menu() {
@@ -80,6 +81,7 @@ const App = {
       { grupo: 'Estoque', icone: '▣' },
       { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },
       { grupo: 'WMS / Armazém', icone: '⌂' },
+      { rota: '/wms-lotes', icone: '▦', rotulo: 'Lotes' },
       { rota: '/wms-entradas', icone: '↘', rotulo: 'Entrada' },
       { rota: '/wms-saidas', icone: '↗', rotulo: 'Saídas' },
       { rota: '/wms-servicos', icone: '⚙', rotulo: 'Serviços' },

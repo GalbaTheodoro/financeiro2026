@@ -1753,6 +1753,9 @@ class AmostraCafe(Base):
     pontuacao = Column(Numeric(6, 2, asdecimal=False))
     padrao = Column(String(120))
 
+    # amostra do lote do armazém (WMS): cada lote tem a sua — botão Classificar
+    lote_armazem_id = Column(Integer, ForeignKey("lotes_armazem.id"), index=True)
+
     classificador = Column(String(120))
     registro_classificador = Column(String(40))
     observacao = Column(Text)

@@ -61,7 +61,7 @@ from ..models import (
 )
 from ..utils import parse_data, serializar
 from .wms import TOLERANCIA, _n, _negativos, _somar_saldos
-from .wms_entrada import saidas_por_posicao
+from .wms_entrada import desligar_amostras, religar_amostra, saidas_por_posicao
 
 router = APIRouter(prefix="/api/wms", tags=["wms"],
                    dependencies=[Depends(exigir_modulo("WMS"))])
@@ -353,6 +353,7 @@ def fechar(guia_id: int, db: Session = Depends(get_db),
                                              sacas=i.sacas, peso=i.peso))
         db.add(novo)
         db.flush()
+        religar_amostra(db, novo)
         for i in itens:
             i.lote_novo_id = novo.id
         ultimo = db.query(func.max(MovimentoArmazem.numero)).filter(
@@ -412,6 +413,7 @@ def reabrir(guia_id: int, db: Session = Depends(get_db),
     for item in guia.itens:
         item.lote_novo_id = None
     db.flush()
+    desligar_amostras(db, [l.id for l in novos])
     for lote in novos:
         db.delete(lote)
     guia.status = "ABERTA"

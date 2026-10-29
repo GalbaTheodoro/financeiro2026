@@ -21,6 +21,8 @@ O que se confere
     nas mesmas quadras e pilhas; reabrir só se o lote novo não saiu;
   * remoção tira de um armazém e põe no outro, para o mesmo depositante;
   * cada tipo tem a sua numeração;
+  * tela de lotes: saldo, posições, de onde veio; Classificar cria (uma vez
+    só) a amostra do lote já preenchida, e reabrir/fechar a guia religa;
   * cancelar volta o saldo — e é recusado quando o café da entrada já saiu.
 
 Uso:  python testes/teste_wms.py   (com o servidor no ar)
@@ -74,7 +76,7 @@ def conta(plano):
     return dados["token"], dados["empresa"]["id"]
 
 
-ROTAS_WMS = {"/wms-entradas", "/wms-saidas", "/wms-servicos", "/wms-transferencias",
+ROTAS_WMS = {"/wms-lotes", "/wms-entradas", "/wms-saidas", "/wms-servicos", "/wms-transferencias",
              "/wms-remocoes"}
 
 # =========================================================================== #
@@ -90,7 +92,7 @@ for plano in ("P1_SEMESTRAL", "P2_SEMESTRAL", "P3_ANUAL"):
 
 tk, eid = conta("P4_ANUAL")
 rotas = set(api("GET", "/api/auth/me", None, tk)["assinatura"]["rotas"])
-checar("Plano 4: o menu traz as cinco telas do WMS", ROTAS_WMS <= rotas)
+checar("Plano 4: o menu traz as seis telas do WMS", ROTAS_WMS <= rotas)
 info = api("GET", "/api/publico/info")
 p4 = next(p for p in info["planos"] if p["nome"] == "Plano 4")
 checar("a página inicial mostra o WMS no Plano 4",
@@ -410,11 +412,19 @@ g3 = api("POST", "/api/wms/guias-entrada", {
                                    "locais": [{"quadra_id": qb1["id"], "sacas": 20}]}]}, tk)
 api("POST", f"/api/wms/guias-entrada/{g3['id']}/fechar", None, tk)
 checar("a guia 3 entrou no saldo (lote 3/1)", saldo(a2["id"], maria["id"], "3/1") == 20)
+lote31 = next(l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}&guia_id={g3['id']}", None, tk))
+am31 = api("POST", f"/api/wms/lotes/{lote31['id']}/amostra", None, tk)
 g3 = api("POST", f"/api/wms/guias-entrada/{g3['id']}/reabrir", None, tk)
 checar("guia sem saída reabre", g3.get("status") == "ABERTA")
 checar("e o saldo e os lotes dela somem",
        saldo(a2["id"], maria["id"], "3/1") == 0
        and not api("GET", f"/api/wms/lotes?empresa_id={eid}&guia_id={g3['id']}", None, tk))
+checar("a amostra do lote continua, solta do lote enquanto a guia está aberta",
+       api("GET", f"/api/amostras/{am31['amostra_id']}", None, tk).get("lote_armazem_id") is None)
+api("POST", f"/api/wms/guias-entrada/{g3['id']}/fechar", None, tk)
+lote31 = next(l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}&guia_id={g3['id']}", None, tk))
+checar("fechando de novo, o lote 3/1 recupera a amostra dele",
+       (lote31.get("amostra") or {}).get("id") == am31["amostra_id"])
 # o lote novo da Maria saiu numa guia de saída: a transferência não reabre mais
 pos_t = {(p_["quadra_nome"]): p_["id"] for p_ in lote_t["posicoes"]}
 gsm = api("POST", "/api/wms/guias-saida", {"empresa_id": eid, "armazem_id": a1["id"],
@@ -430,6 +440,31 @@ nao_cancela = api("POST", f"/api/wms/guias-saida/{gs3['id']}/cancelar", {"motivo
 checar("guia de saída fechada não se cancela sem reabrir", nao_cancela.get("_status") == 400)
 
 # =========================================================================== #
+print("\n=== 7b. Tela de lotes e amostra do lote ===")
+todos = api("GET", f"/api/wms/lotes?empresa_id={eid}", None, tk)
+com = api("GET", f"/api/wms/lotes?empresa_id={eid}&com_saldo=true", None, tk)
+checar("o filtro 'só com saldo' só traz lote com saldo",
+       len(com) <= len(todos) and all(l["saldo_total"] > 0 for l in com))
+achou = api("GET", f"/api/wms/lotes?empresa_id={eid}&busca=1/1T", None, tk)
+checar("procurar pelo número do lote", {l["codigo"] for l in achou} == {"1/1T"}, str([l["codigo"] for l in achou]))
+l11 = next(l for l in todos if l["codigo"] == "1/1")
+checar("o lote mostra de que guia veio e o lote transferido de onde veio",
+       l11["guia_numero"] == 1 and next(l for l in todos if l["codigo"] == "1/1T")["lote_origem_codigo"] == "1/1")
+checar("lote ainda sem amostra", l11["amostra"] is None)
+am = api("POST", f"/api/wms/lotes/{l11['id']}/amostra", None, tk)
+checar("Classificar cria a amostra do lote", am.get("nova") is True and am.get("amostra_id"))
+ficha = api("GET", f"/api/amostras/{am['amostra_id']}", None, tk)
+checar("a amostra já vem com o dono, o lote, as sacas e o armazém",
+       ficha["lote"] == "1/1" and ficha["parceiro_id"] == joao["id"] and ficha["sacas"] == 300
+       and ficha["armazem"] == "Armazém Central" and ficha["lote_armazem_id"] == l11["id"],
+       str({k: ficha.get(k) for k in ("lote", "parceiro_id", "sacas", "armazem")}))
+de_novo = api("POST", f"/api/wms/lotes/{l11['id']}/amostra", None, tk)
+checar("cada lote tem uma amostra só (clicar de novo abre a mesma)",
+       de_novo.get("nova") is False and de_novo.get("amostra_id") == am["amostra_id"])
+l11 = next(l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}", None, tk) if l["codigo"] == "1/1")
+checar("a lista de lotes mostra a amostra", (l11["amostra"] or {}).get("situacao") == "RECEBIDA")
+
+# =========================================================================== #
 print("\n=== 8. Isolamento entre contas ===")
 tk2, eid2 = conta("P4_SEMESTRAL")
 alheio = api("GET", f"/api/wms/guias-entrada?empresa_id={eid}", None, tk2,
@@ -438,6 +473,8 @@ checar("outra conta não lê o armazém desta", alheio.get("_status") == 403)
 alheio2 = api("POST", f"/api/wms/guias-saida/{gs3['id']}/reabrir", None, tk2,
               esperar_erro=True)
 checar("nem reabre guia dela", alheio2.get("_status") == 403)
+alheio3 = api("POST", f"/api/wms/lotes/{l11['id']}/amostra", None, tk2, esperar_erro=True)
+checar("nem cria amostra de lote dela", alheio3.get("_status") == 403)
 
 # =========================================================================== #
 print("\n=== 9. Quem já tinha o sistema ganha o WMS no Plano 4 ===")

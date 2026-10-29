@@ -109,8 +109,8 @@ ROTAS: dict[str, tuple[str, ...]] = {
     "NFE": ("/notas", "/pedidos", "/dfe", "/estoque", "/sped", "/livros", "/vendas"),
     "CUPOM": ("/cupom",),
     "GTA": ("/gta",),
-    "WMS": ("/wms-entradas", "/wms-saidas", "/wms-servicos", "/wms-transferencias",
-            "/wms-remocoes"),
+    "WMS": ("/wms-lotes", "/wms-entradas", "/wms-saidas", "/wms-servicos",
+            "/wms-transferencias", "/wms-remocoes"),
 }
 
 # --------------------------------------------------------------------------- #

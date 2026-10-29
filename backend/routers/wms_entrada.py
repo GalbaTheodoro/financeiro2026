@@ -544,6 +544,8 @@ def fechar_guia(guia_id: int, db: Session = Depends(get_db),
             lote.posicoes.append(LotePosicao(quadra_id=x.quadra_id, pilha=x.pilha,
                                              sacas=x.sacas, peso=x.peso))
         db.add(lote)
+        db.flush()
+        religar_amostra(db, lote)
         # a entrada no saldo: é o que Saídas, Transferências e Remoção enxergam
         ultimo = db.query(func.max(MovimentoArmazem.numero)).filter(
             MovimentoArmazem.empresa_id == guia.empresa_id,
@@ -608,7 +610,9 @@ def reabrir_guia(guia_id: int, db: Session = Depends(get_db),
                  "foi transferida ou removida. Cancele esses lançamentos primeiro.")
     for m in entradas:
         db.delete(m)
-    for lote in db.query(LoteArmazem).filter(LoteArmazem.guia_id == guia.id).all():
+    apagar = db.query(LoteArmazem).filter(LoteArmazem.guia_id == guia.id).all()
+    desligar_amostras(db, [l.id for l in apagar])
+    for lote in apagar:
         db.delete(lote)
     guia.status = "ABERTA"
     guia.fechada_em = None
@@ -639,12 +643,93 @@ def cancelar_guia(guia_id: int, dados: MotivoIn, db: Session = Depends(get_db),
 # --------------------------------------------------------------------------- #
 # Lotes gerados
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Amostra do lote: cada lote tem a sua (botão Classificar na tela Lotes)
+# --------------------------------------------------------------------------- #
+def desligar_amostras(db: Session, lote_ids: list[int]) -> None:
+    """Antes de apagar lotes (reabrir guia), solta a amostra — ela continua,
+    com o código do lote no campo Lote, e volta a se ligar quando o lote nascer
+    de novo (ver ``religar_amostra``)."""
+    from ..models import AmostraCafe
+
+    if not lote_ids:
+        return
+    for amostra in db.query(AmostraCafe).filter(AmostraCafe.lote_armazem_id.in_(lote_ids)):
+        amostra.lote_armazem_id = None
+    db.flush()
+
+
+def religar_amostra(db: Session, lote: LoteArmazem) -> None:
+    """Lote que nasce de novo (guia fechada outra vez) recupera a amostra dele."""
+    from ..models import AmostraCafe
+
+    amostra = (db.query(AmostraCafe)
+               .filter(AmostraCafe.empresa_id == lote.empresa_id,
+                       AmostraCafe.lote_armazem_id.is_(None),
+                       func.upper(AmostraCafe.lote) == lote.codigo.upper(),
+                       AmostraCafe.parceiro_id == lote.depositante_id)
+               .order_by(AmostraCafe.id.desc()).first())
+    if amostra:
+        amostra.lote_armazem_id = lote.id
+
+
+def _amostras_dos_lotes(db: Session, ids: list[int]) -> dict:
+    from ..models import AmostraCafe
+
+    if not ids:
+        return {}
+    return {a.lote_armazem_id: a for a in db.query(AmostraCafe).filter(
+        AmostraCafe.lote_armazem_id.in_(ids))}
+
+
+@router.post("/lotes/{lote_id}/amostra")
+def amostra_do_lote(lote_id: int, db: Session = Depends(get_db),
+                    usuario: Usuario = Depends(acesso_liberado)):
+    """Abre a amostra do lote — e cria, se ainda não tiver.
+
+    A amostra nasce preenchida com o que o lote já sabe: o dono (produtor), o
+    código do lote, as sacas, o armazém e o produto; peneira e padrão da
+    entrada vão na observação. Daí em diante é a ficha normal de Amostras.
+    """
+    from ..models import AmostraCafe
+
+    lote = db.get(LoteArmazem, lote_id)
+    if not lote:
+        raise HTTPException(404, "Lote não encontrado.")
+    validar_empresa(db, lote.empresa_id, usuario)
+    existente = db.query(AmostraCafe).filter(AmostraCafe.lote_armazem_id == lote.id).first()
+    if existente:
+        return {"amostra_id": existente.id, "numero": existente.numero, "nova": False}
+    ultimo = (db.query(func.max(AmostraCafe.numero))
+              .filter(AmostraCafe.empresa_id == lote.empresa_id).scalar()) or 0
+    entrada = " · ".join(filter(None, [
+        f"peneira {lote.peneira}" if lote.peneira else "",
+        f"padrão {lote.padrao}" if lote.padrao else ""]))
+    amostra = AmostraCafe(
+        empresa_id=lote.empresa_id, numero=int(ultimo) + 1, situacao="RECEBIDA",
+        data_recebimento=date.today(), lote_armazem_id=lote.id,
+        parceiro_id=lote.depositante_id,
+        produtor_nome=lote.depositante.nome if lote.depositante else None,
+        municipio=lote.armazem.cidade if lote.armazem else None,
+        uf=lote.armazem.uf if lote.armazem else None,
+        lote=lote.codigo, sacas=float(lote.sacas or 0),
+        armazem=lote.armazem.nome if lote.armazem else None,
+        observacao=(f"Amostra do lote {lote.codigo} do armazém"
+                    + (f" (entrada: {entrada})" if entrada else "") + "."),
+    )
+    db.add(amostra)
+    db.commit()
+    db.refresh(amostra)
+    return {"amostra_id": amostra.id, "numero": amostra.numero, "nova": True}
+
+
 @router.get("/lotes")
 def listar_lotes(empresa_id: int, armazem_id: int | None = None,
                  depositante_id: int | None = None, quadra_id: int | None = None,
-                 guia_id: int | None = None, db: Session = Depends(get_db),
+                 guia_id: int | None = None, busca: str | None = None,
+                 com_saldo: bool = False, db: Session = Depends(get_db),
                  usuario: Usuario = Depends(acesso_liberado)):
-    """Os lotes, com as posições de entrada e o saldo de sacas de hoje."""
+    """Os lotes, com as posições, o saldo de hoje e a amostra de cada um."""
     validar_empresa(db, empresa_id, usuario)
     consulta = db.query(LoteArmazem).filter(LoteArmazem.empresa_id == empresa_id)
     if armazem_id:
@@ -655,13 +740,41 @@ def listar_lotes(empresa_id: int, armazem_id: int | None = None,
         consulta = consulta.filter(LoteArmazem.guia_id == guia_id)
     if quadra_id:
         consulta = consulta.filter(LoteArmazem.posicoes.any(LotePosicao.quadra_id == quadra_id))
+    texto = (busca or "").strip()
+    if texto:
+        like = f"%{texto}%"
+        consulta = consulta.filter(or_(LoteArmazem.codigo.ilike(like),
+                                       LoteArmazem.peneira.ilike(like),
+                                       LoteArmazem.padrao.ilike(like)))
     lotes = consulta.order_by(LoteArmazem.data_entrada.desc(), LoteArmazem.id.desc()).limit(500).all()
     saldos = _somar_saldos(db, empresa_id)
     saiu = saidas_por_posicao(db, empresa_id)
+    amostras = _amostras_dos_lotes(db, [l.id for l in lotes])
+    origens = {l.id: l.codigo for l in db.query(LoteArmazem).filter(
+        LoteArmazem.id.in_([l.lote_origem_id for l in lotes if l.lote_origem_id] or [0]))}
     saida = []
     for lote in lotes:
         chave = (lote.armazem_id, lote.depositante_id, lote.produto_id, lote.codigo.upper())
+        # o lote todo, somando o que foi removido para outro armazém
+        total = {"sacas": 0.0, "peso_kg": 0.0}
+        for (a_id, d_id, p_id, cod), v in saldos.items():
+            if d_id == lote.depositante_id and p_id == lote.produto_id and cod == lote.codigo.upper():
+                total["sacas"] += v["sacas"]
+                total["peso_kg"] += v["peso_kg"]
+        if com_saldo and total["sacas"] <= TOLERANCIA:
+            continue
+        amostra = amostras.get(lote.id)
         saida.append(serializar(lote, extras={
+            "guia_numero": lote.guia_id and db.get(GuiaEntrada, lote.guia_id).numero,
+            "lote_origem_codigo": origens.get(lote.lote_origem_id),
+            "saldo_peso": round(saldos.get(chave, {"peso_kg": 0.0})["peso_kg"], 2),
+            "saldo_total": round(total["sacas"], 2),
+            "saldo_outros_armazens": round(total["sacas"]
+                                           - saldos.get(chave, {"sacas": 0.0})["sacas"], 2),
+            "amostra": ({"id": amostra.id, "numero": amostra.numero, "situacao": amostra.situacao,
+                         "tipo": amostra.tipo, "pontuacao": amostra.pontuacao,
+                         "padrao": amostra.padrao, "bebida": amostra.bebida}
+                        if amostra else None),
             "armazem_nome": lote.armazem.nome if lote.armazem else "-",
             "depositante_nome": lote.depositante.nome if lote.depositante else "-",
             "produto_nome": lote.produto.nome if lote.produto else None,

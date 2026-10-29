@@ -137,7 +137,7 @@ o outro — a tela fica limpa. O menu da tela aberta já vem aberto, com o item 
 | Contratos | Contratos, Amostras de Café |
 | Fiscal | Notas Fiscais, DF-e, GTA, SPED Fiscal, Relatórios Fiscais |
 | Estoque | (item solto) |
-| WMS / Armazém | Entrada, Saídas, Serviços, Transferências, Remoção |
+| WMS / Armazém | Lotes, Entrada, Saídas, Serviços, Transferências, Remoção |
 | Financeiro | Contas a Receber, Contas a Pagar, Caixa e Bancos |
 | Relatórios | Vendas e Margens, DRE e gerenciais |
 | Cadastros, Minha Assinatura, Manual | (itens soltos) |
@@ -1031,12 +1031,19 @@ grupo próprio da barra lateral, com cinco telas:
 
 | Tela | O que faz no saldo |
 |---|---|
+| **Lotes** | não mexe: mostra cada lote, onde está, o saldo e a amostra (botão *Classificar*) |
 | **Entrada** | pela **guia de entrada** (abaixo): ao fechar, cada lote soma no saldo |
 | **Saídas** | pela **guia de saída** (abaixo): ao fechar, tira do lote e da quadra/pilha |
 | **Serviços** | rebenefício, padronização, ensaque, armazenagem... registra o serviço e o valor, sem mexer no saldo |
 | **Transferências** | pela **guia de transferência** (abaixo): o lote muda de dono e ganha número novo com "T" |
 | **Remoção** | o mesmo café muda de armazém: sai do de origem e entra no de destino |
 
+- **Lotes e amostra do lote.** A tela *Lotes* lista cada lote (de que guia veio, ou de que
+  lote foi transferido), o dono, peneira e padrão, onde está (quadra/pilha com o que resta),
+  o saldo de hoje e a amostra. O botão **Classificar** abre a amostra do lote na tela de
+  Amostras — e cria na primeira vez, já com o dono, o número do lote, as sacas e o armazém.
+  Cada lote tem uma amostra só (`amostras_cafe.lote_armazem_id`); depois o botão vira
+  "Amostra nº". Reabrir a guia solta a amostra (ela continua) e fechar de novo religa.
 - **Guia de entrada.** Cabeçalho (data, número automático, armazém, cliente, cliente de
   origem, contrato de compra, produto, unidade, total de peso e sacas do ticket), os
   **lotes** (número/sequência — 15/1, 15/2 —, peneira, padrão, sacas, peso, unidade e valor
@@ -1081,7 +1088,7 @@ grupo próprio da barra lateral, com cinco telas:
   *Configurações do site > Menus de cada plano* fica como está.
 
 Código: `backend/routers/wms.py`, `wms_entrada.py`, `wms_saida.py` e `wms_transferencia.py`;
-`frontend/js/wms.js`, `wms_entrada.js`, `wms_saida.js` e `wms_transferencia.js`.
+`frontend/js/wms.js`, `wms_lotes.js`, `wms_entrada.js`, `wms_saida.js` e `wms_transferencia.js`.
 Teste: `python testes/teste_wms.py`.
 
 ### Vendas e Margens

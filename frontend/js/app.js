@@ -58,43 +58,46 @@ const App = {
     '/wms-remocoes'],
 
   menu() {
-    /* Um grupo por assunto: o que é venda fica junto, o que é fiscal fica junto,
-       o financeiro fica junto. Grupo cujo plano não libera nenhum item some
-       inteiro — quem não tem o módulo não vê um título vazio na barra. */
+    /* Menus e submenus. Cada { grupo } abre um menu; os itens logo abaixo dele
+       são os submenus, que só aparecem quando se clica no menu (ver
+       desenharMenu). Item antes de qualquer grupo fica solto no topo.
+       O que o plano não libera sai antes de desenhar; menu que fica sem
+       nenhum submenu some, e menu que fica com um só vira item solto. */
     const itens = [
-      { grupo: 'Vendas' },
+      { rota: '/painel', icone: '◧', rotulo: 'Painel' },
+      { grupo: 'Vendas', icone: '🛒' },
       { rota: '/pedidos', icone: '🛒', rotulo: 'Pedidos e Vendas' },
       { rota: '/cupom', icone: '⌦', rotulo: 'Cupom Fiscal' },
+      { grupo: 'Contratos', icone: '§' },
       { rota: '/contratos', icone: '§', rotulo: 'Contratos' },
       { rota: '/amostras', icone: '☕', rotulo: 'Amostras de Café' },
-      { grupo: 'Fiscal' },
+      { grupo: 'Fiscal', icone: '⛁' },
       { rota: '/notas', icone: '⛁', rotulo: 'Notas Fiscais' },
       { rota: '/dfe', icone: '⎙', rotulo: 'DF-e (buscar na SEFAZ)' },
       { rota: '/gta', icone: '☙', rotulo: 'GTA (trânsito animal)' },
       { rota: '/sped', icone: '🗄', rotulo: 'SPED Fiscal' },
       { rota: '/livros', icone: '▥', rotulo: 'Relatórios Fiscais' },
-      { grupo: 'Estoque' },
+      { grupo: 'Estoque', icone: '▣' },
       { rota: '/estoque', icone: '▣', rotulo: 'Estoque' },
-      { grupo: 'WMS / Armazém' },
+      { grupo: 'WMS / Armazém', icone: '⌂' },
       { rota: '/wms-entradas', icone: '↘', rotulo: 'Entrada' },
       { rota: '/wms-saidas', icone: '↗', rotulo: 'Saídas' },
       { rota: '/wms-servicos', icone: '⚙', rotulo: 'Serviços' },
       { rota: '/wms-transferencias', icone: '⇄', rotulo: 'Transferências' },
       { rota: '/wms-remocoes', icone: '⇆', rotulo: 'Remoção' },
-      { grupo: 'Financeiro' },
-      { rota: '/painel', icone: '◧', rotulo: 'Painel' },
+      { grupo: 'Financeiro', icone: '$' },
       { rota: '/receber', icone: '↓', rotulo: 'Contas a Receber' },
       { rota: '/pagar', icone: '↑', rotulo: 'Contas a Pagar' },
       { rota: '/caixa', icone: '▤', rotulo: 'Caixa e Bancos' },
-      { grupo: 'Análise' },
+      { grupo: 'Relatórios', icone: '▦' },
       { rota: '/vendas', icone: '↗', rotulo: 'Vendas e Margens' },
-      { rota: '/relatorios', icone: '▦', rotulo: 'Relatórios' },
-      { grupo: 'Cadastros' },
+      { rota: '/relatorios', icone: '▦', rotulo: 'DRE e gerenciais' },
+      { grupo: 'Cadastros', icone: '≣' },
       { rota: '/cadastros', icone: '≣', rotulo: 'Cadastros' },
     ];
     if (Api.ehMaster()) {
       itens.push(
-        { grupo: 'Administração' },
+        { grupo: 'Administração', icone: '⚿' },
         { rota: '/admin-empresas', icone: '⚿', rotulo: 'Empresas e acessos' },
         { rota: '/admin-assinaturas', icone: '★', rotulo: 'Assinaturas' },
         { rota: '/admin-cupons', icone: '%', rotulo: 'Cupons de desconto' },
@@ -103,12 +106,12 @@ const App = {
       );
     } else {
       itens.push(
-        { grupo: 'Assinatura' },
+        { grupo: 'Assinatura', icone: '★' },
         { rota: '/assinatura', icone: '★', rotulo: 'Minha Assinatura' },
       );
     }
     itens.push(
-      { grupo: 'Ajuda' },
+      { grupo: 'Ajuda', icone: '?' },
       { link: App.MANUAL, icone: '?', rotulo: 'Manual do sistema (PDF)' },
     );
     // fora o que o plano não inclui — e o título de grupo que ficou sem nenhum item
@@ -120,19 +123,84 @@ const App = {
     });
   },
 
+  /** Junta a lista do menu em blocos: { grupo, icone, itens } ou um item solto. */
+  secoesDoMenu() {
+    const secoes = [];
+    let atual = null;
+    App.menu().forEach((i) => {
+      if (i.grupo) {
+        atual = { grupo: i.grupo, icone: i.icone, itens: [] };
+        secoes.push(atual);
+      } else if (atual) {
+        atual.itens.push(i);
+      } else {
+        secoes.push({ item: i });
+      }
+    });
+    // menu com um só submenu não precisa abrir: vira o próprio item
+    return secoes.map((s) => (s.itens && s.itens.length === 1 ? { item: s.itens[0] } : s));
+  },
+
   /* Manual em PDF (frontend/manual/). Abre numa aba nova e dá para baixar. */
   MANUAL: '/static/manual/Manual-AgroDock.pdf',
 
+  /* O menu aberto agora (só um por vez, para a barra ficar limpa). */
+  _secaoAberta: null,
+
+  itemDoMenu(i, sub = false) {
+    if (i.link) {
+      return `<a class="menu-item${sub ? ' menu-subitem' : ''}" href="${i.link}" target="_blank" rel="noopener" download="Manual-AgroDock.pdf">
+        <span class="menu-icone">${i.icone}</span><span>${i.rotulo}</span></a>`;
+    }
+    return `<a class="menu-item${sub ? ' menu-subitem' : ''}" href="#${i.rota}" data-rota="${i.rota}">
+      <span class="menu-icone">${i.icone}</span><span>${i.rotulo}</span></a>`;
+  },
+
   desenharMenu() {
-    document.getElementById('menu').innerHTML = App.menu()
-      .map((i) => (i.grupo
-        ? `<div class="menu-grupo">${i.grupo}</div>`
-        : i.link
-        ? `<a class="menu-item" href="${i.link}" target="_blank" rel="noopener" download="Manual-AgroDock.pdf">
-             <span class="menu-icone">${i.icone}</span><span>${i.rotulo}</span></a>`
-        : `<a class="menu-item" href="#${i.rota}" data-rota="${i.rota}">
-             <span class="menu-icone">${i.icone}</span><span>${i.rotulo}</span></a>`))
+    const menu = document.getElementById('menu');
+    menu.innerHTML = App.secoesDoMenu()
+      .map((s) => (s.item
+        ? App.itemDoMenu(s.item)
+        : `<div class="menu-secao" data-secao="${s.grupo}">
+            <button type="button" class="menu-grupo" aria-expanded="false">
+              <span class="menu-icone">${s.icone || '•'}</span>
+              <span class="menu-grupo-nome">${s.grupo}</span>
+              <span class="menu-seta">›</span>
+            </button>
+            <div class="menu-sub">${s.itens.map((i) => App.itemDoMenu(i, true)).join('')}</div>
+          </div>`))
       .join('');
+    menu.querySelectorAll('.menu-grupo').forEach((botao) => {
+      botao.onclick = () => {
+        const nome = botao.closest('.menu-secao').dataset.secao;
+        App.abrirSecao(App._secaoAberta === nome ? null : nome);
+      };
+    });
+    App.abrirSecao(App._secaoAberta);
+  },
+
+  /** Abre um menu e fecha os outros (null = fecha todos). */
+  abrirSecao(nome) {
+    App._secaoAberta = nome;
+    document.querySelectorAll('#menu .menu-secao').forEach((secao) => {
+      const aberta = secao.dataset.secao === nome;
+      secao.classList.toggle('aberta', aberta);
+      secao.querySelector('.menu-grupo').setAttribute('aria-expanded', aberta ? 'true' : 'false');
+    });
+  },
+
+  /** A tela aberta: marca o item e deixa aberto o menu dela. */
+  marcarNoMenu(caminho) {
+    let secaoDaRota = null;
+    document.querySelectorAll('#menu .menu-item').forEach((a) => {
+      const ativo = a.dataset.rota === caminho;
+      a.classList.toggle('ativo', ativo);
+      if (ativo) secaoDaRota = a.closest('.menu-secao')?.dataset.secao || null;
+    });
+    document.querySelectorAll('#menu .menu-secao').forEach((secao) => {
+      secao.classList.toggle('tem-ativo', secao.dataset.secao === secaoDaRota);
+    });
+    if (secaoDaRota) App.abrirSecao(secaoDaRota);
   },
 
   /* Links antigos (#/parceiros, #/bancos...) continuam funcionando: viram abas do hub. */
@@ -165,9 +233,7 @@ const App = {
 
     document.getElementById('titulo-pagina').textContent = rota.titulo;
     document.getElementById('subtitulo-pagina').textContent = rota.subtitulo;
-    document.querySelectorAll('.menu-item').forEach((a) => {
-      a.classList.toggle('ativo', a.dataset.rota === caminho);
-    });
+    App.marcarNoMenu(caminho);
     App._rotaAtual = rota;
     App.fecharMenu();
     try {

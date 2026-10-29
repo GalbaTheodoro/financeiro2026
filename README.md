@@ -125,14 +125,27 @@ com o suporte, em vez de dados de pagamento inventados.
 - **Isolamento entre contas**: cada assinante enxerga somente as próprias empresas e
   usuários; apenas o perfil MASTER administra o sistema.
 
-#### A barra lateral
+#### A barra lateral: menus e submenus
 
-Um grupo por assunto, em vez de uma lista longa: **Vendas** (pedidos, cupom fiscal,
-contratos), **Fiscal** (notas fiscais, DF-e, GTA, SPED Fiscal), **Estoque**, **Financeiro** (painel,
-receber, pagar, caixa), **Análise** (vendas e margens, relatórios), **Cadastros** e, por último, a área do administrador ou
-a assinatura. Grupo cujo plano não libera nenhum item **some inteiro** — quem está no Plano 1
-não vê um título "Vendas" com o cupom faltando, vê o grupo sem o cupom; e se um dia um grupo
-ficar sem nada, ele não aparece.
+A barra mostra só os **menus**; os submenus aparecem quando se clica no menu, e abrir um fecha
+o outro — a tela fica limpa. O menu da tela aberta já vem aberto, com o item marcado.
+
+| Menu | Submenus |
+|---|---|
+| Painel | (item solto) |
+| Vendas | Pedidos e Vendas, Cupom Fiscal |
+| Contratos | Contratos, Amostras de Café |
+| Fiscal | Notas Fiscais, DF-e, GTA, SPED Fiscal, Relatórios Fiscais |
+| Estoque | (item solto) |
+| WMS / Armazém | Entrada, Saídas, Serviços, Transferências, Remoção |
+| Financeiro | Contas a Receber, Contas a Pagar, Caixa e Bancos |
+| Relatórios | Vendas e Margens, DRE e gerenciais |
+| Cadastros, Minha Assinatura, Manual | (itens soltos) |
+| Administração (só o dono do site) | Empresas e acessos, Assinaturas, Cupons, SEFAZ, Config. do site |
+
+O que o plano não libera sai antes de desenhar: menu que fica sem nenhum submenu some, e menu
+que fica com um só vira item solto (no Plano 1, *Vendas* vira direto *Pedidos e Vendas*).
+Onde fica: `frontend/js/app.js` — lista `itens` em `menu()`, montada em `desenharMenu()`.
 
 #### Os quatro planos
 

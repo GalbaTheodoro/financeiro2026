@@ -255,21 +255,30 @@ with sync_playwright() as p:
         erros.append("menu do Plano 1 não escondeu cupom/GTA")
     pagina.screenshot(path=SAIDA / "03b-menu-plano-1.png", full_page=True)
 
-    # os grupos da barra: cada assunto no seu, e grupo sem item não sobra vazio
+    # menus e submenus: cada assunto no seu, menu com um item só vira item
+    # solto, e nenhum menu fica sem submenu
     grupos = pagina.eval_on_selector_all(
-        "#menu .menu-grupo", "els => els.map(e => e.textContent.trim())")
-    ok_grupos = ["Vendas", "Fiscal", "Estoque", "Financeiro", "Análise", "Cadastros"] == \
-        [g for g in grupos if g in ("Vendas", "Fiscal", "Estoque", "Financeiro",
-                                    "Análise", "Cadastros")]
-    print(f"  [{'OK  ' if ok_grupos else 'FALHA'}] a barra vem agrupada por assunto {grupos}")
+        "#menu .menu-grupo-nome", "els => els.map(e => e.textContent.trim())")
+    conhecidos = ("Vendas", "Contratos", "Fiscal", "Estoque", "Financeiro", "Relatórios", "Cadastros")
+    ok_grupos = ["Contratos", "Fiscal", "Financeiro", "Relatórios"] == \
+        [g for g in grupos if g in conhecidos]
+    print(f"  [{'OK  ' if ok_grupos else 'FALHA'}] a barra vem em menus por assunto {grupos}")
     if not ok_grupos:
-        erros.append("os grupos do menu não estão na ordem certa")
-    vazio = pagina.evaluate("""() => {
-        // um título de grupo seguido de outro título é um grupo sem nenhum item
-        const filhos = [...document.querySelectorAll('#menu > *')];
-        return filhos.some((e, i) => e.classList.contains('menu-grupo')
-          && (!filhos[i + 1] || filhos[i + 1].classList.contains('menu-grupo')));
-    }""")
+        erros.append("os menus da barra não estão na ordem certa")
+    vazio = pagina.evaluate("""() => [...document.querySelectorAll('#menu .menu-secao')]
+        .some((s) => s.querySelectorAll('.menu-item').length < 2)""")
+    fechados = pagina.evaluate("""() => [...document.querySelectorAll('#menu .menu-secao')]
+        .filter((s) => !s.classList.contains('tem-ativo'))
+        .every((s) => getComputedStyle(s.querySelector('.menu-sub')).display === 'none')""")
+    print(f"  [{'OK  ' if fechados else 'FALHA'}] os submenus ficam fechados até clicar no menu")
+    if not fechados:
+        erros.append("submenu aberto sem clicar")
+    pagina.click("#menu .menu-secao[data-secao='Fiscal'] .menu-grupo")
+    pagina.wait_for_timeout(200)
+    abriu = pagina.is_visible("#menu .menu-item[data-rota='/notas']")
+    print(f"  [{'OK  ' if abriu else 'FALHA'}] clicar no menu Fiscal mostra os submenus")
+    if not abriu:
+        erros.append("clicar no menu não abriu o submenu")
     print(f"  [{'OK  ' if not vazio else 'FALHA'}] e nenhum grupo ficou sem item")
     if vazio:
         erros.append("sobrou grupo vazio no menu")

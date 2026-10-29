@@ -1036,7 +1036,7 @@ grupo próprio da barra lateral, com cinco telas:
 | **Saídas** | pela **guia de saída** (abaixo): ao fechar, tira do lote e da quadra/pilha |
 | **Serviços** | rebenefício, padronização, ensaque, armazenagem... registra o serviço e o valor, sem mexer no saldo |
 | **Transferências** | pela **guia de transferência** (abaixo): o lote muda de dono e ganha número novo com "T" |
-| **Remoção** | o mesmo café muda de armazém: sai do de origem e entra no de destino |
+| **Remoção** | muda o lote de lugar (quadra/pilha, ou de armazém com o lote inteiro), com histórico |
 
 - **Lotes e amostra do lote.** A tela *Lotes* lista cada lote (de que guia veio, ou de que
   lote foi transferido), o dono, peneira e padrão, onde está (quadra/pilha com o que resta),
@@ -1071,6 +1071,16 @@ grupo próprio da barra lateral, com cinco telas:
   (1/1 → 1/1T; se já existir, 1/1T2, 1/1T3… — nunca fica número repetido), com a mesma
   peneira, padrão, unidade e valor por saca, nas mesmas quadras e pilhas. O lote de origem
   e as pilhas dele perdem essas sacas. *Reabrir* desfaz, enquanto o lote novo não saiu.
+- **Remoção (mudança de local).** *Nova remoção*: escolhe o lote e aparecem todos os locais
+  dele (quadra e pilha, com o que resta). Em cada local, quantas sacas vão (pode ser parte, ou
+  *Tudo*) e para que quadra e pilha. No mesmo armazém pode mover parte; para **outro armazém**
+  vai o lote inteiro e o saldo vai junto. Peso vazio = peso médio do local. Vale na hora; a
+  lista guarda o histórico (de onde, para onde, quantas sacas, quando e quem) e a última
+  remoção de cada lote pode ser **estornada** (fica no histórico como estornada).
+- **Histórico do lote** (botão *Histórico* na tela de Lotes e na de Remoção): entrada (ou de
+  que lote veio por transferência), remoções, saídas e transferências, com os locais de cada
+  uma, e onde o lote está hoje. Reabrir uma guia de entrada ou de transferência é barrado
+  enquanto o lote tiver remoção ativa.
 - **Quadras** (botão *Quadras* na tela Entrada): nome, X e Y, dentro de cada armazém, com a
   planta desenhada pelas coordenadas e as sacas que estão em cada quadra hoje (entrou pela
   guia de entrada, menos o que saiu pela guia de saída).
@@ -1088,7 +1098,8 @@ grupo próprio da barra lateral, com cinco telas:
   *Configurações do site > Menus de cada plano* fica como está.
 
 Código: `backend/routers/wms.py`, `wms_entrada.py`, `wms_saida.py` e `wms_transferencia.py`;
-`frontend/js/wms.js`, `wms_lotes.js`, `wms_entrada.js`, `wms_saida.js` e `wms_transferencia.js`.
+`frontend/js/wms.js`, `wms_lotes.js`, `wms_entrada.js`, `wms_saida.js`, `wms_transferencia.js`
+e `wms_remocao.js`; `backend/routers/wms_remocao.py`.
 Teste: `python testes/teste_wms.py`.
 
 ### Vendas e Margens

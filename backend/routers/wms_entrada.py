@@ -575,8 +575,16 @@ def reabrir_guia(guia_id: int, db: Session = Depends(get_db),
         raise HTTPException(400, "Só guia fechada pode ser reaberta.")
     from ..models import GuiaSaida, GuiaSaidaItem
 
-    from ..models import GuiaTransferencia, GuiaTransferenciaItem
+    from ..models import GuiaRemocao, GuiaTransferencia, GuiaTransferenciaItem
 
+    removidos = (db.query(GuiaRemocao.numero)
+                 .join(LoteArmazem, LoteArmazem.id == GuiaRemocao.lote_id)
+                 .filter(LoteArmazem.guia_id == guia.id, GuiaRemocao.status == "ATIVA").all())
+    if removidos:
+        numeros = ", ".join(str(n[0]) for n in removidos)
+        raise HTTPException(
+            400, f"Não dá para reabrir a guia {guia.numero}: os lotes dela mudaram de local "
+                 f"(remoção {numeros}). Estorne a(s) remoção(ões) primeiro.")
     em_transf = (db.query(GuiaTransferencia.numero)
                  .join(GuiaTransferenciaItem, GuiaTransferenciaItem.guia_id == GuiaTransferencia.id)
                  .join(LoteArmazem, LoteArmazem.id == GuiaTransferenciaItem.lote_id)

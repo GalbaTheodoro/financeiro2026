@@ -392,6 +392,14 @@ def reabrir(guia_id: int, db: Session = Depends(get_db),
                  .filter(GuiaTransferenciaItem.lote_id.in_(ids),
                          GuiaTransferencia.status != "CANCELADA")
                  .distinct().all())
+    from ..models import GuiaRemocao
+
+    removidos = db.query(GuiaRemocao.numero).filter(
+        GuiaRemocao.lote_id.in_(ids), GuiaRemocao.status == "ATIVA").all()
+    if removidos:
+        raise HTTPException(
+            400, f"Não dá para reabrir a guia {guia.numero}: os lotes novos dela mudaram de local "
+                 f"(remoção {', '.join(str(n[0]) for n in removidos)}). Estorne a remoção primeiro.")
     if em_saida or em_transf:
         onde = [f"guia de saída {n[0]}" for n in em_saida] + \
                [f"guia de transferência {n[0]}" for n in em_transf]

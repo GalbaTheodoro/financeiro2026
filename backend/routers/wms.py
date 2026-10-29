@@ -24,8 +24,8 @@ GET  /api/wms/armazens                  lista dos armazéns
 POST /api/wms/armazens                  novo armazém
 PUT  /api/wms/armazens/{id}             alterar armazém
 GET  /api/wms/movimentos?tipo=ENTRADA   lançamentos de uma tela
-POST /api/wms/movimentos                novo lançamento (entrada, saída e transferência
-                                        são pelas guias — wms_entrada/saida/transferencia.py)
+POST /api/wms/movimentos                só o serviço (entrada, saída, transferência e
+                                        remoção têm telas próprias — wms_*.py)
 POST /api/wms/movimentos/{id}/cancelar  cancela (com motivo)
 GET  /api/wms/saldos                    saldo por armazém, depositante, produto e lote
 
@@ -350,6 +350,10 @@ def lancar(dados: MovimentoIn, db: Session = Depends(get_db),
         raise HTTPException(
             400, "A entrada agora é feita pela guia de entrada (tela Entrada > Nova guia): "
                  "é ela que gera os lotes e as posições no armazém.")
+    if tipo == "REMOCAO":
+        raise HTTPException(
+            400, "A remoção agora é feita pela tela Remoção: escolha o lote e mude os locais "
+                 "dele (quadra e pilha) — fica no histórico do lote.")
     if tipo == "TRANSFERENCIA":
         raise HTTPException(
             400, "A transferência agora é feita pela guia de transferência (tela "
@@ -441,6 +445,9 @@ def cancelar(movimento_id: int, dados: CancelarIn, db: Session = Depends(get_db)
     validar_empresa(db, movimento.empresa_id, usuario)
     if movimento.status == "CANCELADO":
         raise HTTPException(400, "Este lançamento já está cancelado.")
+    if movimento.guia_remocao_id:
+        raise HTTPException(400, "Esta remoção veio da tela Remoção: para desfazer, estorne a "
+                                 "remoção lá.")
     if movimento.guia_transferencia_id:
         raise HTTPException(400, "Esta transferência veio de uma guia de transferência: para "
                                  "desfazer, reabra a guia na tela Transferências.")

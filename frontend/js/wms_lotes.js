@@ -3,6 +3,9 @@
    Cada lote mostra o dono, a peneira e o padrão da entrada, onde está
    (quadra e pilha, com o que resta em cada uma), o saldo de hoje e a amostra.
 
+   "Histórico" mostra tudo o que aconteceu com o lote; "Mudar local" abre a
+   remoção já com o lote escolhido.
+
    O botão "Classificar" abre a amostra do lote na tela de Amostras — e cria a
    amostra na primeira vez, já preenchida com o dono, o lote, as sacas e o
    armazém. Cada lote tem a sua amostra; depois o botão vira "Amostra nº". */
@@ -86,6 +89,8 @@ const WMSLotes = {
                 ${Number(l.saldo_outros_armazens) ? `<div class="mini">+ ${UI.numero(l.saldo_outros_armazens, 2)} sc em outro armazém</div>` : ''}` },
               { titulo: 'Amostra', valor: (l) => WMSLotes.resumoAmostra(l.amostra) },
               { titulo: '', classe: 'direita', valor: (l, i) => `
+                <button class="btn btn-mini" data-historico="${i}">Histórico</button>
+                ${Number(l.saldo_sacas) > 0.004 ? `<button class="btn btn-mini" data-mudar="${i}">Mudar local</button>` : ''}
                 <button class="btn btn-mini ${l.amostra ? '' : 'btn-primario'}" data-classificar="${i}">${
                   l.amostra ? `Amostra nº ${String(l.amostra.numero).padStart(5, '0')}` : 'Classificar'}</button>` },
             ],
@@ -135,6 +140,12 @@ const WMSLotes = {
       clearTimeout(tempo);
       tempo = setTimeout(() => { WMSLotes._filtros.busca = busca.value; WMSLotes.carregar(); }, 400);
     };
+    pagina.querySelectorAll('[data-historico]').forEach((b) => {
+      b.onclick = () => WMSRemocao.historico(WMSLotes._lotes[Number(b.dataset.historico)].id);
+    });
+    pagina.querySelectorAll('[data-mudar]').forEach((b) => {
+      b.onclick = () => WMSRemocao.nova(WMSLotes._lotes[Number(b.dataset.mudar)].id);
+    });
     pagina.querySelectorAll('[data-classificar]').forEach((b) => {
       b.onclick = () => WMSLotes.classificar(WMSLotes._lotes[Number(b.dataset.classificar)]);
     });

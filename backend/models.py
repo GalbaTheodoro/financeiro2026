@@ -1899,6 +1899,8 @@ class MovimentoArmazem(Base):
     # transferência gerada por guia: o lote muda de dono e de código ("1/1" -> "1/1T")
     guia_transferencia_id = Column(Integer, ForeignKey("guias_transferencia.id"), index=True)
     lote_destino = Column(String(40))      # código do lote no novo dono (vazio = o mesmo)
+    # remoção de armazém feita pela tela de Remoção (lote inteiro para outro armazém)
+    guia_remocao_id = Column(Integer, ForeignKey("guias_remocao.id"), index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     criado_em = Column(DateTime, default=datetime.utcnow)
 
@@ -2165,3 +2167,59 @@ class GuiaTransferenciaItem(Base):
     lote = relationship("LoteArmazem", foreign_keys=[lote_id])
     lote_novo = relationship("LoteArmazem", foreign_keys=[lote_novo_id])
     posicao = relationship("LotePosicao")
+
+
+class GuiaRemocao(Base):
+    """Remoção: o lote muda de lugar (quadra/pilha, ou de armazém).
+
+    Fica gravada como histórico: de onde saiu, para onde foi, quantas sacas,
+    quando e quem fez. Vale na hora (não tem rascunho). Pode ser estornada —
+    só a última remoção ativa do lote, e se o café ainda estiver no destino.
+    """
+
+    __tablename__ = "guias_remocao"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    numero = Column(Integer, nullable=False, default=0)
+    data = Column(Date, nullable=False, default=date.today, index=True)
+    lote_id = Column(Integer, ForeignKey("lotes_armazem.id"), nullable=False, index=True)
+    armazem_origem_id = Column(Integer, ForeignKey("armazens.id"), nullable=False)
+    armazem_destino_id = Column(Integer, ForeignKey("armazens.id"), nullable=False)
+    observacao = Column(String(300))
+    status = Column(String(10), nullable=False, default="ATIVA")   # ATIVA | ESTORNADA
+    estornada_em = Column(DateTime)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    lote = relationship("LoteArmazem")
+    armazem_origem = relationship("Armazem", foreign_keys=[armazem_origem_id])
+    armazem_destino = relationship("Armazem", foreign_keys=[armazem_destino_id])
+    usuario = relationship("Usuario")
+    itens = relationship("GuiaRemocaoItem", back_populates="guia",
+                         cascade="all, delete-orphan", order_by="GuiaRemocaoItem.id")
+
+
+class GuiaRemocaoItem(Base):
+    """Uma mudança: tantas sacas da posição de origem para a posição de destino.
+
+    Quadra e pilha ficam copiadas em texto/id para o histórico não depender da
+    posição continuar existindo do mesmo jeito.
+    """
+
+    __tablename__ = "guia_remocao_itens"
+
+    id = Column(Integer, primary_key=True)
+    guia_id = Column(Integer, ForeignKey("guias_remocao.id"), nullable=False, index=True)
+    posicao_origem_id = Column(Integer, ForeignKey("lote_posicoes.id"), nullable=False)
+    posicao_destino_id = Column(Integer, ForeignKey("lote_posicoes.id"), nullable=False)
+    quadra_origem_id = Column(Integer, ForeignKey("quadras_armazem.id"))
+    pilha_origem = Column(String(20))
+    quadra_destino_id = Column(Integer, ForeignKey("quadras_armazem.id"))
+    pilha_destino = Column(String(20))
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    guia = relationship("GuiaRemocao", back_populates="itens")
+    quadra_origem = relationship("QuadraArmazem", foreign_keys=[quadra_origem_id])
+    quadra_destino = relationship("QuadraArmazem", foreign_keys=[quadra_destino_id])

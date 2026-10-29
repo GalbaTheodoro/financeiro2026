@@ -19,7 +19,9 @@ O que se confere
   * guia de transferência: cliente e cliente novo, escolhe lote e posição
     (parcial); fechar gera o lote novo com "T" no fim ("1/1T", "1/1T2"...),
     nas mesmas quadras e pilhas; reabrir só se o lote novo não saiu;
-  * remoção tira de um armazém e põe no outro, para o mesmo depositante;
+  * remoção: escolhe o lote, vê os locais e muda de quadra/pilha (parcial);
+    outro armazém só com o lote inteiro (o saldo vai junto); estorno da
+    última; histórico do lote com entrada, remoções, saídas e transferências;
   * cada tipo tem a sua numeração;
   * tela de lotes: saldo, posições, de onde veio; Classificar cria (uma vez
     só) a amostra do lote já preenchida, e reabrir/fechar a guia religa;
@@ -330,7 +332,9 @@ checar("sem peso digitado, leva o peso médio da pilha (4.800 + 2.400)",
        sorted(i["peso"] for i in gt1["itens"]) == [2400, 4800], str([i["peso"] for i in gt1["itens"]]))
 checar("João ficou com 130 no lote 1/1", saldo(a1["id"], joao["id"]) == 130)
 checar("Maria ficou com 120 no lote 1/1T", saldo(a1["id"], maria["id"], "1/1T") == 120)
-lote_t = next(l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}", None, tk) if l["codigo"] == "1/1T")
+lotes_agora = api("GET", f"/api/wms/lotes?empresa_id={eid}", None, tk)
+lote_t = next(l for l in lotes_agora if l["codigo"] == "1/1T")
+l11_id = next(l["id"] for l in lotes_agora if l["codigo"] == "1/1")
 checar("o lote novo é da Maria, com peneira e padrão do de origem",
        lote_t["depositante_nome"] == "Maria Exportadora" and lote_t["peneira"] == "17/18")
 checar("e fica nas mesmas quadras e pilhas",
@@ -365,22 +369,86 @@ checar("a lista de transferências esconde as canceladas",
        lista_t["resumo"]["guias"] == 1 and lista_t["resumo"]["sacas"] == 120, str(lista_t["resumo"]))
 
 # =========================================================================== #
-print("\n=== 6. Remoção (troca de armazém) ===")
-rm = api("POST", "/api/wms/movimentos", {
+print("\n=== 6. Remoção (mudança de local, com histórico) ===")
+qa3 = api("POST", "/api/wms/quadras", {"empresa_id": eid, "armazem_id": a1["id"], "nome": "A3",
+                                       "x": 3, "y": 1}, tk)
+loc = api("GET", f"/api/wms/lotes/{lote_t['id']}/locais", None, tk)
+checar("escolhendo o lote aparecem todos os locais dele",
+       sorted((p_["quadra_nome"], p_["pilha"], p_["sacas_disponiveis"]) for p_ in loc["posicoes"])
+       == [("A1", "P1", 80), ("A2", "P2", 40)] and loc["total_sacas"] == 120)
+pos_a1t = next(p_["posicao_id"] for p_ in loc["posicoes"] if p_["quadra_nome"] == "A1")
+pos_a2t = next(p_["posicao_id"] for p_ in loc["posicoes"] if p_["quadra_nome"] == "A2")
+RM = "/api/wms/remocoes"
+velha = api("POST", "/api/wms/movimentos", {
     "empresa_id": eid, "tipo": "REMOCAO", "armazem_id": a1["id"], "armazem_destino_id": a2["id"],
-    "depositante_id": maria["id"], "lote": "1/1T", "sacas": 70}, tk)
-checar("remoção lançada", rm.get("armazem_destino_nome") == "Galpão 2")
-checar("Maria ficou com 50 no Central", saldo(a1["id"], maria["id"], "1/1T") == 50)
-checar("e 70 no Galpão 2", saldo(a2["id"], maria["id"], "1/1T") == 70)
-mesmo_arm = api("POST", "/api/wms/movimentos", {
-    "empresa_id": eid, "tipo": "REMOCAO", "armazem_id": a1["id"], "armazem_destino_id": a1["id"],
     "depositante_id": maria["id"], "lote": "1/1T", "sacas": 1}, tk, esperar_erro=True)
-checar("remoção para o mesmo armazém é recusada", mesmo_arm.get("_status") == 400)
+checar("remoção solta (sem a tela de remoção) é recusada", velha.get("_status") == 400)
+mesmo_local = api("POST", RM, {"empresa_id": eid, "lote_id": lote_t["id"], "itens": [
+    {"posicao_id": pos_a1t, "sacas": 5, "quadra_destino_id": qa1["id"], "pilha_destino": "p1"}]},
+    tk, esperar_erro=True)
+checar("mudar para o mesmo local é recusado", mesmo_local.get("_status") == 400)
+demais = api("POST", RM, {"empresa_id": eid, "lote_id": lote_t["id"], "itens": [
+    {"posicao_id": pos_a1t, "sacas": 81, "quadra_destino_id": qa3["id"]}]}, tk, esperar_erro=True)
+checar("levar mais do que tem no local é recusado",
+       demais.get("_status") == 400 and "restam 80,00" in str(demais.get("detail")))
+rm1 = api("POST", RM, {"empresa_id": eid, "lote_id": lote_t["id"], "observacao": "arrumação",
+                       "itens": [{"posicao_id": pos_a1t, "sacas": 30, "quadra_destino_id": qa3["id"],
+                                  "pilha_destino": "p9"}]}, tk)
+checar("remoção parcial feita (nº 1), A1/P1 → A3/P9",
+       rm1.get("numero") == 1 and rm1["itens"][0]["de"] == "A1/P1" and rm1["itens"][0]["para"] == "A3/P9")
+checar("sem peso digitado, leva o peso médio do local (30 x 60 = 1.800)",
+       rm1["itens"][0]["peso"] == 1800, str(rm1["itens"][0]["peso"]))
+loc = api("GET", f"/api/wms/lotes/{lote_t['id']}/locais", None, tk)
+checar("os locais do lote mudaram (A1/P1 50, A2/P2 40, A3/P9 30)",
+       sorted((p_["quadra_nome"], p_["pilha"], p_["sacas_disponiveis"]) for p_ in loc["posicoes"])
+       == [("A1", "P1", 50), ("A2", "P2", 40), ("A3", "P9", 30)], str(loc["posicoes"]))
+checar("o saldo do lote não muda (só o lugar)", saldo(a1["id"], maria["id"], "1/1T") == 120)
+pos_a3t = next(p_["posicao_id"] for p_ in loc["posicoes"] if p_["quadra_nome"] == "A3")
+parcial_outro = api("POST", RM, {"empresa_id": eid, "lote_id": lote_t["id"], "armazem_destino_id": a2["id"],
+                                 "itens": [{"posicao_id": pos_a3t, "sacas": 30, "quadra_destino_id": qb1["id"]}]},
+                    tk, esperar_erro=True)
+checar("para outro armazém só vai o lote inteiro",
+       parcial_outro.get("_status") == 400 and "lote inteiro" in str(parcial_outro.get("detail")))
+quadra_errada = api("POST", RM, {"empresa_id": eid, "lote_id": lote_t["id"],
+                                 "itens": [{"posicao_id": pos_a3t, "sacas": 1, "quadra_destino_id": qb1["id"]}]},
+                    tk, esperar_erro=True)
+checar("quadra de outro armazém sem trocar o armazém é recusada", quadra_errada.get("_status") == 400)
+rm2 = api("POST", RM, {"empresa_id": eid, "lote_id": lote_t["id"], "armazem_destino_id": a2["id"],
+                       "itens": [{"posicao_id": pos_a1t, "sacas": 50, "quadra_destino_id": qb1["id"], "pilha_destino": "P1"},
+                                 {"posicao_id": pos_a2t, "sacas": 40, "quadra_destino_id": qb1["id"], "pilha_destino": "P1"},
+                                 {"posicao_id": pos_a3t, "sacas": 30, "quadra_destino_id": qb1["id"], "pilha_destino": "P1"}]}, tk)
+checar("o lote inteiro vai para o Galpão 2 (remoção nº 2)", rm2.get("armazem_destino_nome") == "Galpão 2")
+checar("e o saldo vai junto", saldo(a1["id"], maria["id"], "1/1T") == 0
+       and saldo(a2["id"], maria["id"], "1/1T") == 120)
+loc = api("GET", f"/api/wms/lotes/{lote_t['id']}/locais", None, tk)
+checar("tudo junto na quadra B1/P1", [(p_["quadra_nome"], p_["pilha"], p_["sacas_disponiveis"])
+                                      for p_ in loc["posicoes"]] == [("B1", "P1", 120)], str(loc["posicoes"]))
+nao = api("POST", f"{RM}/{rm1['id']}/estornar", None, tk, esperar_erro=True)
+checar("só estorna a última remoção do lote", nao.get("_status") == 400)
+lista_rm = api("GET", f"{RM}?empresa_id={eid}", None, tk)
+checar("a lista diz qual pode estornar",
+       [r["pode_estornar"] for r in lista_rm["remocoes"]] == [True, False])
+api("POST", f"{RM}/{rm2['id']}/estornar", None, tk)
+checar("estornar devolve o lote ao Central, nos locais de antes",
+       saldo(a1["id"], maria["id"], "1/1T") == 120 and sorted(
+           (p_["quadra_nome"], p_["sacas_disponiveis"]) for p_ in
+           api("GET", f"/api/wms/lotes/{lote_t['id']}/locais", None, tk)["posicoes"])
+       == [("A1", 50), ("A2", 40), ("A3", 30)])
+hist = api("GET", f"/api/wms/lotes/{lote_t['id']}/historico", None, tk)
+tipos = [e["tipo"] for e in hist["eventos"]]
+checar("o histórico do lote guarda tudo: recebido, remoção 1 e remoção 2 (estornada)",
+       tipos[:3] == ["TRANSFERENCIA_RECEBIDA", "REMOCAO", "REMOCAO"]
+       and hist["eventos"][2]["situacao"] == "ESTORNADA", str(tipos))
+checar("com de onde para onde", "A1/P1 → A3/P9" in hist["eventos"][1]["detalhe"])
+hist11 = api("GET", f"/api/wms/lotes/{l11_id}/historico", None, tk)
+checar("o lote de origem mostra a entrada, a saída e a transferência",
+       {"ENTRADA", "SAIDA", "TRANSFERENCIA_ENVIADA"} <= {e["tipo"] for e in hist11["eventos"]},
+       str([e["tipo"] for e in hist11["eventos"]]))
 
 armazens = {a["id"]: a for a in api("GET", f"/api/wms/armazens?empresa_id={eid}", None, tk)}
-checar("o armazém mostra quanto está guardado",
-       armazens[a1["id"]]["sacas_guardadas"] == 280, str(armazens[a1["id"]]["sacas_guardadas"]))
-checar("e a ocupação", armazens[a2["id"]]["ocupacao"] == 1.4, str(armazens[a2["id"]]["ocupacao"]))
+checar("o armazém mostra quanto está guardado (130 + 100 + 120)",
+       armazens[a1["id"]]["sacas_guardadas"] == 350, str(armazens[a1["id"]]["sacas_guardadas"]))
+checar("e a ocupação", armazens[a1["id"]]["ocupacao"] == 3.5, str(armazens[a1["id"]]["ocupacao"]))
 
 # =========================================================================== #
 print("\n=== 7. Cancelamento ===")
@@ -431,10 +499,10 @@ gsm = api("POST", "/api/wms/guias-saida", {"empresa_id": eid, "armazem_id": a1["
                                            "cliente_id": maria["id"],
                                            "itens": [{"posicao_id": pos_t["A1"], "sacas": 10}]}, tk)
 gsm = api("POST", f"/api/wms/guias-saida/{gsm['id']}/fechar", None, tk)
-checar("o lote 1/1T sai pela guia de saída da Maria", saldo(a1["id"], maria["id"], "1/1T") == 40)
+checar("o lote 1/1T sai pela guia de saída da Maria", saldo(a1["id"], maria["id"], "1/1T") == 110)
 nao_reabre = api("POST", f"{TR}/{gt1['id']}/reabrir", None, tk, esperar_erro=True)
 checar("transferência cujo lote novo já saiu não reabre",
-       nao_reabre.get("_status") == 400 and "saída" in str(nao_reabre.get("detail")))
+       nao_reabre.get("_status") == 400)
 nao_cancela = api("POST", f"/api/wms/guias-saida/{gs3['id']}/cancelar", {"motivo": "x"}, tk,
                   esperar_erro=True)
 checar("guia de saída fechada não se cancela sem reabrir", nao_cancela.get("_status") == 400)

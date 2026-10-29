@@ -283,9 +283,9 @@ tm = api("POST", "/api/auth/login",
          {"email": "admin@financeiro.local", "senha": "admin123"})["token"]
 
 grade = api("GET", "/api/admin/modulos", None, tm)
-checar("o catálogo de menus tem os cinco módulos",
+checar("o catálogo de menus tem os seis módulos",
        {m["codigo"] for m in grade["modulos"]}
-       == {"CONTRATOS", "FINANCEIRO", "NFE", "CUPOM", "GTA"},
+       == {"CONTRATOS", "FINANCEIRO", "NFE", "CUPOM", "GTA", "WMS"},
        str([m["codigo"] for m in grade["modulos"]]))
 checar("e cada módulo diz quais telas ele abre",
        "/notas" in next(m for m in grade["modulos"] if m["codigo"] == "NFE")["rotas"])

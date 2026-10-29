@@ -1821,3 +1821,79 @@ class EnvioAmostra(Base):
 
     amostra = relationship("AmostraCafe", back_populates="envios")
     destinatario = relationship("Parceiro")
+
+
+# --------------------------------------------------------------------------- #
+# WMS / Armazém — café guardado para terceiros
+# --------------------------------------------------------------------------- #
+class Armazem(Base):
+    """Um armazém (ou galpão) onde o café dos depositantes fica guardado."""
+
+    __tablename__ = "armazens"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    nome = Column(String(120), nullable=False)
+    cidade = Column(String(80))
+    uf = Column(String(2))
+    capacidade_sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    observacao = Column(String(300))
+    ativo = Column(Boolean, nullable=False, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
+class MovimentoArmazem(Base):
+    """Cada lançamento do WMS. O saldo do armazém é a soma disto.
+
+    O café do armazém **não é estoque da empresa**: é do depositante. Por isso
+    este controle é separado do ``MovimentoEstoque`` (que tem custo médio e
+    entra no balanço da empresa). Aqui conta-se saca e quilo, por armazém,
+    depositante, produto e lote.
+
+    ``tipo``:
+
+        ENTRADA        café que chegou e ficou guardado            (+ no saldo)
+        SAIDA          café retirado / expedido                     (- no saldo)
+        SERVICO        serviço prestado sobre o lote (rebenefício,
+                       padronização, ensaque...) — não mexe no saldo
+        TRANSFERENCIA  troca de dono dentro do armazém: sai do
+                       depositante de origem e entra no de destino
+        REMOCAO        o mesmo café muda de armazém: sai do armazém
+                       de origem e entra no de destino
+    """
+
+    __tablename__ = "movimentos_armazem"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    tipo = Column(String(15), nullable=False, index=True)
+    numero = Column(Integer, nullable=False, default=0)      # sequência por empresa e tipo
+    data = Column(Date, nullable=False, default=date.today, index=True)
+
+    armazem_id = Column(Integer, ForeignKey("armazens.id"), nullable=False, index=True)
+    armazem_destino_id = Column(Integer, ForeignKey("armazens.id"), index=True)   # remoção
+    depositante_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)
+    depositante_destino_id = Column(Integer, ForeignKey("parceiros.id"), index=True)  # transferência
+    produto_id = Column(Integer, ForeignKey("produtos.id"), index=True)
+    lote = Column(String(40))
+
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso_kg = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    documento = Column(String(40))     # nota fiscal, romaneio, ticket da balança
+    placa = Column(String(10))
+    motorista = Column(String(120))
+
+    servico = Column(String(80))       # rebenefício, padronização, ensaque...
+    valor = _dinheiro()                # valor cobrado pelo serviço
+
+    observacao = Column(String(300))
+    status = Column(String(10), nullable=False, default="ATIVO")   # ATIVO | CANCELADO
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    armazem = relationship("Armazem", foreign_keys=[armazem_id])
+    armazem_destino = relationship("Armazem", foreign_keys=[armazem_destino_id])
+    depositante = relationship("Parceiro", foreign_keys=[depositante_id])
+    depositante_destino = relationship("Parceiro", foreign_keys=[depositante_destino_id])
+    produto = relationship("Produto")

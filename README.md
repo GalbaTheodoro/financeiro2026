@@ -1011,6 +1011,34 @@ Código: `backend/estoque.py` (o motor), `backend/routers/estoque.py`, o botão 
 Teste: `python testes/teste_estoque.py` e `python testes/teste_baixa_estoque.py`.
 
 
+### WMS / Armazém (só no Plano 4)
+
+Controle do café que a empresa **guarda para terceiros** (os depositantes). Fica num
+grupo próprio da barra lateral, com cinco telas:
+
+| Tela | O que faz no saldo |
+|---|---|
+| **Entrada** | soma no armazém / depositante / produto / lote |
+| **Saídas** | tira do saldo — recusada se passar do que o depositante tem |
+| **Serviços** | rebenefício, padronização, ensaque, armazenagem... registra o serviço e o valor, sem mexer no saldo |
+| **Transferências** | troca de dono no mesmo armazém: sai de um depositante e entra no outro |
+| **Remoção** | o mesmo café muda de armazém: sai do de origem e entra no de destino |
+
+- O saldo não é digitado: é a soma dos lançamentos ativos. O botão **Saldo do armazém**
+  mostra quanto cada depositante tem, por armazém, produto e lote.
+- Os armazéns se cadastram pelo botão **Armazéns** (com capacidade em sacas, para mostrar a
+  ocupação). Os depositantes são os parceiros de *Cadastros > Parceiros*.
+- Cada tipo tem a sua numeração. Cancelar pede motivo e é recusado se o café daquela
+  entrada já saiu, foi transferido ou removido.
+- Sem peso digitado na saída/transferência/remoção, sai o peso médio da saca daquele lote.
+- É separado do **Estoque**: o café do armazém é do depositante, não da empresa, então não
+  tem custo médio nem entra no balanço.
+- Só o **Plano 4** tem o módulo (`WMS` em `backend/planos.py`). Instalação que ainda estava
+  com a grade de fábrica antiga do Plano 4 recebe o WMS sozinha; grade montada à mão em
+  *Configurações do site > Menus de cada plano* fica como está.
+
+Código: `backend/routers/wms.py`, `frontend/js/wms.js`. Teste: `python testes/teste_wms.py`.
+
 ### Vendas e Margens
 
 **Análise → Vendas e Margens.** Perguntas de dono de negócio — quanto vendi, para quem, com

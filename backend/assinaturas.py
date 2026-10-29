@@ -103,6 +103,9 @@ TEXTOS_ANTIGOS: dict[str, tuple[str, ...]] = {
         "até o dinheiro entrar — com contas a pagar e a receber, caixa, DRE e "
         "balancete por trás.",
     ),
+    # a grade de fábrica do Plano 4 antes do WMS/Armazém (out/2026): quem não
+    # mexeu nela ganha o módulo novo; quem montou a grade à mão fica como está
+    "plano4_modulos": ("CONTRATOS,FINANCEIRO,NFE,CUPOM,GTA",),
 }
 
 

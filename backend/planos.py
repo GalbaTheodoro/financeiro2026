@@ -18,8 +18,11 @@ Plano      Além do contrato, financeiro e NF-e         Semestral   Anual
 Plano 1    —                                             399,90     699,90
 Plano 2    Cupom fiscal eletrônico                       459,90     859,90
 Plano 3    GTA — Guia de Trânsito Animal                 519,90     969,90
-Plano 4    Cupom fiscal **e** GTA                        579,90   1.069,90
+Plano 4    Cupom fiscal, GTA **e** WMS/Armazém           579,90   1.069,90
 =========  ==========================================  ==========  =========
+
+O **WMS/Armazém** (entrada, saída, serviços, transferência e remoção de café
+guardado para terceiros) é exclusivo do Plano 4.
 
 Os valores acima são só o **padrão de fábrica**: o administrador do site muda
 cada um deles em *Configurações do site → Planos e teste*, e é o que estiver
@@ -87,6 +90,12 @@ MODULOS: dict[str, tuple[str, str]] = {
         "Controle das guias dos produtores, aviso de validade e ficha de preparo "
         "para o portal do estado.",
     ),
+    "WMS": (
+        "WMS / Armazém",
+        "Controle do café guardado no armazém: entrada, saída, serviços, "
+        "transferência entre depositantes e remoção entre armazéns, com o saldo "
+        "por depositante e lote.",
+    ),
 }
 
 # O que todo plano tem.
@@ -100,6 +109,8 @@ ROTAS: dict[str, tuple[str, ...]] = {
     "NFE": ("/notas", "/pedidos", "/dfe", "/estoque", "/sped", "/livros", "/vendas"),
     "CUPOM": ("/cupom",),
     "GTA": ("/gta",),
+    "WMS": ("/wms-entradas", "/wms-saidas", "/wms-servicos", "/wms-transferencias",
+            "/wms-remocoes"),
 }
 
 # --------------------------------------------------------------------------- #
@@ -115,9 +126,9 @@ NIVEIS: list[dict] = [
     {"nivel": 3, "nome": "Plano 3", "extras": ("GTA",),
      "semestral": 519.90, "anual": 969.90,
      "para": "Quem atende produtor de gado e controla as guias de trânsito."},
-    {"nivel": 4, "nome": "Plano 4", "extras": ("CUPOM", "GTA"),
+    {"nivel": 4, "nome": "Plano 4", "extras": ("CUPOM", "GTA", "WMS"),
      "semestral": 579.90, "anual": 1069.90,
-     "para": "O sistema inteiro: balcão e trânsito animal juntos."},
+     "para": "O sistema inteiro: balcão, trânsito animal e armazém juntos."},
 ]
 
 PERIODOS: dict[str, str] = {"SEMESTRAL": "Semestral", "ANUAL": "Anual"}

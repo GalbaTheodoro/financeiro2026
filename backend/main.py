@@ -37,6 +37,7 @@ from .routers import (
     relatorios,
     sped,
     vendas,
+    wms,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
@@ -126,6 +127,7 @@ app.include_router(sped.router)
 app.include_router(livros.router)
 app.include_router(amostras.router)
 app.include_router(vendas.router)
+app.include_router(wms.router)
 
 
 @app.exception_handler(Exception)

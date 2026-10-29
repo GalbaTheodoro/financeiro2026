@@ -1043,3 +1043,17 @@ body.com-cotacoes .avisos{bottom:calc(18px + var(--altura-cotacoes))}
   .guia-locais-tabela td{border:0;padding:0}
   .guia-locais-tabela input{width:100% !important}
 }
+/* guia de saída: linhas por posição */
+.saida-lotes-topo{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 8px;flex-wrap:wrap}
+.saida-tabela{width:100%}
+.saida-tabela input{padding:5px 7px;font-size:13px}
+.saida-tabela tr.saida-novo-lote td{border-top:2px solid var(--borda)}
+.saida-tabela tr.saida-marcada td{background:#f0fdf4}
+.saida-tabela tr.saida-passou td{background:#fef2f2}
+@media (max-width:700px){
+  .saida-tabela thead{display:none}
+  .saida-tabela tr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:8px 0;border-bottom:1px solid var(--borda)}
+  .saida-tabela td{border:0 !important;padding:0}
+  .saida-tabela td:first-child{grid-column:1/-1}
+  .saida-tabela input{width:100% !important}
+}

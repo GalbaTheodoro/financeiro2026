@@ -540,7 +540,7 @@ const WMSEntrada = {
             { titulo: 'Quadra', valor: (q) => `<b>${UI.escapar(q.nome)}</b>` },
             { titulo: 'X', classe: 'direita', valor: (q) => UI.numero(q.x, 2) },
             { titulo: 'Y', classe: 'direita', valor: (q) => UI.numero(q.y, 2) },
-            { titulo: 'Sacas que entraram', classe: 'direita', valor: (q) => UI.numero(q.sacas_na_entrada, 2) },
+            { titulo: 'Sacas hoje', classe: 'direita', valor: (q) => UI.numero(q.sacas_atuais, 2) },
             { titulo: 'Situação', valor: (q) => (q.ativo ? 'Ativa' : '<span class="tag tag-cancelado">Inativa</span>') },
             { titulo: '', classe: 'direita', valor: (q, i) => `<button class="btn btn-mini" data-editar-quadra="${i}">Editar</button>` },
           ],
@@ -564,7 +564,7 @@ const WMSEntrada = {
     });
     const nomes = Object.keys(porArmazem);
     if (!nomes.length) return '';
-    return `<div class="mini" style="margin-bottom:6px">Planta pelas coordenadas X e Y de cada quadra:</div>
+    return `<div class="mini" style="margin-bottom:6px">Planta pelas coordenadas X e Y de cada quadra, com as sacas que estão nela hoje:</div>
       <div class="guia-mapas">${nomes.map((nome) => {
         const qs = porArmazem[nome];
         const xs = qs.map((q) => Number(q.x)); const ys = qs.map((q) => Number(q.y));
@@ -576,11 +576,11 @@ const WMSEntrada = {
         const caixas = qs.map((q) => {
           const x = pad + (Number(q.x) - minX) * passo;
           const y = pad + (Number(q.y) - minY) * passo;
-          const ocupada = Number(q.sacas_na_entrada) > 0;
+          const ocupada = Number(q.sacas_atuais) > 0.004;
           return `<g><rect x="${x + 3}" y="${y + 3}" width="${passo - 6}" height="${passo - 6}" rx="6"
               class="${ocupada ? 'quadra-ocupada' : 'quadra-livre'}"></rect>
             <text x="${x + passo / 2}" y="${y + passo / 2 - 3}" text-anchor="middle" class="quadra-nome">${UI.escapar(q.nome)}</text>
-            <text x="${x + passo / 2}" y="${y + passo / 2 + 13}" text-anchor="middle" class="quadra-sacas">${ocupada ? `${UI.numero(q.sacas_na_entrada, 0)} sc` : 'livre'}</text></g>`;
+            <text x="${x + passo / 2}" y="${y + passo / 2 + 13}" text-anchor="middle" class="quadra-sacas">${ocupada ? `${UI.numero(q.sacas_atuais, 0)} sc` : 'livre'}</text></g>`;
         }).join('');
         return `<div class="guia-mapa"><div class="mini forte">${UI.escapar(nome)}</div>
           <svg viewBox="0 0 ${larg} ${alt}" width="${Math.min(larg, 640)}" style="max-width:100%">${caixas}</svg></div>`;

@@ -6,8 +6,8 @@
    digitado em lugar nenhum: é a soma dos lançamentos, e o botão "Saldo do
    armazém" mostra como ele está agora.
 
-   A Entrada tem tela própria — a guia de entrada, com lotes e locais — em
-   wms_entrada.js; este arquivo cuida das outras quatro.
+   A Entrada e a Saída têm telas próprias — as guias, com lotes e posições —
+   em wms_entrada.js e wms_saida.js; este arquivo cuida das outras três.
 
    O café do armazém é do depositante, não da empresa — por isso este controle
    é separado do Estoque (que tem custo médio e é mercadoria própria). */
@@ -52,6 +52,7 @@ const WMS = {
       WMS._filtros.busca = '';
     }
     if (WMS._tipo === 'ENTRADA') return WMSEntrada.tela();
+    if (WMS._tipo === 'SAIDA') return WMSSaida.tela();
     const alvo = document.getElementById('pagina');
     alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando...</div></div>';
     try {
@@ -64,6 +65,7 @@ const WMS = {
   async carregar() {
     // a Entrada é a guia de entrada (lotes e locais) — tela própria
     if (WMS._tipo === 'ENTRADA') return WMSEntrada.carregar();
+    if (WMS._tipo === 'SAIDA') return WMSSaida.carregar();
     const [armazens, dados] = await Promise.all([
       Api.get('/api/wms/armazens', { empresa_id: Estado.empresaId }),
       Api.get('/api/wms/movimentos', {

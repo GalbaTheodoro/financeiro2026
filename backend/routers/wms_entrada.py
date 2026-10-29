@@ -71,6 +71,21 @@ router = APIRouter(prefix="/api/wms", tags=["wms"],
                    dependencies=[Depends(exigir_modulo("WMS"))])
 
 
+def saidas_por_posicao(db: Session, empresa_id: int,
+                       ignorar_guia_id: int | None = None) -> dict[int, dict]:
+    """Quanto já saiu de cada posição (quadra + pilha), pelas guias de saída fechadas."""
+    from ..models import GuiaSaida, GuiaSaidaItem
+
+    consulta = (db.query(GuiaSaidaItem.posicao_id, func.sum(GuiaSaidaItem.sacas),
+                         func.sum(GuiaSaidaItem.peso))
+                .join(GuiaSaida, GuiaSaida.id == GuiaSaidaItem.guia_id)
+                .filter(GuiaSaida.empresa_id == empresa_id, GuiaSaida.status == "FECHADA"))
+    if ignorar_guia_id:
+        consulta = consulta.filter(GuiaSaida.id != ignorar_guia_id)
+    return {pid: {"sacas": float(sc or 0), "peso": float(kg or 0)}
+            for pid, sc, kg in consulta.group_by(GuiaSaidaItem.posicao_id).all()}
+
+
 def _num(valor) -> float:
     try:
         return round(float(valor or 0), 4)
@@ -104,7 +119,9 @@ class QuadraIn(BaseModel):
 def _ficha_quadra(q: QuadraArmazem, ocupadas: dict | None = None) -> dict:
     return serializar(q, extras={
         "armazem_nome": q.armazem.nome if q.armazem else "-",
-        "sacas_na_entrada": round((ocupadas or {}).get(q.id, 0.0), 2),
+        # o que está na quadra hoje: entrou pelas guias de entrada, menos o que
+        # saiu dela pelas guias de saída
+        "sacas_atuais": round((ocupadas or {}).get(q.id, 0.0), 2),
     })
 
 
@@ -116,13 +133,13 @@ def listar_quadras(empresa_id: int, armazem_id: int | None = None,
     if armazem_id:
         consulta = consulta.filter(QuadraArmazem.armazem_id == armazem_id)
     quadras = consulta.order_by(QuadraArmazem.armazem_id, QuadraArmazem.nome).all()
-    ocupadas = dict(
-        db.query(LotePosicao.quadra_id, func.sum(LotePosicao.sacas))
-        .join(LoteArmazem, LoteArmazem.id == LotePosicao.lote_id)
-        .filter(LoteArmazem.empresa_id == empresa_id)
-        .group_by(LotePosicao.quadra_id).all()
-    )
-    return [_ficha_quadra(q, {k: float(v or 0) for k, v in ocupadas.items()}) for q in quadras]
+    saiu = saidas_por_posicao(db, empresa_id)
+    ocupadas: dict[int, float] = {}
+    for pos in (db.query(LotePosicao).join(LoteArmazem, LoteArmazem.id == LotePosicao.lote_id)
+                .filter(LoteArmazem.empresa_id == empresa_id)):
+        resta = float(pos.sacas or 0) - saiu.get(pos.id, {"sacas": 0.0})["sacas"]
+        ocupadas[pos.quadra_id] = ocupadas.get(pos.quadra_id, 0.0) + resta
+    return [_ficha_quadra(q, ocupadas) for q in quadras]
 
 
 def _gravar_quadra(db: Session, quadra: QuadraArmazem, dados: QuadraIn) -> None:
@@ -534,6 +551,17 @@ def reabrir_guia(guia_id: int, db: Session = Depends(get_db),
     guia = _guia(db, guia_id, usuario)
     if guia.status != "FECHADA":
         raise HTTPException(400, "Só guia fechada pode ser reaberta.")
+    from ..models import GuiaSaida, GuiaSaidaItem
+
+    em_saida = (db.query(GuiaSaida.numero).join(GuiaSaidaItem, GuiaSaidaItem.guia_id == GuiaSaida.id)
+                .join(LoteArmazem, LoteArmazem.id == GuiaSaidaItem.lote_id)
+                .filter(LoteArmazem.guia_id == guia.id, GuiaSaida.status != "CANCELADA")
+                .distinct().all())
+    if em_saida:
+        numeros = ", ".join(str(n[0]) for n in em_saida)
+        raise HTTPException(
+            400, f"Não dá para reabrir a guia {guia.numero}: os lotes dela estão na(s) guia(s) "
+                 f"de saída {numeros}. Reabra e tire os itens (ou cancele) essas guias primeiro.")
     entradas = db.query(MovimentoArmazem).filter(
         MovimentoArmazem.guia_entrada_id == guia.id, MovimentoArmazem.status == "ATIVO").all()
     # sem estas entradas, alguém fica com saldo negativo? então já saiu café da guia
@@ -597,6 +625,7 @@ def listar_lotes(empresa_id: int, armazem_id: int | None = None,
         consulta = consulta.filter(LoteArmazem.posicoes.any(LotePosicao.quadra_id == quadra_id))
     lotes = consulta.order_by(LoteArmazem.data_entrada.desc(), LoteArmazem.id.desc()).limit(500).all()
     saldos = _somar_saldos(db, empresa_id)
+    saiu = saidas_por_posicao(db, empresa_id)
     saida = []
     for lote in lotes:
         chave = (lote.armazem_id, lote.depositante_id, lote.produto_id, lote.codigo.upper())
@@ -610,6 +639,10 @@ def listar_lotes(empresa_id: int, armazem_id: int | None = None,
                 "quadra_nome": p.quadra.nome if p.quadra else "-",
                 "quadra_x": float(p.quadra.x or 0) if p.quadra else 0,
                 "quadra_y": float(p.quadra.y or 0) if p.quadra else 0,
+                "sacas_disponiveis": round(float(p.sacas or 0)
+                                           - saiu.get(p.id, {"sacas": 0.0})["sacas"], 2),
+                "peso_disponivel": round(float(p.peso or 0)
+                                         - saiu.get(p.id, {"peso": 0.0})["peso"], 2),
             }) for p in lote.posicoes],
         }))
     return saida

@@ -24,8 +24,8 @@ GET  /api/wms/armazens                  lista dos armazéns
 POST /api/wms/armazens                  novo armazém
 PUT  /api/wms/armazens/{id}             alterar armazém
 GET  /api/wms/movimentos?tipo=ENTRADA   lançamentos de uma tela
-POST /api/wms/movimentos                novo lançamento (a entrada é pela guia —
-                                        ver routers/wms_entrada.py)
+POST /api/wms/movimentos                novo lançamento (entrada e saída são pelas
+                                        guias — ver wms_entrada.py e wms_saida.py)
 POST /api/wms/movimentos/{id}/cancelar  cancela (com motivo)
 GET  /api/wms/saldos                    saldo por armazém, depositante, produto e lote
 
@@ -348,6 +348,10 @@ def lancar(dados: MovimentoIn, db: Session = Depends(get_db),
         raise HTTPException(
             400, "A entrada agora é feita pela guia de entrada (tela Entrada > Nova guia): "
                  "é ela que gera os lotes e as posições no armazém.")
+    if tipo == "SAIDA":
+        raise HTTPException(
+            400, "A saída agora é feita pela guia de saída (tela Saídas > Nova guia): "
+                 "é nela que se escolhe o lote e a quadra/pilha de onde o café sai.")
 
     armazem = _armazem(db, dados.armazem_id, eid,
                        "o armazém de origem" if tipo == "REMOCAO" else "o armazém")
@@ -431,6 +435,9 @@ def cancelar(movimento_id: int, dados: CancelarIn, db: Session = Depends(get_db)
     validar_empresa(db, movimento.empresa_id, usuario)
     if movimento.status == "CANCELADO":
         raise HTTPException(400, "Este lançamento já está cancelado.")
+    if movimento.guia_saida_id:
+        raise HTTPException(400, "Esta saída veio de uma guia de saída: para desfazer, "
+                                 "reabra ou cancele a guia na tela Saídas.")
     if movimento.guia_entrada_id:
         raise HTTPException(400, "Esta entrada veio de uma guia de entrada: para desfazer, "
                                  "reabra ou cancele a guia na tela Entrada.")

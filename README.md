@@ -1019,7 +1019,7 @@ grupo próprio da barra lateral, com cinco telas:
 | Tela | O que faz no saldo |
 |---|---|
 | **Entrada** | pela **guia de entrada** (abaixo): ao fechar, cada lote soma no saldo |
-| **Saídas** | tira do saldo — recusada se passar do que o depositante tem |
+| **Saídas** | pela **guia de saída** (abaixo): ao fechar, tira do lote e da quadra/pilha |
 | **Serviços** | rebenefício, padronização, ensaque, armazenagem... registra o serviço e o valor, sem mexer no saldo |
 | **Transferências** | troca de dono no mesmo armazém: sai de um depositante e entra no outro |
 | **Remoção** | o mesmo café muda de armazém: sai do de origem e entra no de destino |
@@ -1034,8 +1034,18 @@ grupo próprio da barra lateral, com cinco telas:
   no saldo. *Reabrir* desfaz tudo — só se nenhum lote da guia teve saída, transferência
   ou remoção. O contrato preenche cliente de origem (o vendedor), produto e unidade, e a
   lista mostra quanto do contrato já foi recebido.
+- **Guia de saída.** Cabeçalho (data, número automático, armazém, cliente dono do café,
+  contrato de venda ou corretagem, destinatário, destino, documento, placa, motorista).
+  Embaixo aparecem os lotes do cliente naquele armazém, uma linha por posição (quadra e
+  pilha) com o que resta nela; em cada linha se digita quantas sacas saem — pode ser só
+  uma parte — ou se aperta *Tudo*. Item sem peso leva o peso médio da pilha. *Fechar guia*
+  confere que a pilha tem as sacas e que o cliente tem o lote no saldo (uma transferência
+  pode ter levado parte) e tira do saldo; *Reabrir* devolve. O contrato preenche
+  destinatário (o comprador) e destino (local de descarga), e a lista mostra quanto do
+  contrato já foi embarcado.
 - **Quadras** (botão *Quadras* na tela Entrada): nome, X e Y, dentro de cada armazém, com a
-  planta desenhada pelas coordenadas e as sacas que entraram em cada quadra.
+  planta desenhada pelas coordenadas e as sacas que estão em cada quadra hoje (entrou pela
+  guia de entrada, menos o que saiu pela guia de saída).
 - O saldo não é digitado: é a soma dos lançamentos ativos. O botão **Saldo do armazém**
   mostra quanto cada depositante tem, por armazém, produto e lote.
 - Os armazéns se cadastram pelo botão **Armazéns** (com capacidade em sacas, para mostrar a
@@ -1049,7 +1059,8 @@ grupo próprio da barra lateral, com cinco telas:
   com a grade de fábrica antiga do Plano 4 recebe o WMS sozinha; grade montada à mão em
   *Configurações do site > Menus de cada plano* fica como está.
 
-Código: `backend/routers/wms.py` e `wms_entrada.py`, `frontend/js/wms.js` e `wms_entrada.js`.
+Código: `backend/routers/wms.py`, `wms_entrada.py` e `wms_saida.py`; `frontend/js/wms.js`,
+`wms_entrada.js` e `wms_saida.js`.
 Teste: `python testes/teste_wms.py`.
 
 ### Vendas e Margens

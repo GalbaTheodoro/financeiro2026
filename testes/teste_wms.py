@@ -11,6 +11,9 @@ O que se confere
     peso, sacas, valor por saca) e locais (quadra, pilha, sacas, peso);
     só fecha quando os totais batem, e fechar gera os lotes, as posições e a
     entrada no saldo; reabrir só se nada saiu;
+  * guia de saída: cliente, destino e contrato de venda; escolhe lote e
+    posição (quadra/pilha), com saída parcial; não passa do que a pilha tem
+    nem do saldo do lote; fechar tira do saldo, reabrir devolve;
   * saída tira do saldo — e é recusada quando passa do que ele tem;
   * serviço registra nome e valor sem mexer no saldo;
   * transferência tira de um depositante e põe no outro, no mesmo armazém;
@@ -200,7 +203,7 @@ checar("o lote guarda peneira e padrão",
        lotes["1/1"]["peneira"] == "17/18" and lotes["1/1"]["padrao"] == "Tipo 6 bebida dura")
 quadras_a1 = {q["nome"]: q for q in
               api("GET", f"/api/wms/quadras?empresa_id={eid}&armazem_id={a1['id']}", None, tk)}
-checar("a quadra mostra as sacas que entraram nela", quadras_a1["A1"]["sacas_na_entrada"] == 300)
+checar("a quadra mostra as sacas que entraram nela", quadras_a1["A1"]["sacas_atuais"] == 300)
 
 fechada = api("PUT", f"/api/wms/guias-entrada/{g1['id']}", guia_dados, tk, esperar_erro=True)
 checar("guia fechada não se edita", fechada.get("_status") == 400)
@@ -228,16 +231,66 @@ checar("a lista de guias esconde a cancelada e soma as sacas",
        lista["resumo"]["guias"] == 1 and lista["resumo"]["sacas"] == 400, str(lista["resumo"]))
 
 # =========================================================================== #
-print("\n=== 3b. Saídas ===")
-s1 = lancar("SAIDA", sacas=50, peso_kg=3000)
-checar("saída tem a própria numeração (nº 1)", s1.get("numero") == 1)
-checar("saldo do lote 1/1 caiu para 250", saldo(a1["id"], joao["id"]) == 250)
-demais = lancar("SAIDA", sacas=999, esperar_erro=True)
-checar("saída maior que o saldo é recusada", demais.get("_status") == 400,
-       str(demais.get("detail"))[:90])
-checar("e a frase diz quanto ele tem", "250,00" in str(demais.get("detail")))
-outro_lote = lancar("SAIDA", sacas=1, lote="L9", esperar_erro=True)
-checar("saída de lote que ele não tem é recusada", outro_lote.get("_status") == 400)
+print("\n=== 3b. Guia de saída ===")
+venda = api("POST", "/api/contratos", {"empresa_id": eid, "tipo": "VENDA",
+                                       "comprador_id": maria["id"], "quantidade": 100,
+                                       "preco_unitario": 1600, "local_descarga": "Santos/SP"}, tk)
+contratos_saida = api("GET", f"/api/wms/contratos-saida?empresa_id={eid}", None, tk)
+checar("o contrato de venda aparece para a saída",
+       any(c["id"] == venda["id"] for c in contratos_saida))
+disp = api("GET", f"/api/wms/posicoes-disponiveis?empresa_id={eid}&armazem_id={a1['id']}"
+                  f"&cliente_id={joao['id']}", None, tk)
+pos = {(d["lote_codigo"], d["quadra_nome"], d["pilha"]): d for d in disp}
+checar("o cliente vê os lotes e as posições com o que tem em cada uma",
+       pos[("1/1", "A1", "P1")]["sacas_disponiveis"] == 200
+       and pos[("1/1", "A2", "P2")]["sacas_disponiveis"] == 100
+       and pos[("1/2", "A1", "P3")]["sacas_disponiveis"] == 100, str(list(pos)))
+p_a1 = pos[("1/1", "A1", "P1")]["posicao_id"]
+p_a2 = pos[("1/1", "A2", "P2")]["posicao_id"]
+
+gs1 = api("POST", "/api/wms/guias-saida", {
+    "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+    "destinatario_id": maria["id"], "destino": "Santos/SP", "contrato_id": venda["id"],
+    "placa": "xyz9a88", "itens": [{"posicao_id": p_a1, "sacas": 50}, {"posicao_id": p_a2, "sacas": 0}]}, tk)
+checar("guia de saída criada aberta, nº 1, com o item zerado ignorado",
+       gs1.get("numero") == 1 and gs1.get("status") == "ABERTA" and len(gs1["itens"]) == 1)
+checar("guia aberta ainda não tira do saldo", saldo(a1["id"], joao["id"]) == 300)
+gs1 = api("POST", f"/api/wms/guias-saida/{gs1['id']}/fechar", None, tk)
+checar("fecha a guia de saída", gs1.get("status") == "FECHADA")
+checar("saída parcial: o saldo do lote 1/1 caiu para 250", saldo(a1["id"], joao["id"]) == 250)
+checar("sem peso digitado, leva o peso médio da pilha (50 x 60 = 3.000)",
+       gs1["itens"][0]["peso"] == 3000, str(gs1["itens"][0]["peso"]))
+disp = api("GET", f"/api/wms/posicoes-disponiveis?empresa_id={eid}&armazem_id={a1['id']}"
+                  f"&cliente_id={joao['id']}", None, tk)
+checar("e a pilha P1 da quadra A1 ficou com 150",
+       next(d for d in disp if d["posicao_id"] == p_a1)["sacas_disponiveis"] == 150)
+quadras_a1 = {q["nome"]: q for q in
+              api("GET", f"/api/wms/quadras?empresa_id={eid}&armazem_id={a1['id']}", None, tk)}
+checar("a quadra A1 mostra as sacas de hoje (300 - 50)", quadras_a1["A1"]["sacas_atuais"] == 250)
+checar("o contrato soma o embarcado",
+       next(c for c in api("GET", f"/api/wms/contratos-saida?empresa_id={eid}", None, tk)
+            if c["id"] == venda["id"])["sacas_embarcadas"] == 50)
+
+gs2 = api("POST", "/api/wms/guias-saida", {
+    "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+    "itens": [{"posicao_id": p_a2, "sacas": 150}]}, tk)
+demais = api("POST", f"/api/wms/guias-saida/{gs2['id']}/fechar", None, tk, esperar_erro=True)
+checar("tirar da pilha mais do que tem é recusado",
+       demais.get("_status") == 400 and "restam 100,00" in str(demais.get("detail")),
+       str(demais.get("detail"))[:100])
+de_outro = api("POST", "/api/wms/guias-saida", {
+    "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": maria["id"],
+    "itens": [{"posicao_id": p_a2, "sacas": 10}]}, tk)
+nao_e_dele = api("POST", f"/api/wms/guias-saida/{de_outro['id']}/fechar", None, tk,
+                 esperar_erro=True)
+checar("lote de outro cliente não sai na guia", nao_e_dele.get("_status") == 400)
+for g in (gs2, de_outro):
+    api("POST", f"/api/wms/guias-saida/{g['id']}/cancelar", {"motivo": "teste"}, tk)
+lista_s = api("GET", f"/api/wms/guias-saida?empresa_id={eid}", None, tk)
+checar("a lista de guias de saída esconde as canceladas e soma as sacas",
+       lista_s["resumo"]["guias"] == 1 and lista_s["resumo"]["sacas"] == 50, str(lista_s["resumo"]))
+direta = lancar("SAIDA", sacas=1, esperar_erro=True)
+checar("saída solta (sem guia) é recusada", direta.get("_status") == 400)
 
 # =========================================================================== #
 print("\n=== 4. Serviço ===")
@@ -280,14 +333,25 @@ checar("e a ocupação", armazens[a2["id"]]["ocupacao"] == 1.4, str(armazens[a2[
 
 # =========================================================================== #
 print("\n=== 7. Cancelamento ===")
-sem_motivo = api("POST", f"/api/wms/movimentos/{s1['id']}/cancelar", {"motivo": ""}, tk,
+sem_motivo = api("POST", f"/api/wms/movimentos/{sv['id']}/cancelar", {"motivo": ""}, tk,
                  esperar_erro=True)
 checar("cancelar sem motivo é recusado", sem_motivo.get("_status") == 400)
-api("POST", f"/api/wms/movimentos/{s1['id']}/cancelar", {"motivo": "lançada em dobro"}, tk)
-checar("cancelar a saída devolve o saldo (130 -> 180)", saldo(a1["id"], joao["id"]) == 180)
-# tira 150 do lote 1/1: agora a guia 1 não pode mais ser reaberta,
-# senão o saldo do João no lote ficaria negativo (30 - 300 < 0)
-lancar("SAIDA", sacas=150)
+api("POST", f"/api/wms/guias-saida/{gs1['id']}/reabrir", None, tk)
+checar("reabrir a guia de saída devolve o saldo (130 -> 180)", saldo(a1["id"], joao["id"]) == 180)
+# as pilhas do 1/1 somam 300, mas uma transferência levou 120 para a Maria:
+# o saldo do João no lote (180) é quem manda
+gs3 = api("POST", "/api/wms/guias-saida", {
+    "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+    "itens": [{"posicao_id": p_a1, "sacas": 150}, {"posicao_id": p_a2, "sacas": 50}]}, tk)
+alem = api("POST", f"/api/wms/guias-saida/{gs3['id']}/fechar", None, tk, esperar_erro=True)
+checar("a guia não tira do lote mais do que o cliente tem no saldo",
+       alem.get("_status") == 400 and "180,00" in str(alem.get("detail")), str(alem.get("detail"))[:120])
+gs3["itens"] = [{"posicao_id": p_a1, "sacas": 150}]
+api("PUT", f"/api/wms/guias-saida/{gs3['id']}", {
+    "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": joao["id"],
+    "itens": [{"posicao_id": p_a1, "sacas": 150}]}, tk)
+api("POST", f"/api/wms/guias-saida/{gs3['id']}/fechar", None, tk)
+checar("com 150 fecha (sobram 30 no lote)", saldo(a1["id"], joao["id"]) == 30)
 nao_da = api("POST", f"/api/wms/guias-entrada/{g1['id']}/reabrir", None, tk, esperar_erro=True)
 checar("reabrir guia cujo café já saiu é recusado", nao_da.get("_status") == 400,
        str(nao_da.get("detail"))[:80])
@@ -303,11 +367,9 @@ checar("guia sem saída reabre", g3.get("status") == "ABERTA")
 checar("e o saldo e os lotes dela somem",
        saldo(a2["id"], maria["id"], "3/1") == 0
        and not api("GET", f"/api/wms/lotes?empresa_id={eid}&guia_id={g3['id']}", None, tk))
-padrao = api("GET", f"/api/wms/movimentos?empresa_id={eid}&tipo=SAIDA", None, tk)
-checar("a lista esconde os cancelados", all(m["status"] == "ATIVO" for m in padrao["movimentos"]))
-todos = api("GET", f"/api/wms/movimentos?empresa_id={eid}&tipo=SAIDA&mostrar_cancelados=true",
-            None, tk)
-checar("e mostra quando pedido", any(m["status"] == "CANCELADO" for m in todos["movimentos"]))
+nao_cancela = api("POST", f"/api/wms/guias-saida/{gs3['id']}/cancelar", {"motivo": "x"}, tk,
+                  esperar_erro=True)
+checar("guia de saída fechada não se cancela sem reabrir", nao_cancela.get("_status") == 400)
 
 # =========================================================================== #
 print("\n=== 8. Isolamento entre contas ===")
@@ -315,9 +377,9 @@ tk2, eid2 = conta("P4_SEMESTRAL")
 alheio = api("GET", f"/api/wms/guias-entrada?empresa_id={eid}", None, tk2,
              esperar_erro=True)
 checar("outra conta não lê o armazém desta", alheio.get("_status") == 403)
-alheio2 = api("POST", f"/api/wms/movimentos/{s1['id']}/cancelar", {"motivo": "x"}, tk2,
+alheio2 = api("POST", f"/api/wms/guias-saida/{gs3['id']}/reabrir", None, tk2,
               esperar_erro=True)
-checar("nem cancela lançamento dela", alheio2.get("_status") == 403)
+checar("nem reabre guia dela", alheio2.get("_status") == 403)
 
 # =========================================================================== #
 print("\n=== 9. Quem já tinha o sistema ganha o WMS no Plano 4 ===")

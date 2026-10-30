@@ -195,12 +195,64 @@ for tipo in ("entradas", "saidas", "transferencias", "servicos", "lotes"):
     conteudo, cab = chamar("GET", f"{R}/{tipo}/xlsx?{q}", None, tk, bruto=True)
     checar(f"Excel de {tipo}", conteudo[:2] == b"PK")
 
+print("\n=== 5b. Rastreabilidade do lote (ida e volta) ===")
+disp = {(d["lote_codigo"], d["pilha"]): d["posicao_id"] for d in chamar(
+    "GET", f"/api/wms/posicoes-disponiveis?empresa_id={eid}&armazem_id={arm['id']}&cliente_id={joao['id']}", None, tk)}
+# segundo serviço: liga do S1/1 (que veio do 1/2) com o 1/1
+gsv2 = chamar("POST", "/api/wms/guias-servico", {
+    "empresa_id": eid, "armazem_id": arm["id"], "cliente_id": joao["id"], "servico": "Liga",
+    "despejos": [{"posicao_id": disp[("S1/1", "P3")], "sacas": 40}, {"posicao_id": disp[("1/1", "P1")], "sacas": 60}],
+    "resultados": [{"padrao": "Liga fina", "sacas": 90, "locais": [{"quadra_id": qa["id"], "pilha": "P4", "sacas": 90}]},
+                   {"padrao": "Escolha", "sacas": 8, "locais": [{"quadra_id": qa["id"], "pilha": "P5", "sacas": 8}]}]}, tk)
+gsv2 = chamar("POST", f"/api/wms/guias-servico/{gsv2['id']}/fechar", None, tk)
+disp = {(d["lote_codigo"], d["pilha"]): d["posicao_id"] for d in chamar(
+    "GET", f"/api/wms/posicoes-disponiveis?empresa_id={eid}&armazem_id={arm['id']}&cliente_id={joao['id']}", None, tk)}
+gs2 = chamar("POST", "/api/wms/guias-saida", {"empresa_id": eid, "armazem_id": arm["id"], "cliente_id": joao["id"],
+                                              "destino": "Exportação", "itens": [{"posicao_id": disp[("S2/1", "P4")], "sacas": 50}]}, tk)
+chamar("POST", f"/api/wms/guias-saida/{gs2['id']}/fechar", None, tk)
+lotes = {l["codigo"]: l for l in chamar("GET", f"/api/wms/lotes?empresa_id={eid}", None, tk)}
+
+escolher = chamar("GET", f"{R}/rastreio/lotes?empresa_id={eid}&busca=S2", None, tk)
+checar("a busca de lotes acha pelo código", {l["codigo"] for l in escolher} == {"S2/1", "S2/2"})
+
+volta = chamar("GET", f"{R}/rastreio/{lotes['S2/1']['id']}", None, tk)
+comp = {c["codigo"]: c["pct"] for c in volta["composicao"]}
+checar("volta: o S2/1 é feito de 60% do 1/1 e 40% do 1/2 (via S1/1)", comp == {"1/1": 60.0, "1/2": 40.0}, str(comp))
+checar("e diz quantas sacas de cada entrada estão no lote (54 e 36 de 90)",
+       {c["codigo"]: c["sacas_no_lote"] for c in volta["composicao"]} == {"1/1": 54.0, "1/2": 36.0})
+checar("o caminho para trás passa pelo S1/1 e chega às entradas",
+       volta["origem"]["nasceu"] == "SERVICO" and sorted(p["codigo"] for p in volta["origem"]["pais"]) == ["1/1", "S1/1"]
+       and volta["origem"]["pais"][0]["pais"] is not None)
+vt = chamar("GET", f"{R}/rastreio/{lotes['1/1T']['id']}", None, tk)
+checar("o lote transferido é 100% do lote de origem", [(c["codigo"], c["pct"]) for c in vt["composicao"]] == [("1/1", 100.0)])
+
+ida = chamar("GET", f"{R}/rastreio/{lotes['1/2']['id']}", None, tk)
+f = ida["finais"]
+checar("ida: do 1/2 (100 sc), 20 saíram para Exportação dentro do S2/1",
+       [(s["lote"], s["sacas"]) for s in f["saidas"]] == [("S2/1", 20.0)], str(f["saidas"]))
+checar("estão em saldo: 55 no S1/1, 16 no S2/1 e 3,2 no S2/2",
+       {s["codigo"]: s["sacas"] for s in f["saldos"]} == {"S1/1": 55.0, "S2/1": 16.0, "S2/2": 3.2}, str(f["saldos"]))
+checar("e a quebra dos dois serviços (5 + 0,8)", f["quebra"] == 5.8, str(f["quebra"]))
+checar("tudo fecha nas 100 sacas que entraram", round(f["total_saidas"] + f["total_saldo"] + f["quebra"], 2) == 100)
+ida11 = chamar("GET", f"{R}/rastreio/{lotes['1/1']['id']}", None, tk)
+tipos = [e["tipo"] for e in ida11["destino"]["eventos"]]
+checar("o 1/1 mostra a saída, a transferência e o serviço", sorted(tipos) == ["SAIDA", "SERVICO", "TRANSFERENCIA"], str(tipos))
+f11 = ida11["finais"]
+checar("e fecha nas 200 sacas (saídas + saldos + quebra)",
+       round(f11["total_saidas"] + f11["total_saldo"] + f11["quebra"], 2) == 200, str(f11))
+conteudo, _ = chamar("GET", f"{R}/rastreio/{lotes['S2/1']['id']}/pdf", None, tk, bruto=True)
+checar("o PDF da rastreabilidade", conteudo[:5] == b"%PDF-")
+conteudo, _ = chamar("GET", f"{R}/rastreio/{lotes['1/2']['id']}/xlsx", None, tk, bruto=True)
+checar("o Excel da rastreabilidade", conteudo[:2] == b"PK")
+
 print("\n=== 6. Isolamento ===")
 outro = chamar("POST", "/api/publico/cadastro", {
     "nome": "Outro", "email": f"wmsrel2{sufixo}@teste.com", "senha": "123456",
     "empresa": "Outro armazém", "plano": "P4_ANUAL"})
 alheio = chamar("GET", f"{R}/entradas?{q}", None, outro["token"], esperar_erro=True)
 checar("outra conta não lê os relatórios desta empresa", alheio.get("_status") in (403, 404))
+alheio_r = chamar("GET", f"{R}/rastreio/{lotes['1/1']['id']}", None, outro["token"], esperar_erro=True)
+checar("nem rastreia lote dela", alheio_r.get("_status") in (403, 404))
 p1 = chamar("POST", "/api/publico/cadastro", {
     "nome": "P1", "email": f"wmsrel3{sufixo}@teste.com", "senha": "123456",
     "empresa": "Sem WMS", "plano": "P1_SEMESTRAL"})

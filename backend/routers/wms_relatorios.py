@@ -551,6 +551,323 @@ def _rota_filtros(tipo: str, empresa_id: int, de, ate, armazem_id, cliente_id, s
     return montar(db, tipo, f)
 
 
+# --------------------------------------------------------------------------- #
+# Rastreabilidade do lote (ida e volta) — ver backend/rastreio.py
+# --------------------------------------------------------------------------- #
+@router.get("/rastreio/lotes")
+def rastreio_lotes(empresa_id: int, busca: str | None = None, db: Session = Depends(get_db),
+                   usuario: Usuario = Depends(acesso_liberado)):
+    """Lotes para escolher na tela de rastreabilidade (busca pelo código)."""
+    from .. import rastreio
+    validar_empresa(db, empresa_id, usuario)
+    return rastreio.lotes_para_escolher(db, empresa_id, busca)
+
+
+def _rastreio(db: Session, lote_id: int, usuario: Usuario) -> tuple[dict, LoteArmazem]:
+    from .. import rastreio
+    lote = db.get(LoteArmazem, lote_id)
+    if not lote:
+        raise HTTPException(404, "Lote não encontrado.")
+    validar_empresa(db, lote.empresa_id, usuario)
+    return rastreio.rastrear(db, lote.empresa_id, lote_id), lote
+
+
+@router.get("/rastreio/{lote_id}")
+def rastreio_lote(lote_id: int, db: Session = Depends(get_db),
+                  usuario: Usuario = Depends(acesso_liberado)):
+    """De onde veio (lotes de entrada que compõem o lote) e para onde foi."""
+    dados, _ = _rastreio(db, lote_id, usuario)
+    return dados
+
+
+@router.get("/rastreio/{lote_id}/pdf")
+def rastreio_pdf(lote_id: int, db: Session = Depends(get_db),
+                 usuario: Usuario = Depends(acesso_liberado)):
+    dados, lote = _rastreio(db, lote_id, usuario)
+    conteudo = gerar_pdf_rastreio(dados, _nome_empresa(db.get(Empresa, lote.empresa_id)))
+    nome = f"rastreio-lote-{lote.codigo.replace('/', '-')}.pdf"
+    return StreamingResponse(io.BytesIO(conteudo), media_type="application/pdf",
+                             headers={"Content-Disposition": f'attachment; filename="{nome}"'})
+
+
+@router.get("/rastreio/{lote_id}/xlsx")
+def rastreio_xlsx(lote_id: int, db: Session = Depends(get_db),
+                  usuario: Usuario = Depends(acesso_liberado)):
+    dados, lote = _rastreio(db, lote_id, usuario)
+    conteudo = gerar_xlsx_rastreio(dados, _nome_empresa(db.get(Empresa, lote.empresa_id)))
+    nome = f"rastreio-lote-{lote.codigo.replace('/', '-')}.xlsx"
+    return StreamingResponse(
+        io.BytesIO(conteudo),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'})
+
+
+NASCEU = {"ENTRADA": "Entrada", "TRANSFERENCIA": "Transferência", "SERVICO": "Serviço"}
+
+
+def linhas_ida(no: dict, nivel: int = 0) -> list[dict]:
+    """A árvore de ida em linhas, com recuo — para o Excel e o PDF."""
+    saida = [{"nivel": nivel, "tipo": "LOTE", "texto": f"Lote {no['codigo']} — {no['cliente']}",
+              "data": no["data"], "sacas": no["rastreadas"],
+              "obs": f"saldo hoje: {_num_br(no['saldo_rastreado'])} sc" if no["saldo_rastreado"] else ""}]
+    for e in no["eventos"]:
+        if e["tipo"] == "TRANSFERENCIA":
+            saida.append({"nivel": nivel + 1, "tipo": "TRANSFERÊNCIA", "data": e["data"], "sacas": e["sacas"],
+                          "texto": f"Transferência nº {e['guia']} para {e['para']}", "obs": ""})
+            if e.get("filho"):
+                saida += linhas_ida(e["filho"], nivel + 2)
+        elif e["tipo"] == "SERVICO":
+            saida.append({"nivel": nivel + 1, "tipo": "SERVIÇO", "data": e["data"], "sacas": e["sacas"],
+                          "texto": f"Serviço nº {e['guia']} {e['servico']}".strip(),
+                          "obs": f"quebra {_num_br(e['quebra'])} sc" if e["quebra"] else ""})
+            for f in e["filhos"]:
+                saida += linhas_ida(f, nivel + 2)
+        elif e["tipo"] == "SAIDA":
+            saida.append({"nivel": nivel + 1, "tipo": "SAÍDA", "data": e["data"], "sacas": e["sacas"],
+                          "texto": f"Saída nº {e['guia']} para {e['para']}",
+                          "obs": f"contrato {e['contrato']}" if e.get("contrato") else ""})
+        elif e["tipo"] == "REMOCAO":
+            saida.append({"nivel": nivel + 1, "tipo": "REMOÇÃO", "data": e["data"], "sacas": None,
+                          "texto": f"Remoção nº {e['guia']} (mudança de local)",
+                          "obs": e.get("para") or ""})
+    return saida
+
+
+def linhas_volta(no: dict, nivel: int = 0) -> list[dict]:
+    saida = [{"nivel": nivel, "texto": f"Lote {no['codigo']} — {no['cliente']}",
+              "nasceu": NASCEU.get(no["nasceu"], no["nasceu"]) + (f" nº {no['guia']}" if no.get("guia") else ""),
+              "data": no["data"], "pct": no["fracao"] * 100,
+              "obs": (f"despejou {_num_br(no['sacas_despejadas'])} sc" if no.get("sacas_despejadas") else "")}]
+    for p in no["pais"]:
+        saida += linhas_volta(p, nivel + 1)
+    return saida
+
+
+def gerar_xlsx_rastreio(dados: dict, empresa: str) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    cab_font, cab_fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="15774A")
+    lote = dados["lote"]
+    wb = Workbook()
+
+    def titulo(ws, texto):
+        ws["A1"] = f"{empresa} — {texto}" if empresa else texto
+        ws["A1"].font = Font(bold=True, size=14, color="0E2B1C")
+        ws["A2"] = (f"Lote {lote['codigo']} · {lote['cliente']} · {lote['armazem']} · entrou "
+                    f"{_num_br(lote['sacas_entrada'])} sc · saldo hoje {_num_br(lote['saldo'])} sc")
+        ws["A2"].font = Font(italic=True, color="64748B")
+
+    def cabecalho(ws, linha, titulos, larguras):
+        for j, (t, w) in enumerate(zip(titulos, larguras), start=1):
+            c = ws.cell(row=linha, column=j, value=t)
+            c.font, c.fill = cab_font, cab_fill
+            ws.column_dimensions[chr(64 + j)].width = w
+
+    ws = wb.active
+    ws.title = "De onde veio"
+    titulo(ws, "Rastreabilidade: de que lotes de entrada é feito")
+    cabecalho(ws, 4, ["Lote de entrada", "Guia", "Data", "Cliente", "Safra", "Peneira", "Padrão",
+                      "% no lote", "Sacas no lote", "Sacas no saldo"], [16, 8, 12, 28, 12, 10, 22, 11, 14, 14])
+    for i, c in enumerate(dados["composicao"], start=5):
+        valores = [c["codigo"], c["guia"], date.fromisoformat(c["data"]) if c["data"] else None, c["cliente"],
+                   c["safra"], c["peneira"], c["padrao"], c["fracao"], c["sacas_no_lote"], c["sacas_no_saldo"]]
+        for j, v in enumerate(valores, start=1):
+            cel = ws.cell(row=i, column=j, value=v)
+            if j == 3:
+                cel.number_format = "DD/MM/YYYY"
+            elif j == 8:
+                cel.number_format = "0.00%"
+            elif j >= 9:
+                cel.number_format = "#,##0.00"
+    linha = 6 + len(dados["composicao"])
+    ws.cell(row=linha, column=1, value="Caminho (do lote para trás)").font = Font(bold=True, color="0E2B1C")
+    cabecalho(ws, linha + 1, ["Lote", "Nasceu de", "Data", "% do lote", "Observação"], [16, 8, 12, 28, 12])
+    for i, l in enumerate(linhas_volta(dados["origem"]), start=linha + 2):
+        c = ws.cell(row=i, column=1, value=l["texto"])
+        c.alignment = Alignment(indent=l["nivel"] * 2)
+        ws.cell(row=i, column=2, value=l["nasceu"])
+        ws.cell(row=i, column=3, value=date.fromisoformat(l["data"]) if l["data"] else None).number_format = "DD/MM/YYYY"
+        ws.cell(row=i, column=4, value=l["pct"] / 100).number_format = "0.00%"
+        ws.cell(row=i, column=5, value=l["obs"])
+    ws.column_dimensions["A"].width = 44
+
+    ws2 = wb.create_sheet("Para onde foi")
+    titulo(ws2, "Rastreabilidade: para onde o café do lote foi")
+    cabecalho(ws2, 4, ["Caminho", "Movimento", "Data", "Sacas deste lote", "Observação"], [60, 16, 12, 16, 30])
+    for i, l in enumerate(linhas_ida(dados["destino"]), start=5):
+        c = ws2.cell(row=i, column=1, value=l["texto"])
+        c.alignment = Alignment(indent=l["nivel"] * 2)
+        if l["tipo"] == "LOTE":
+            c.font = Font(bold=True)
+        ws2.cell(row=i, column=2, value=l["tipo"].title())
+        ws2.cell(row=i, column=3, value=date.fromisoformat(l["data"]) if l["data"] else None).number_format = "DD/MM/YYYY"
+        if l["sacas"] is not None:
+            ws2.cell(row=i, column=4, value=l["sacas"]).number_format = "#,##0.00"
+        ws2.cell(row=i, column=5, value=l["obs"])
+    f = dados["finais"]
+    linha = 6 + len(linhas_ida(dados["destino"]))
+    ws2.cell(row=linha, column=1, value="Resumo do destino").font = Font(bold=True, color="0E2B1C")
+    resumo = [("Saiu do armazém", f["total_saidas"]), ("Está no armazém hoje", f["total_saldo"]),
+              ("Quebra em serviços", f["quebra"]), ("Total que entrou no lote", lote["sacas_entrada"])]
+    for i, (rot, val) in enumerate(resumo, start=linha + 1):
+        ws2.cell(row=i, column=1, value=rot)
+        ws2.cell(row=i, column=4, value=val).number_format = "#,##0.00"
+    saida = io.BytesIO()
+    wb.save(saida)
+    return saida.getvalue()
+
+
+def gerar_pdf_rastreio(dados: dict, empresa: str) -> bytes:
+    from fpdf import FPDF
+
+    verde, mata, cinza = (21, 119, 74), (14, 43, 28), (100, 116, 139)
+    lote = dados["lote"]
+
+    class Doc(FPDF):
+        def header(self):
+            self.set_font("Helvetica", "B", 13)
+            self.set_text_color(*mata)
+            self.cell(0, 7, _latin(f"Rastreabilidade do lote {lote['codigo']}"), new_x="LMARGIN", new_y="NEXT")
+            self.set_font("Helvetica", "", 8.5)
+            self.set_text_color(*cinza)
+            self.cell(0, 4.5, _latin(" | ".join(x for x in (
+                empresa, lote["cliente"], lote["armazem"],
+                f"nasceu: {NASCEU.get(lote['nasceu'], '')}" + (f" nº {lote['guia']}" if lote.get("guia") else ""),
+                f"safra {lote['safra']}" if lote["safra"] else "", lote["padrao"], lote["peneira"]) if x)),
+                new_x="LMARGIN", new_y="NEXT")
+            self.set_draw_color(*verde)
+            self.set_line_width(0.6)
+            self.line(self.l_margin, self.get_y() + 1.5, self.w - self.r_margin, self.get_y() + 1.5)
+            self.ln(5)
+
+        def footer(self):
+            self.set_y(-10)
+            self.set_font("Helvetica", "", 7.5)
+            self.set_text_color(*cinza)
+            self.cell(0, 5, _latin(f"Gerado em {datetime.now():%d/%m/%Y %H:%M} - AgroDock"), align="L")
+            self.cell(0, 5, f"Página {self.page_no()}/{{nb}}", align="R")
+
+    pdf = Doc(orientation="P", unit="mm", format="A4")
+    pdf.alias_nb_pages()
+    pdf.set_auto_page_break(True, margin=14)
+    pdf.set_margins(12, 10, 12)
+    pdf.add_page()
+    util = pdf.w - pdf.l_margin - pdf.r_margin
+    f = dados["finais"]
+
+    kpis = [("Entrou no lote", f"{_num_br(lote['sacas_entrada'])} sc"), ("Saldo hoje", f"{_num_br(lote['saldo'])} sc"),
+            ("Lotes de entrada", str(len(dados["composicao"]))),
+            ("Saiu do armazém", f"{_num_br(f['total_saidas'])} sc")]
+    w = (util - 9) / 4
+    y0 = pdf.get_y()
+    for i, (rot, val) in enumerate(kpis):
+        x = pdf.l_margin + i * (w + 3)
+        pdf.set_fill_color(232, 244, 238)
+        pdf.rect(x, y0, w, 13, style="F")
+        pdf.set_fill_color(*verde)
+        pdf.rect(x, y0, 1.2, 13, style="F")
+        pdf.set_xy(x + 4, y0 + 1.8)
+        pdf.set_font("Helvetica", "", 7)
+        pdf.set_text_color(*cinza)
+        pdf.cell(w - 6, 4, _latin(rot.upper()))
+        pdf.set_xy(x + 4, y0 + 6)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*mata)
+        pdf.cell(w - 6, 6, _latin(val))
+    pdf.set_y(y0 + 18)
+
+    def secao(texto, dica=""):
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(*mata)
+        pdf.cell(0, 6, _latin(texto), new_x="LMARGIN", new_y="NEXT")
+        if dica:
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*cinza)
+            pdf.multi_cell(0, 4, _latin(dica), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1)
+
+    secao("1. De onde veio — os lotes de entrada que formam este lote",
+          "Transferência herda a composição do lote de origem; o resultado de um serviço é a mistura "
+          "dos lotes despejados, cada um pesando as sacas que despejou.")
+    cols = [("Lote", 20, "L"), ("Guia", 12, "L"), ("Data", 18, "L"), ("Cliente", 44, "L"), ("Safra", 18, "L"),
+            ("Padrão", 30, "L"), ("%", 14, "R"), ("Sc no lote", 15, "R"), ("Sc no saldo", 15, "R")]
+    escala = util / sum(c[1] for c in cols)
+    ws = [c[1] * escala for c in cols]
+    _cabecalho(pdf, [c[0] for c in cols], ws, pdf.l_margin, ["t" if c[2] == "L" else "n" for c in cols])
+    pdf.set_font("Helvetica", "", 7.5)
+    for i, c in enumerate(dados["composicao"]):
+        pdf.set_text_color(30, 41, 59)
+        if i % 2:
+            pdf.set_fill_color(248, 250, 252)
+        vals = [c["codigo"], str(c["guia"] or ""), _data_br(c["data"]), c["cliente"][:30], c["safra"],
+                c["padrao"][:22], _num_br(c["pct"]) + "%", _num_br(c["sacas_no_lote"]), _num_br(c["sacas_no_saldo"])]
+        for v, larg, col in zip(vals, ws, cols):
+            pdf.cell(larg, 5, _latin(v), align=col[2], fill=bool(i % 2))
+        pdf.ln(5)
+    pdf.ln(3)
+
+    def linha_arvore(nivel, texto, direita="", negrito=False, cor=(30, 41, 59)):
+        if pdf.get_y() > pdf.h - 18:
+            pdf.add_page()
+        recuo = min(nivel, 10) * 5
+        x = pdf.l_margin + recuo
+        if nivel:
+            pdf.set_draw_color(203, 213, 225)
+            pdf.set_line_width(0.2)
+            pdf.line(x - 3, pdf.get_y(), x - 3, pdf.get_y() + 2.6)
+            pdf.line(x - 3, pdf.get_y() + 2.6, x - 0.8, pdf.get_y() + 2.6)
+        pdf.set_x(x)
+        pdf.set_font("Helvetica", "B" if negrito else "", 8)
+        pdf.set_text_color(*cor)
+        pdf.cell(util - recuo - 42, 5, _latin(texto))
+        pdf.set_font("Helvetica", "", 8)
+        pdf.cell(42, 5, _latin(direita), align="R")
+        pdf.ln(5)
+
+    secao("Caminho para trás")
+    for l in linhas_volta(dados["origem"]):
+        linha_arvore(l["nivel"], f"{l['texto']}  ({l['nasceu']}{', ' + _data_br(l['data']) if l['data'] else ''})"
+                     + (f"  - {l['obs']}" if l["obs"] else ""), f"{_num_br(l['pct'])}% do lote",
+                     negrito=l["nivel"] == 0)
+    pdf.ln(4)
+
+    secao("2. Para onde foi — o café deste lote, passo a passo",
+          "Sacas em proporção: num serviço, cada lote resultado leva a parte do despejo que veio deste lote.")
+    cores = {"LOTE": mata, "TRANSFERÊNCIA": (161, 98, 7), "SERVIÇO": (37, 99, 235), "SAÍDA": (194, 65, 12),
+             "REMOÇÃO": cinza}
+    for l in linhas_ida(dados["destino"]):
+        direita = (f"{_num_br(l['sacas'])} sc" if l["sacas"] is not None else "")
+        extra = f"  ({_data_br(l['data'])})" if l["data"] else ""
+        obs = f"  - {l['obs']}" if l["obs"] else ""
+        linha_arvore(l["nivel"], l["texto"] + extra + obs, direita, negrito=l["tipo"] == "LOTE",
+                     cor=cores.get(l["tipo"], mata))
+    pdf.ln(4)
+
+    secao("3. Resumo do destino")
+    _cabecalho(pdf, ["Onde está o café", "Sacas"], [util - 40, 40], pdf.l_margin, ["t", "n"])
+    linhas = [(f"Saída nº {s['guia']} do lote {s['lote']} para {s['para']} ({_data_br(s['data'])})", s["sacas"])
+              for s in f["saidas"]]
+    linhas += [(f"Em saldo no lote {s['codigo']} ({s['cliente']}, {s['armazem']})", s["sacas"]) for s in f["saldos"]]
+    if f["quebra"]:
+        linhas.append(("Quebra nos serviços", f["quebra"]))
+    pdf.set_font("Helvetica", "", 8)
+    for i, (t, v) in enumerate(linhas):
+        if i % 2:
+            pdf.set_fill_color(248, 250, 252)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(util - 40, 5, _latin(t[:110]), fill=bool(i % 2))
+        pdf.cell(40, 5, _num_br(v), align="R", fill=bool(i % 2))
+        pdf.ln(5)
+    pdf.set_fill_color(232, 244, 238)
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.set_text_color(*mata)
+    pdf.cell(util - 40, 5.5, "Total", fill=True)
+    pdf.cell(40, 5.5, _num_br(f["total_saidas"] + f["total_saldo"] + f["quebra"]), align="R", fill=True)
+    pdf.ln(5.5)
+    return bytes(pdf.output())
+
+
 @router.get("/{tipo}")
 def relatorio(tipo: str, empresa_id: int, de: str | None = None, ate: str | None = None,
               armazem_id: int | None = None, cliente_id: int | None = None,

@@ -1166,6 +1166,21 @@ digitada. A tela de Lotes mostra a safra e a busca encontra por ela.
 Código: `backend/routers/wms_relatorios.py` e `frontend/js/wms_relatorios.js`.
 Teste: `python testes/teste_wms_relatorios.py`.
 
+**Rastreabilidade do lote (ida e volta)** — aba *Rastreabilidade* dos Relatórios e BI, ou
+botão **Rastrear** na tela de Lotes. Escolhe-se um lote (o de entrada, o transferido ou o
+resultado de um serviço) e a tela responde:
+
+- **De onde veio** — os lotes de **entrada** que formam o lote, com a % e as sacas de cada um
+  (no lote e no saldo de hoje), e o caminho para trás. Transferência herda a composição do lote
+  de origem; o resultado de um serviço é a mistura dos despejos, cada um pesando as sacas que
+  despejou (uma liga de 60 sc do 1/1 com 40 sc do S1/1 — que veio do 1/2 — dá 60% 1/1 e 40% 1/2).
+- **Para onde foi** — a árvore do café do lote: transferências (para o lote novo), serviços
+  (para os lotes resultado, na proporção, com a quebra), saídas e remoções; e o resumo do
+  destino — o que saiu, o que está em saldo em cada lote e a quebra, fechando nas sacas que
+  entraram.
+
+Sai também em PDF e Excel. Só contam guias fechadas. Código: `backend/rastreio.py`.
+
 ### Vendas e Margens
 
 **Análise → Vendas e Margens.** Perguntas de dono de negócio — quanto vendi, para quem, com

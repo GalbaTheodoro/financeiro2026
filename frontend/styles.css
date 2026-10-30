@@ -364,6 +364,31 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   .ocupacao-linha{grid-template-columns:1fr 54px;gap:6px 10px}
   .ocupacao-linha>div:first-child{grid-column:1/-1}
 }
+/* rastreabilidade do lote: árvore de ida e de volta */
+.link-botao{background:none;border:none;padding:0;font:inherit;color:var(--primaria);cursor:pointer;text-align:left}
+.link-botao:hover{text-decoration:underline}
+.rastreio-lote{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px 20px}
+.rastreio-lote span.mini{display:block}
+.rastreio-lote b{display:block;font-size:14px}
+.rastreio-codigo{font-size:22px !important;color:var(--primaria)}
+.rastreio-sub{margin:0 0 10px;font-size:13px;color:var(--cinza-700)}
+.rastreio-pct{width:64px;height:5px;border-radius:99px;background:var(--cinza-100);
+  overflow:hidden;margin:4px 0 0 auto}
+.rastreio-pct i{display:block;height:100%;background:var(--primaria)}
+.arvore-no{position:relative}
+.arvore-linha{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 0;font-size:13px}
+.arvore-linha .mini{margin-left:2px}
+.arvore-valor{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12.5px}
+.arvore-filhos{margin-left:12px;padding-left:16px;border-left:2px solid var(--cinza-200)}
+.arvore-filhos>.arvore-no::before{content:"";position:absolute;left:-16px;top:16px;width:12px;border-top:2px solid var(--cinza-200)}
+.arvore-tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;white-space:nowrap;
+  background:var(--cinza-100);color:var(--cinza-700)}
+.arvore-tag.t-lote,.arvore-tag.t-entrada{background:var(--primaria-clara);color:var(--primaria-escura)}
+.arvore-tag.t-transferencia{background:#fef3c7;color:#92400e}
+.arvore-tag.t-servico{background:#dbeafe;color:#1e40af}
+.arvore-tag.t-saida{background:#ffedd5;color:#9a3412}
+.arvore-tag.t-remocao{background:var(--cinza-100);color:var(--cinza-500)}
+@media (max-width:760px){.arvore-valor{margin-left:0;width:100%}.arvore-filhos{margin-left:4px;padding-left:12px}}
 /* lista dentro de uma caixa de aviso: sem recuo exagerado */
 .lista-simples{margin:6px 0 0;padding-left:18px}
 .lista-simples li{margin-bottom:3px}

@@ -1830,6 +1830,11 @@ Há dois caminhos. O primeiro não exige servidor nenhum e é o recomendado.
 
 ### 6.1. Na nuvem, sem servidor (banco Neon + site Vercel) — recomendado
 
+> **Biblioteca nova?** A Vercel instala as dependências pelo `pyproject.toml` + `uv.lock`
+> (não pelo `requirements.txt`). Toda biblioteca nova entra nos três e o `uv.lock` é refeito
+> com `uv lock` — senão o site no ar dá "No module named ...". Foi o que aconteceu com
+> `openpyxl` e `fpdf2` (Excel e PDF dos relatórios do armazém), corrigido em 30/10/2026.
+
 O banco deixa de ser um arquivo no computador e passa a ser um **PostgreSQL
 gerenciado** no Neon; o sistema roda no Vercel. O mesmo dado aparece no PC e
 no celular, e nada muda no jeito de usar: é a mesma tela, os mesmos contratos.

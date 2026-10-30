@@ -1,48 +1,46 @@
 /* Site público: apresentação do sistema, planos, login e criação de conta. */
 const Site = {
   info: null,
+  /* módulos que não são apresentados no site público (continuam no sistema) */
+  FORA_DO_SITE: ['GTA'],
 
-  /* A ordem é a da página: os cinco primeiros são os cartões grandes, e são o que
-     o visitante lê antes de decidir. Nota fiscal, venda, estoque e cupom vêm na
-     frente porque é o que ele procura; o contrato de assessoria continua ali, que
-     é o que diferencia o sistema. */
+  /* Os cartões das seções "Fiscal e vendas" e "Financeiro e gestão". Contratos,
+     amostras, armazém e mercado têm seção própria, escrita no index.html. A GTA
+     não aparece no site (decisão de out/2026) — continua no sistema para quem tem. */
   RECURSOS: [
-    { icone: '⛁', destaque: true, titulo: 'Nota fiscal eletrônica, fácil de emitir',
-      texto: 'NF-e 4.00 assinada com o seu certificado e transmitida à SEFAZ em cinco etapas curtas — o imposto sai da tabela de regras, sem digitar CST nem alíquota a cada nota. DANFE em PDF, envio automático para o cliente por e-mail e, quando a SEFAZ recusa, a explicação em português com o que corrigir. Em todos os planos.' },
-    { icone: '🛒', destaque: true, titulo: 'Vendas na tela de balcão',
-      texto: 'Clica na categoria, clica no produto, fecha a venda: pedido ou orçamento com número, impresso para o cliente. Um botão de finalizar decide o resto — à vista ou a prazo em parcelas, com nota, com cupom, ou sem documento agora e emitindo depois.' },
-    { icone: '▣', destaque: true, titulo: 'Controle de estoque',
-      texto: 'A nota de entrada gera o estoque com um botão; a venda e o cupom baixam sozinhos. Saldo e custo médio por produto, aviso de estoque mínimo, extrato de cada movimento e venda barrada quando falta mercadoria — antes de gastar número de nota.' },
-    { icone: '⌦', destaque: true, titulo: 'Cupom fiscal eletrônico',
-      texto: 'NFC-e para a venda de balcão: uma tela só, QR Code que o consumidor confere no site da SEFAZ e impressão na bobina de 80 mm. Nos planos 2 e 4.' },
-    { icone: '§', destaque: true, titulo: 'Contratos de assessoria',
-      texto: 'Comprador, vendedor, representante, produto e unidade; corretagem em percentual dos dois lados, número automático e peso total calculado.' },
-    { icone: '⇢', titulo: 'Do contrato ao recebível',
-      texto: 'Um clique transforma as comissões em contas a receber, com vencimento, parcelamento e classificação contábil — e estorno enquanto não houver baixa.' },
-    { icone: '◉', titulo: 'Situação de cada contrato',
-      texto: 'Aberto, Fechado a Receber, Recebido Parcial, Recebido Total ou Cancelado — a situação muda sozinha conforme o dinheiro entra.' },
-    { icone: '⎙', titulo: 'Contrato impresso em PDF',
-      texto: 'Uma página A4 com seu logotipo, as partes, dados bancários, valor por extenso e campos de assinatura, pronta para salvar em PDF e enviar.' },
-    { icone: '☙', titulo: 'GTA — Guia de Trânsito Animal',
-      texto: 'Guarda as guias dos produtores, avisa quando a validade está acabando e imprime a ficha de preparo na ordem das telas do portal do estado. Nos planos 3 e 4.' },
-    { icone: '⇩', titulo: 'DF-e: as notas emitidas contra você',
+    { area: 'fiscal', icone: '⛁', destaque: true, titulo: 'Nota fiscal eletrônica',
+      texto: 'NF-e 4.00 assinada com o seu certificado e transmitida à SEFAZ em etapas curtas — o imposto sai da tabela de regras, sem digitar CST nem alíquota a cada nota. DANFE em PDF, envio por e-mail e, quando a SEFAZ recusa, a explicação em português com o que corrigir.' },
+    { area: 'fiscal', icone: '⌦', destaque: true, titulo: 'Cupom fiscal eletrônico',
+      texto: 'NFC-e para a venda de balcão: uma tela só, QR Code que o consumidor confere no site da SEFAZ e impressão na bobina de 80 mm.' },
+    { area: 'fiscal', icone: '🛒', destaque: true, titulo: 'Vendas na tela de balcão',
+      texto: 'Categoria, produto, fechar: pedido ou orçamento com número, impresso para o cliente. À vista ou a prazo, com nota, com cupom ou emitindo depois.' },
+    { area: 'fiscal', icone: '▣', titulo: 'Controle de estoque',
+      texto: 'A nota de entrada gera o estoque; a venda e o cupom baixam sozinhos. Saldo e custo médio por produto, estoque mínimo, extrato e venda barrada quando falta mercadoria.' },
+    { area: 'fiscal', icone: '⇩', titulo: 'DF-e: notas emitidas contra você',
       texto: 'Busca na SEFAZ os documentos emitidos contra o seu CNPJ, importa o XML e vira conta a pagar — sem esperar o fornecedor mandar o arquivo.' },
-    { icone: '↓', titulo: 'Contas a receber',
+    { area: 'fiscal', icone: '%', titulo: 'Vendas e margens',
+      texto: 'Quanto vendeu, para quem e com que margem: melhores clientes, produtos mais vendidos, custos e o que está parado no estoque.' },
+    { area: 'fiscal', icone: '＄', titulo: 'Formação do preço',
+      texto: 'Markup a partir do custo, com impostos, comissão, frete, despesa fixa e o lucro que você quer — e o quadro de para onde vai cada real do preço.' },
+    { area: 'fiscal', icone: '▥', titulo: 'SPED Fiscal e livros',
+      texto: 'O arquivo da EFD ICMS/IPI para o contador e os livros fiscais de entrada e saída, gerados das notas que já estão no sistema.' },
+
+    { area: 'financeiro', icone: '↓', destaque: true, titulo: 'Contas a receber',
       texto: 'Títulos por cliente, vencimento e situação, com baixa individual ou em lote, juros, multa, desconto e estorno.' },
-    { icone: '↑', titulo: 'Contas a pagar',
-      texto: 'Mesma agilidade para fornecedores: parcelas, atraso destacado, pagamento parcial e onde pagar cada um.' },
-    { icone: '▤', titulo: 'Caixa e bancos',
+    { area: 'financeiro', icone: '↑', destaque: true, titulo: 'Contas a pagar',
+      texto: 'Parcelas, atraso destacado, pagamento parcial e onde pagar cada fornecedor — conta bancária ou chave Pix.' },
+    { area: 'financeiro', icone: '▤', destaque: true, titulo: 'Caixa e bancos',
       texto: 'Saldo de cada conta, extrato com saldo acumulado, movimentos avulsos e transferência entre contas.' },
-    { icone: '✎', titulo: 'Lançamento simples e múltiplo',
+    { area: 'financeiro', icone: '▦', titulo: 'DRE, balancete e fluxo de caixa',
+      texto: 'Resultado por competência ou caixa, balancete que fecha sozinho e fluxo com o saldo projetado pelos títulos em aberto.' },
+    { area: 'financeiro', icone: '✎', titulo: 'Lançamento simples e múltiplo',
       texto: 'Uma tela curta para o dia a dia e o rateio entre várias contas e centros de custo quando o lançamento pede.' },
-    { icone: '▦', titulo: 'DRE e balancete',
-      texto: 'Resultado por competência ou caixa e balancete de verificação que fecham sozinhos, a partir das partidas dobradas.' },
-    { icone: '⇄', titulo: 'Fluxo de caixa e projeção',
-      texto: 'Entradas e saídas por dia ou mês, com saldo projetado incluindo os títulos ainda em aberto.' },
-    { icone: '☺', titulo: 'Clientes e fornecedores',
-      texto: 'Busca do cadastro pelo CNPJ na Receita e do endereço pelo CEP, com as contas e chaves Pix de cada um.' },
-    { icone: '≣', titulo: 'Cadastros num menu só',
-      texto: 'Produtos com preço, categoria e marca, unidades com peso de conversão, modalidades, bancos, centros de custo, operações e plano de contas com 112 contas prontas.' },
+    { area: 'financeiro', icone: '☺', titulo: 'Cadastros com CNPJ e CEP',
+      texto: 'Clientes e fornecedores buscados na Receita pelo CNPJ e o endereço pelo CEP; produtos, unidades, centros de custo e 112 contas contábeis prontas.' },
+    { area: 'financeiro', icone: '⚿', titulo: 'Empresas e usuários',
+      texto: 'Mais de uma empresa na mesma conta, usuários com perfil, prazo de acesso e bloqueio — cada um vê só o que pode.' },
+    { area: 'financeiro', icone: '⎙', titulo: 'Relatórios prontos',
+      texto: 'Contratos, títulos, razão, extratos e muito mais, prontos na tela e em CSV para a planilha.' },
   ],
 
   FAQ: [
@@ -58,9 +56,14 @@ const Site = {
     { p: 'Qual é a diferença entre os planos?',
       r: 'Todos os planos têm o mesmo miolo: contrato de assessoria, amostras de café, financeiro '
        + 'inteiro (contas a receber e a pagar, caixa, DRE, balancete e relatórios) e emissão de NF-e. '
-       + 'O que muda são os módulos extras — cupom fiscal eletrônico, GTA e WMS/Armazém. Cada '
+       + 'O que muda são os módulos extras, como o cupom fiscal eletrônico e o armazém (WMS). Cada '
        + 'cartão acima mostra o que aquele plano libera. Dentro do sistema, cada conta enxerga só '
        + 'as telas do plano dela.' },
+    { p: 'O sistema serve para armazém que guarda café de terceiros?',
+      r: 'Serve. O módulo de armazém faz a guia de entrada com os lotes e a posição de cada um '
+       + '(quadra e pilha), as saídas ligadas ao contrato, os serviços (liga, rebenefício), a '
+       + 'transferência de titularidade e a remoção entre quadras e armazéns — com o saldo por '
+       + 'lote e por cliente sempre em dia.' },
     { p: 'Posso mudar de plano depois?',
       r: 'Pode. Enquanto o pagamento não foi confirmado, a troca é imediata em Minha Assinatura. '
        + 'Com a assinatura já ativa, a mudança vale na renovação — e nada do que você lançou se perde.' },
@@ -118,14 +121,16 @@ const Site = {
     ].filter(Boolean);
     document.getElementById('rodape-contatos').innerHTML = contatos.join('<br>');
 
-    document.getElementById('lista-recursos').innerHTML = Site.RECURSOS
-      .map((r) => `
-        <div class="recurso ${r.destaque ? 'destaque' : ''}">
-          <div class="recurso-icone">${r.icone}</div>
-          <h3>${UI.escapar(r.titulo)}</h3>
-          <p>${UI.escapar(r.texto)}</p>
-        </div>`)
-      .join('');
+    document.querySelectorAll('[data-area]').forEach((caixa) => {
+      caixa.innerHTML = Site.RECURSOS.filter((r) => r.area === caixa.dataset.area)
+        .map((r) => `
+          <div class="recurso ${r.destaque ? 'destaque' : ''}">
+            <div class="recurso-icone">${r.icone}</div>
+            <h3>${UI.escapar(r.titulo)}</h3>
+            <p>${UI.escapar(r.texto)}</p>
+          </div>`)
+        .join('');
+    });
 
     /* cada plano tem o seu número de usuários: se todos forem iguais o site diz
        "3"; se mudarem de um plano para outro, diz "a partir de 3" */
@@ -161,7 +166,8 @@ const Site = {
           <h3>${UI.escapar(p.nome)}</h3>
           <div class="plano-para">${UI.escapar(p.para)}</div>
           <ul class="plano-itens">
-            ${p.modulos.map((m) => `<li><b>${UI.escapar(m.nome)}</b><span>${UI.escapar(m.texto)}</span></li>`).join('')}
+            ${p.modulos.filter((m) => !Site.FORA_DO_SITE.includes(m.codigo))
+              .map((m) => `<li><b>${UI.escapar(m.nome)}</b><span>${UI.escapar(m.texto)}</span></li>`).join('')}
             <li><b>${p.usuarios || usuarios} usuários inclusos</b><span>por empresa, com pacotes extras quando precisar.</span></li>
           </ul>
           <div class="plano-prazos">

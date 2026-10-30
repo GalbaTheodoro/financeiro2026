@@ -18,9 +18,8 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
         "Contratos e Gestão", "Frase curta ao lado do nome (aparece no logotipo)", True
     ),
     "slogan": (
-        "Emita nota fiscal e cupom fiscal, venda na tela de balcão e controle o "
-        "estoque — com os contratos de assessoria, o contas a pagar e a receber, "
-        "o caixa, a DRE e o balancete no mesmo lugar.",
+        "Contratos de café, amostras com laudo, armazém, nota fiscal, vendas e o "
+        "financeiro inteiro — num sistema só, feito para quem trabalha com café e grãos.",
         "Frase de apoio na página inicial",
         True,
     ),
@@ -105,6 +104,9 @@ TEXTOS_ANTIGOS: dict[str, tuple[str, ...]] = {
         "Lance o contrato, cobre a corretagem dos dois lados e acompanhe cada negócio "
         "até o dinheiro entrar — com contas a pagar e a receber, caixa, DRE e "
         "balancete por trás.",
+        "Emita nota fiscal e cupom fiscal, venda na tela de balcão e controle o "
+        "estoque — com os contratos de assessoria, o contas a pagar e a receber, "
+        "o caixa, a DRE e o balancete no mesmo lugar.",
     ),
 }
 

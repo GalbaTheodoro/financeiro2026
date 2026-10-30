@@ -135,10 +135,10 @@ NIVEIS: list[dict] = [
      "para": "Quem também vende no balcão e precisa do cupom fiscal."},
     {"nivel": 3, "nome": "Plano 3", "extras": ("GTA",),
      "semestral": 519.90, "anual": 969.90,
-     "para": "Quem atende produtor de gado e controla as guias de trânsito."},
+     "para": "Contrato, amostras, fiscal e financeiro, com os módulos extras do plano."},
     {"nivel": 4, "nome": "Plano 4", "extras": ("CUPOM", "GTA", "WMS"),
      "semestral": 579.90, "anual": 1069.90,
-     "para": "O sistema inteiro: balcão, trânsito animal e armazém juntos."},
+     "para": "O sistema inteiro: balcão, armazém e todos os módulos juntos."},
     # planos 5 e 6 (out/2026): vagas para variações. Nascem só com o miolo e o
     # preço do Plano 4; o administrador monta a grade em "Menus de cada plano"
     {"nivel": 5, "nome": "Plano 5", "extras": (),

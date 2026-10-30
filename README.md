@@ -101,12 +101,15 @@ com o suporte, em vez de dados de pagamento inventados.
 
 ### Site, cadastro e assinatura
 
-- **Página inicial** apresentando os recursos, como funciona e os planos, com botões de
-  **Entrar** e **Criar conta grátis**. A chamada e os cinco primeiros cartões são, nesta
-  ordem: **nota fiscal eletrônica (fácil de emitir)**, **vendas na tela de balcão**,
-  **controle de estoque**, **cupom fiscal** e **contratos de assessoria** — é o que o
-  visitante procura, e o contrato continua ali por ser o que diferencia o sistema. O slogan
-  padrão acompanha; quem já escreveu o próprio texto em Config. do site não é mexido.
+- **Página inicial** (layout de out/2026): topo escuro com a frase "Do café negociado ao
+  dinheiro no caixa" e três telas desenhadas (contrato, laudo e lotes do armazém); um **mapa
+  das cinco frentes** (contratos, amostras, armazém, fiscal e vendas, financeiro) e uma seção
+  para cada uma, mais o **Mercado do café** (com link para o painel `/mercado`), como
+  funciona, planos, dúvidas e rodapé com atalhos. Os cartões de "Fiscal e vendas" e
+  "Financeiro" saem de `Site.RECURSOS` (campo `area`) em `frontend/js/site.js`.
+  **A GTA não aparece no site**: nem nas seções, nem nos cartões de plano
+  (`Site.FORA_DO_SITE`) — continua funcionando no sistema para quem tem. O slogan padrão
+  foi trocado junto; quem escreveu o próprio texto em Config. do site não é mexido.
 - **Auto-cadastro**: o visitante informa nome, e-mail, senha, empresa e o plano pretendido
   (plano e prazo na mesma escolha).
   A conta é criada já com plano de contas, centros de custo e operações padrão.

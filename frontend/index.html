@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AgroDock — Contratos e Gestão</title>
-  <meta name="description" content="AgroDock — contratos de assessoria, comissões, contas a pagar e a receber, caixa, DRE e balancete num sistema só.">
+  <meta name="description" content="AgroDock — contratos de café, amostras com laudo, armazém, nota fiscal, vendas, estoque e o financeiro inteiro num sistema só.">
   <meta name="theme-color" content="#0e2b1c">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="icon" type="image/png" href="/static/img/favicon.png">
@@ -25,9 +25,10 @@
       </a>
       <button class="menu-hamburguer" id="btn-menu-site" aria-label="Abrir o menu">☰</button>
       <nav class="site-nav">
-        <a href="#recursos">Recursos</a>
-        <a href="#contratos-site">Contratos</a>
-        <a href="#como-funciona">Como funciona</a>
+        <a href="#contratos-site">Café e contratos</a>
+        <a href="#armazem-site">Armazém</a>
+        <a href="#fiscal-site">Fiscal e vendas</a>
+        <a href="#financeiro-site">Financeiro</a>
         <a href="#planos">Planos</a>
         <a href="#duvidas">Dúvidas</a>
       </nav>
@@ -43,48 +44,52 @@
     <div class="site-largura hero-interno">
       <div>
         <span class="selo">Teste liberado por <b id="hero-horas">48 horas</b> — sem cartão</span>
-        <h1 id="hero-titulo"><em>Nota fiscal</em>, venda e estoque — com o financeiro por trás</h1>
+        <h1 id="hero-titulo">Do café negociado ao <em>dinheiro no caixa</em></h1>
         <p class="hero-texto" id="hero-slogan">
-          Emita nota fiscal e cupom fiscal, venda na tela de balcão e controle o estoque — com
-          os contratos de assessoria, o contas a pagar e a receber, o caixa, a DRE e o
-          balancete no mesmo lugar.
+          Contratos de café, amostras com laudo, armazém, nota fiscal, vendas e o financeiro
+          inteiro — num sistema só, feito para quem trabalha com café e grãos.
         </p>
-        <div class="espaco" style="margin-top:24px">
-          <button class="btn btn-primario btn-grande" id="btn-hero-cadastro">Começar agora</button>
-          <button class="btn btn-grande btn-claro" id="btn-hero-contratos">Ver os recursos</button>
+        <div class="espaco hero-botoes">
+          <button class="btn btn-primario btn-grande btn-dourado" id="btn-hero-cadastro">Começar agora</button>
+          <button class="btn btn-grande btn-vazado" id="btn-hero-contratos">Ver tudo o que ele faz</button>
         </div>
-        <div class="hero-notas">
-          <span>NF-e e cupom fiscal</span>
-          <span>Tela de venda e orçamento</span>
-          <span>Estoque com custo médio</span>
-          <span>Contratos e corretagem</span>
+        <div class="hero-modulos">
+          <a href="#contratos-site">Contratos</a>
+          <a href="#amostras-site">Amostras</a>
+          <a href="#armazem-site">Armazém</a>
+          <a href="#fiscal-site">NF-e e cupom</a>
+          <a href="#fiscal-site">Vendas e estoque</a>
+          <a href="#financeiro-site">Financeiro</a>
+          <a href="#mercado-site">Mercado do café</a>
         </div>
       </div>
 
-      <!-- miniatura do sistema, desenhada em HTML -->
-      <div class="mock" aria-hidden="true">
-        <div class="mock-topo"><span></span><span></span><span></span></div>
-        <div class="mock-corpo">
-          <div class="mock-menu">
-            <div class="mock-item"></div><div class="mock-item"></div>
-            <div class="mock-item ativo"></div><div class="mock-item"></div><div class="mock-item"></div>
+      <!-- composição de telas, desenhada em HTML -->
+      <div class="hero-telas" aria-hidden="true">
+        <div class="tela-cartao tela-contrato">
+          <div class="tela-topo"><b>Contrato 00000295</b><span class="tela-tag">Recebido Parcial</span></div>
+          <div class="tela-linhas">
+            <div><span>Café arábica tipo 6</span><b>330 sacas</b></div>
+            <div><span>Negociado</span><b>R$ 435.600</b></div>
+            <div><span>Corretagem comprador</span><b>R$ 2.178</b></div>
+            <div><span>Corretagem vendedor</span><b>R$ 2.178</b></div>
           </div>
-          <div class="mock-painel">
-            <div class="mock-kpis">
-              <div class="mock-kpi"><small>Comissão</small><b>R$ 48.300</b></div>
-              <div class="mock-kpi dourado"><small>A receber</small><b>R$ 17.900</b></div>
-              <div class="mock-kpi cafe"><small>Sacas</small><b>12.400</b></div>
-            </div>
-            <div class="mock-grafico">
-              <div style="height:38%"></div><div style="height:64%"></div><div style="height:47%"></div>
-              <div style="height:82%"></div><div style="height:58%"></div><div style="height:93%"></div>
-            </div>
-            <div class="mock-tabela">
-              <div class="mock-linha"><i></i><span class="mock-tag pago">Recebido</span></div>
-              <div class="mock-linha"><i style="flex:.8"></i><span class="mock-tag receber">A receber</span></div>
-              <div class="mock-linha"><i style="flex:.6"></i><span class="mock-tag aberto">Aberto</span></div>
-            </div>
-          </div>
+          <div class="tela-trilho"><i style="width:62%"></i></div>
+        </div>
+        <div class="tela-cartao tela-laudo">
+          <div class="tela-topo"><b>Laudo · 00041</b><span class="tela-nota">84,5 pts</span></div>
+          <svg viewBox="0 0 120 110" class="aranha">
+            <polygon points="60,8 107,35 107,80 60,104 13,80 13,35" class="aranha-fundo"/>
+            <polygon points="60,32 87,47 87,69 60,82 33,69 33,47" class="aranha-meio"/>
+            <polygon points="60,16 98,40 92,76 60,94 24,74 20,38" class="aranha-valor"/>
+          </svg>
+          <div class="tela-legenda">Peneira 17/18 · Bebida dura · Tipo 6</div>
+        </div>
+        <div class="tela-cartao tela-lotes">
+          <div class="tela-topo"><b>Armazém · Lotes</b></div>
+          <div class="tela-lote"><b>15/1</b><span>Quadra A · pilha 3</span><em>300 sc</em></div>
+          <div class="tela-lote"><b>15/2</b><span>Quadra B · pilha 1</span><em>180 sc</em></div>
+          <div class="tela-lote"><b>15/1T</b><span>Transferido</span><em>120 sc</em></div>
         </div>
       </div>
     </div>
@@ -92,60 +97,89 @@
 
   <div class="hero-numeros">
     <div class="site-largura hero-numeros-interno">
-      <div class="hero-numero"><b>2</b><span>documentos fiscais: NF-e e cupom</span></div>
+      <div class="hero-numero"><b>3</b><span>tipos de contrato: corretagem, compra e venda</span></div>
+      <div class="hero-numero"><b>NF-e + NFC-e</b><span>nota e cupom fiscal transmitidos à SEFAZ</span></div>
       <div class="hero-numero"><b>112</b><span>contas contábeis já cadastradas</span></div>
-      <div class="hero-numero"><b>10+</b><span>relatórios prontos, com CSV</span></div>
       <div class="hero-numero"><b class="js-usuarios-incluidos">3</b><span>usuários inclusos por empresa</span></div>
     </div>
   </div>
 
-  <!-- ------------------------------------------------- contrato de assessoria -->
-  <section class="site-secao" id="contratos-site">
+  <!-- --------------------------------------------------------- mapa do sistema -->
+  <section class="site-secao" id="recursos">
     <div class="site-largura">
       <div class="secao-cabecalho">
-        <span class="sobre-titulo">Feito para quem vive de intermediação</span>
-        <h2>Contrato de assessoria do começo ao recebimento</h2>
-        <p>Cadastre o negócio entre comprador e vendedor, cobre a corretagem de cada lado
-           e deixe o sistema transformar isso em contas a receber — sem redigitar nada.</p>
+        <span class="sobre-titulo">O sistema inteiro</span>
+        <h2>Cinco frentes, um cadastro só</h2>
+        <p>O cliente que você cadastra no contrato é o mesmo da nota, do armazém e do contas a
+          receber. Nada é digitado duas vezes.</p>
       </div>
+      <div class="mapa">
+        <a class="mapa-item" href="#contratos-site">
+          <span class="mapa-numero">01</span>
+          <h3>Contratos de café</h3>
+          <p>Corretagem, compra e venda, com comissão dos dois lados, agente e impressão em PDF.</p>
+        </a>
+        <a class="mapa-item" href="#amostras-site">
+          <span class="mapa-numero">02</span>
+          <h3>Amostras e laudo</h3>
+          <p>Classificação física e sensorial, gráfico de aranha, envio aos compradores e etiquetas.</p>
+        </a>
+        <a class="mapa-item" href="#armazem-site">
+          <span class="mapa-numero">03</span>
+          <h3>Armazém (WMS)</h3>
+          <p>Entrada, saída, serviços, transferência e remoção, com saldo por lote e por cliente.</p>
+        </a>
+        <a class="mapa-item" href="#fiscal-site">
+          <span class="mapa-numero">04</span>
+          <h3>Fiscal e vendas</h3>
+          <p>NF-e, cupom fiscal, tela de balcão, estoque, DF-e, SPED e análise de margens.</p>
+        </a>
+        <a class="mapa-item" href="#financeiro-site">
+          <span class="mapa-numero">05</span>
+          <h3>Financeiro</h3>
+          <p>Contas a receber e a pagar, caixa e bancos, DRE, balancete, fluxo e relatórios.</p>
+        </a>
+      </div>
+    </div>
+  </section>
 
-      <div class="contrato-bloco">
-        <ul class="contrato-lista">
-          <li>
-            <span class="marcador">1</span>
-            <div><b>Lance o contrato</b>
-            <p>Comprador, vendedor, representante, produto, modalidade, unidade, quantidade e
-               preço. O número sai automático e o peso total é calculado na hora.</p></div>
-          </li>
-          <li>
-            <span class="marcador">2</span>
-            <div><b>Cobre dos dois lados</b>
-            <p>Um percentual de corretagem para o comprador e outro para o vendedor,
-               independentes — ou um valor fechado quando o combinado foi assim.</p></div>
-          </li>
-          <li>
-            <span class="marcador">3</span>
-            <div><b>Gere as contas a receber</b>
-            <p>Um clique cria os títulos das duas comissões, já classificados em
-               Receita de Corretagem, com vencimento, parcelamento e contabilização.</p></div>
-          </li>
-          <li>
-            <span class="marcador">4</span>
-            <div><b>Acompanhe até o dinheiro entrar</b>
-            <p>O contrato muda de situação sozinho conforme as baixas acontecem, e o
-               relatório mostra o que já entrou, o que falta e o que venceu.</p></div>
-          </li>
-          <li>
-            <span class="marcador">5</span>
-            <div><b>Imprima e mande para as partes</b>
-            <p>Contrato pronto em uma página A4, com o seu logotipo, dados bancários das
-               partes, valor por extenso e campos de assinatura — salve em PDF e envie.</p></div>
-          </li>
-        </ul>
+  <!-- ------------------------------------------------- contrato de assessoria -->
+  <section class="site-secao faixa" id="contratos-site">
+    <div class="site-largura">
+      <div class="area-bloco">
+        <div>
+          <span class="area-rotulo">01 · Contratos de café</span>
+          <h2 class="area-titulo">Contratos de assessoria do começo ao recebimento</h2>
+          <p class="area-texto">Corretagem entre comprador e vendedor, compra ou venda da sua
+            própria empresa — o tipo escolhido decide quem são as partes e que contas o
+            contrato gera. Sem redigitar nada.</p>
+          <ul class="contrato-lista">
+            <li><span class="marcador">1</span>
+              <div><b>Lance o contrato</b>
+              <p>Partes, produto, modalidade, unidade, quantidade e preço. O número sai
+                automático e o peso total é calculado na hora; o ICMS usa a UF de cada lado.</p></div></li>
+            <li><span class="marcador">2</span>
+              <div><b>Cobre dos dois lados — e pague o agente</b>
+              <p>Percentual ou valor fechado para o comprador e para o vendedor. O agente que
+                intermediou vira conta a pagar, em Comissões sobre Vendas.</p></div></li>
+            <li><span class="marcador">3</span>
+              <div><b>Gere as contas com um clique</b>
+              <p>Comissões viram contas a receber; na compra e na venda, o valor do café vira
+                conta a pagar ou a receber — com vencimento, parcelas e contabilização.</p></div></li>
+            <li><span class="marcador">4</span>
+              <div><b>Acompanhe até o dinheiro entrar</b>
+              <p>A situação muda sozinha a cada baixa, e o relatório mostra o que entrou, o que
+                falta e o que venceu.</p></div></li>
+            <li><span class="marcador">5</span>
+              <div><b>Imprima e mande para as partes</b>
+              <p>Uma página A4 com o seu logotipo, dados bancários, valor por extenso e campos de
+                assinatura, pronta para salvar em PDF.</p></div></li>
+          </ul>
+        </div>
 
         <div class="ficha-demo" aria-hidden="true">
           <div class="ficha-demo-topo">
-            <b>Contrato 00000295</b>
+            <b>Contrato 00000295 · Corretagem</b>
             <span>330 sacas · 19.800 kg</span>
           </div>
           <div class="ficha-demo-corpo">
@@ -164,25 +198,151 @@
             <span class="status-demo">Recebido Total</span>
             <span class="status-demo">Cancelado</span>
           </div>
+          <div class="ficha-demo-tipos">
+            <span><b>Corretagem</b>comissão dos dois lados</span>
+            <span><b>Compra</b>conta a pagar ao fornecedor</span>
+            <span><b>Venda</b>conta a receber do cliente</span>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- -------------------------------------------------------------- recursos -->
-  <section class="site-secao faixa" id="recursos">
+  <!-- ----------------------------------------------------------------- amostras -->
+  <section class="site-secao" id="amostras-site">
+    <div class="site-largura">
+      <div class="area-bloco invertido">
+        <div class="laudo-demo" aria-hidden="true">
+          <div class="laudo-cabeca">
+            <div><small>Laudo de classificação</small><b>Amostra 00041 · Lote 15/1</b></div>
+            <span class="laudo-pontos">84,5<small>pts</small></span>
+          </div>
+          <div class="laudo-corpo">
+            <svg viewBox="-48 -6 296 206" class="aranha grande">
+              <polygon points="100,12 178,57 178,133 100,178 22,133 22,57" class="aranha-fundo"/>
+              <polygon points="100,52 143,77 143,113 100,138 57,113 57,77" class="aranha-meio"/>
+              <line x1="100" y1="12" x2="100" y2="178" class="aranha-eixo"/>
+              <line x1="22" y1="57" x2="178" y2="133" class="aranha-eixo"/>
+              <line x1="22" y1="133" x2="178" y2="57" class="aranha-eixo"/>
+              <polygon points="100,26 164,64 156,124 100,160 40,124 34,60" class="aranha-valor"/>
+              <text x="100" y="8" text-anchor="middle">Fragrância</text>
+              <text x="186" y="55">Sabor</text>
+              <text x="186" y="140">Acidez</text>
+              <text x="100" y="190" text-anchor="middle">Corpo</text>
+              <text x="14" y="140" text-anchor="end">Doçura</text>
+              <text x="14" y="55" text-anchor="end">Finalização</text>
+            </svg>
+            <div class="laudo-dados">
+              <div><span>Peneira</span><b>17/18</b></div>
+              <div><span>Tipo</span><b>6</b></div>
+              <div><span>Bebida</span><b>Dura</b></div>
+              <div><span>Umidade</span><b>11,2%</b></div>
+              <div><span>Defeitos</span><b>86</b></div>
+              <div><span>Sacas</span><b>300</b></div>
+            </div>
+          </div>
+          <div class="laudo-envio"><span>Enviada a 3 compradores</span><span>Etiqueta impressa</span></div>
+        </div>
+        <div>
+          <span class="area-rotulo">02 · Amostras e classificação</span>
+          <h2 class="area-titulo">A amostra com laudo, pronta para o comprador</h2>
+          <p class="area-texto">Cadastre a amostra do produtor ou do lote do armazém, classifique e
+            mande para quem compra — e saiba de cada envio.</p>
+          <ul class="lista-check">
+            <li><b>Classificação física</b> — peneira, tipo, defeitos, umidade e padrão.</li>
+            <li><b>Classificação sensorial</b> — pontuação e bebida, com o gráfico de aranha no laudo.</li>
+            <li><b>Envio aos compradores</b> — controle de para quem foi, quando e a resposta.</li>
+            <li><b>Etiquetas e fitilhos</b> — impressos com os dados da amostra.</li>
+            <li><b>Ligada ao negócio</b> — escolha no contrato a amostra que foi negociada.</li>
+            <li><b>Um clique no lote</b> — no armazém, “Classificar” abre a amostra daquele lote.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ armazém -->
+  <section class="site-secao escuro" id="armazem-site">
     <div class="site-largura">
       <div class="secao-cabecalho">
-        <span class="sobre-titulo">O sistema inteiro</span>
-        <h2>Tudo o que o escritório precisa</h2>
-        <p>Da nota fiscal ao balancete, sem planilha solta e sem redigitar informação.</p>
+        <span class="sobre-titulo">03 · Armazém (WMS)</span>
+        <h2>Cada saca no lugar certo, com o dono certo</h2>
+        <p>Para quem guarda café de terceiros: o saldo de cada lote e de cada cliente sai do
+          próprio movimento, sem planilha paralela.</p>
       </div>
-      <div class="recursos" id="lista-recursos"></div>
+      <div class="fluxo">
+        <div class="fluxo-passo"><span>Entrada</span><p>Guia com os lotes, peneira, padrão, peso e a quadra e pilha de cada um.</p></div>
+        <div class="fluxo-passo"><span>Lotes</span><p>Onde está cada lote, o saldo de hoje e a classificação da amostra.</p></div>
+        <div class="fluxo-passo"><span>Serviços</span><p>Despejo de lotes e resultado em lotes novos: liga, rebenefício e outros.</p></div>
+        <div class="fluxo-passo"><span>Transferência</span><p>Troca a titularidade, inteira ou em parte; o lote novo ganha o “T”.</p></div>
+        <div class="fluxo-passo"><span>Remoção</span><p>Muda o café de quadra ou de armazém, com o histórico de cada movimento.</p></div>
+        <div class="fluxo-passo"><span>Saída</span><p>Ligada ao contrato, escolhendo lote e local — e pode sair só parte.</p></div>
+      </div>
+      <div class="armazem-nota">Quadras cadastradas por armazém, guias com reabertura enquanto nada saiu
+        e o saldo do armazém por cliente e por lote a qualquer momento.</div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ fiscal e vendas -->
+  <section class="site-secao" id="fiscal-site">
+    <div class="site-largura">
+      <div class="secao-cabecalho">
+        <span class="sobre-titulo">04 · Fiscal e vendas</span>
+        <h2>Nota fiscal, venda e estoque sem complicação</h2>
+        <p>O imposto sai da tabela de regras, a venda baixa o estoque sozinha e a SEFAZ responde
+          em português.</p>
+      </div>
+      <div class="recursos" data-area="fiscal"></div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------------- financeiro -->
+  <section class="site-secao faixa" id="financeiro-site">
+    <div class="site-largura">
+      <div class="secao-cabecalho">
+        <span class="sobre-titulo">05 · Financeiro e gestão</span>
+        <h2>Contas a receber, contas a pagar, DRE e balancete que fecham sozinhos</h2>
+        <p>Você lança na linguagem do dia a dia; a contabilidade em partidas dobradas é feita
+          por trás.</p>
+      </div>
+      <div class="recursos" data-area="financeiro"></div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ mercado do café -->
+  <section class="site-secao" id="mercado-site">
+    <div class="site-largura">
+      <div class="area-bloco">
+        <div>
+          <span class="area-rotulo">Mercado do café</span>
+          <h2 class="area-titulo">As cotações do dia, dentro do sistema</h2>
+          <p class="area-texto">Uma faixa no rodapé passa as bolsas e as moedas o tempo todo, e o
+            painel completo abre com um clique — sem precisar entrar.</p>
+          <ul class="lista-check">
+            <li><b>Bolsas</b> — Nova York, Londres e B3, nos próximos vencimentos.</li>
+            <li><b>Moedas</b> — dólar, euro, Ptax e DXY.</li>
+            <li><b>Preços por cidade</b> — tipo 6/7, cereja descascado e conilon nas praças da região.</li>
+            <li><b>Notícias</b> — do café e das outras culturas, filtradas por região.</li>
+          </ul>
+          <a class="btn btn-grande" href="/mercado" target="_blank" rel="noopener">Abrir o painel do mercado</a>
+        </div>
+        <div class="mercado-demo" aria-hidden="true">
+          <div class="mercado-linha"><b>Bolsa de NY</b><span>arábica · ¢/lb</span><i class="sobe">▲</i></div>
+          <div class="mercado-linha"><b>Bolsa de Londres</b><span>robusta · US$/t</span><i class="desce">▼</i></div>
+          <div class="mercado-linha"><b>B3</b><span>arábica 4/5 · US$/sc</span><i class="sobe">▲</i></div>
+          <div class="mercado-linha"><b>Dólar e Ptax</b><span>Banco Central</span><i class="sobe">▲</i></div>
+          <div class="mercado-grafico">
+            <div style="height:42%"></div><div style="height:55%"></div><div style="height:48%"></div>
+            <div style="height:66%"></div><div style="height:61%"></div><div style="height:78%"></div>
+            <div style="height:72%"></div><div style="height:88%"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- --------------------------------------------------------- como funciona -->
-  <section class="site-secao" id="como-funciona">
+  <section class="site-secao faixa" id="como-funciona">
     <div class="site-largura">
       <div class="secao-cabecalho">
         <span class="sobre-titulo">Como funciona</span>
@@ -216,14 +376,14 @@
   </section>
 
   <!-- ---------------------------------------------------------------- planos -->
-  <section class="site-secao faixa" id="planos">
+  <section class="site-secao" id="planos">
     <div class="site-largura">
       <div class="secao-cabecalho">
         <span class="sobre-titulo">Planos</span>
         <h2>Escolha pelo que você usa</h2>
-        <p>Todo plano já vem com o contrato de assessoria, o financeiro inteiro e a emissão de
-          NF-e. O que muda é o cupom fiscal e a GTA. Pagamento único por Pix, sem mensalidade
-          automática, sem cartão e com <span class="js-usuarios-incluidos">3</span> usuários inclusos.</p>
+        <p>Cada cartão mostra o que o plano libera hoje. Pagamento único por Pix, sem
+          mensalidade automática, sem cartão e com <span class="js-usuarios-incluidos">3</span>
+          usuários inclusos.</p>
       </div>
       <div class="planos" id="lista-planos"></div>
       <div class="planos-nota">
@@ -234,7 +394,7 @@
   </section>
 
   <!-- ---------------------------------------------------------------- dúvidas -->
-  <section class="site-secao" id="duvidas">
+  <section class="site-secao faixa" id="duvidas">
     <div class="site-largura">
       <div class="secao-cabecalho">
         <span class="sobre-titulo">Dúvidas frequentes</span>
@@ -248,7 +408,7 @@
     <div class="site-largura">
       <h2>Comece hoje com 48 horas liberadas</h2>
       <p>Cadastre-se, lance o seu próximo contrato e assine quando tiver certeza.</p>
-      <button class="btn btn-grande btn-claro" id="btn-cta-final">Criar minha conta</button>
+      <button class="btn btn-grande btn-dourado" id="btn-cta-final">Criar minha conta</button>
     </div>
   </section>
 
@@ -264,6 +424,14 @@
         </div>
         <p class="mini" id="rodape-titular"></p>
       </div>
+      <nav class="rodape-links mini">
+        <a href="#contratos-site">Contratos</a>
+        <a href="#amostras-site">Amostras</a>
+        <a href="#armazem-site">Armazém</a>
+        <a href="#fiscal-site">Fiscal e vendas</a>
+        <a href="#financeiro-site">Financeiro</a>
+        <a href="/mercado" target="_blank" rel="noopener">Mercado do café</a>
+      </nav>
       <div class="mini">
         <div id="rodape-contatos"></div>
         <a href="/static/manual/Manual-AgroDock.pdf" target="_blank" rel="noopener"

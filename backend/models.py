@@ -1957,6 +1957,7 @@ class GuiaEntrada(Base):
     unidade_id = Column(Integer, ForeignKey("unidades.id"))
     peso_total = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    safra = Column(String(9))           # 2025/2026 — padrão para os lotes da guia
     documento = Column(String(40))
     placa = Column(String(10))
     motorista = Column(String(120))
@@ -1986,6 +1987,7 @@ class GuiaEntradaLote(Base):
     sequencia = Column(Integer, nullable=False, default=1)      # o "/1", "/2"...
     peneira = Column(String(20))
     padrao = Column(String(60))
+    safra = Column(String(9))
     peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     unidade_id = Column(Integer, ForeignKey("unidades.id"))
@@ -2032,6 +2034,7 @@ class LoteArmazem(Base):
     produto_id = Column(Integer, ForeignKey("produtos.id"))
     peneira = Column(String(20))
     padrao = Column(String(60))
+    safra = Column(String(9))           # vem da guia de entrada; transferência herda
     sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     unidade_id = Column(Integer, ForeignKey("unidades.id"))
@@ -2299,6 +2302,7 @@ class GuiaServicoResultado(Base):
     sequencia = Column(Integer, nullable=False, default=1)
     peneira = Column(String(20))
     padrao = Column(String(60))
+    safra = Column(String(9))
     sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
     unidade_id = Column(Integer, ForeignKey("unidades.id"))

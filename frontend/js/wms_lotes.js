@@ -67,7 +67,7 @@ const WMSLotes = {
               WMS._armazens.map((a) => ({ valor: a.id, rotulo: a.nome })), f.armazem_id, { vazio: 'Todos' }))}
             ${UI.campo('Cliente', UI.select('depositante_id',
               WMS.depositantes().map((p) => ({ valor: p.id, rotulo: p.nome })), f.depositante_id, { vazio: 'Todos' }))}
-            ${UI.campo('Procurar', `<input name="busca" value="${UI.escapar(f.busca)}" placeholder="lote, peneira, padrão">`)}
+            ${UI.campo('Procurar', `<input name="busca" value="${UI.escapar(f.busca)}" placeholder="lote, peneira, padrão, safra">`)}
             <label class="campo">Mostrar
               <span class="espaco" style="margin-top:6px">
                 <input type="checkbox" name="com_saldo" ${f.com_saldo ? 'checked' : ''}>
@@ -85,7 +85,7 @@ const WMSLotes = {
               { titulo: 'Cliente', valor: (l) => `${UI.escapar(l.depositante_nome)}
                 <div class="mini">${UI.escapar(l.armazem_nome)}</div>` },
               { titulo: 'Peneira / padrão', valor: (l) => `${UI.escapar(l.peneira || '—')}
-                <div class="mini">${UI.escapar(l.padrao || '')}</div>` },
+                <div class="mini">${UI.escapar([l.padrao, l.safra ? `safra ${l.safra}` : ''].filter(Boolean).join(' · '))}</div>` },
               { titulo: 'Onde está', valor: (l) => WMSLotes.posicoes(l) },
               { titulo: 'Saldo', classe: 'direita', chave: 'saldo', valor: (l) => `<b>${UI.numero(l.saldo_sacas, 2)} sc</b>
                 <div class="mini">${UI.numero(l.saldo_peso, 0)} kg · entrou ${UI.numero(l.sacas, 0)}</div>

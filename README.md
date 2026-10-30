@@ -1137,6 +1137,35 @@ Código: `backend/routers/wms.py`, `wms_entrada.py`, `wms_saida.py` e `wms_trans
 `wms_transferencia.js` e `wms_remocao.js`; `backend/routers/wms_servico.py` e `wms_remocao.py`.
 Teste: `python testes/teste_wms.py`.
 
+#### Relatórios e BI do armazém
+
+**WMS / Armazém → Relatórios e BI.** Seis abas que partem dos mesmos filtros — período,
+armazém, cliente, **safra**, **padrão** e **peneira**:
+
+| Aba | O que mostra |
+|---|---|
+| **Painel** | saldo de hoje, lotes e clientes com saldo, entradas, saídas, transferências e serviços do período (com a quebra); gráfico mês a mês (12 meses); saldo por cliente, por safra (rosca), por padrão e por peneira; ocupação de cada armazém contra a capacidade |
+| **Entradas** | cada lote das guias de entrada fechadas, com o valor (sacas × valor por saca) |
+| **Saídas** | cada item das guias de saída fechadas, com destino e contrato |
+| **Transferências** | cedente, recebedor, lote de origem e lote novo; com um cliente escolhido, filtra **emitidas** (ele cedeu) ou **recebidas** (ele recebeu) |
+| **Serviços** | despejo e resultado de cada guia de serviço, com a quebra; filtro e agrupamento por tipo de serviço |
+| **Lotes** | o saldo de hoje, uma linha por lote e armazém (com a opção de mostrar os zerados) |
+
+Cada relatório tem **agrupar por** (cliente, safra, padrão, peneira, armazém, mês e, nos
+serviços, serviço), o gráfico do agrupamento, o resumo e o detalhe, e os botões **Excel**
+(.xlsx com as abas *Resumo* — com gráfico e totais em fórmula — e *Detalhe*, com filtro) e
+**PDF** (A4 deitado: indicadores, gráfico, resumo e detalhe). Os dois são montados no
+servidor com os mesmos números da tela (`openpyxl` e `fpdf2`, Python puro). Só entram guias
+fechadas.
+
+**Safra.** A guia de entrada tem o campo *Safra* no cabeçalho, que vale para os lotes sem
+safra própria; cada lote pode ter a sua. A transferência herda a safra do lote de origem e o
+resultado do serviço herda a dos lotes despejados (quando são todos da mesma safra) ou leva a
+digitada. A tela de Lotes mostra a safra e a busca encontra por ela.
+
+Código: `backend/routers/wms_relatorios.py` e `frontend/js/wms_relatorios.js`.
+Teste: `python testes/teste_wms_relatorios.py`.
+
 ### Vendas e Margens
 
 **Análise → Vendas e Margens.** Perguntas de dono de negócio — quanto vendi, para quem, com

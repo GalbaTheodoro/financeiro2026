@@ -128,7 +128,7 @@ const WMSServico = {
 
   /* ------------------------------------------------------------- o editor */
   resultadoVazio() {
-    return { peneira: '', padrao: '', sacas: 0, peso: 0, unidade_id: '',
+    return { peneira: '', padrao: '', safra: '', sacas: 0, peso: 0, unidade_id: '',
       locais: [{ quadra_id: '', pilha: '', sacas: 0, peso: 0 }] };
   },
 
@@ -269,6 +269,7 @@ const WMSServico = {
           <div class="linha-campos">
             ${UI.campo('Peneira', `<input name="peneira" maxlength="20" value="${UI.escapar(r.peneira || '')}" placeholder="ex.: 17/18" ${dis}>`)}
             ${UI.campo('Padrão', `<input name="padrao" maxlength="60" value="${UI.escapar(r.padrao || '')}" placeholder="ex.: liga fina" ${dis}>`)}
+            ${UI.campo('Safra', `<input name="safra" maxlength="9" value="${UI.escapar(r.safra || '')}" placeholder="${ed ? 'a dos lotes despejados' : ''}" ${dis}>`)}
             ${UI.campo('Sacas *', `<input name="sacas" inputmode="decimal" value="${WMSServico.v(r.sacas)}" ${dis}>`)}
             ${UI.campo('Peso (kg)', `<input name="peso" inputmode="decimal" value="${WMSServico.v(r.peso)}" placeholder="${ed ? 'do despejo' : ''}" ${dis}>`)}
             ${UI.campo('Unidade', UI.select('unidade_id', unidades, r.unidade_id, { vazio: '—', attr: dis }))}
@@ -333,7 +334,7 @@ const WMSServico = {
     g.resultados = [...area.querySelectorAll('[data-resultado]')].map((caixa) => {
       const grade = caixa.querySelector('.linha-campos');
       return {
-        peneira: campo(grade, 'peneira'), padrao: campo(grade, 'padrao'),
+        peneira: campo(grade, 'peneira'), padrao: campo(grade, 'padrao'), safra: campo(grade, 'safra'),
         sacas: WMS.numero(campo(grade, 'sacas')), peso: WMS.numero(campo(grade, 'peso')),
         unidade_id: campo(grade, 'unidade_id'),
         locais: [...caixa.querySelectorAll('[data-local]')].map((tr) => ({
@@ -459,7 +460,7 @@ const WMSServico = {
       produto_id: id(g.produto_id), valor: g.valor || 0, observacao: g.observacao,
       despejos: g.despejos.map((i) => ({ posicao_id: Number(i.posicao_id), sacas: i.sacas, peso: i.peso || 0 })),
       resultados: g.resultados.map((r) => ({
-        peneira: r.peneira, padrao: r.padrao, sacas: r.sacas, peso: r.peso, unidade_id: id(r.unidade_id),
+        peneira: r.peneira, padrao: r.padrao, safra: r.safra, sacas: r.sacas, peso: r.peso, unidade_id: id(r.unidade_id),
         locais: r.locais.map((x) => ({ quadra_id: id(x.quadra_id), pilha: x.pilha, sacas: x.sacas, peso: x.peso })),
       })),
     };

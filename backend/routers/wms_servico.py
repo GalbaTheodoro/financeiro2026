@@ -101,6 +101,13 @@ def _texto(valor, limite: int) -> str | None:
 # --------------------------------------------------------------------------- #
 # Entrada de dados
 # --------------------------------------------------------------------------- #
+def _safra_dos_despejos(guia) -> str | None:
+    """Resultado sem safra informada herda a dos lotes despejados — se todos
+    forem da mesma safra (numa liga de safras diferentes fica em branco)."""
+    safras = {d.lote.safra for d in guia.despejos if d.lote and d.lote.safra}
+    return safras.pop() if len(safras) == 1 else None
+
+
 class DespejoIn(BaseModel):
     posicao_id: int | None = None
     sacas: float = 0
@@ -116,6 +123,7 @@ class LocalIn(BaseModel):
 
 class ResultadoIn(BaseModel):
     peneira: str | None = None
+    safra: str | None = None
     padrao: str | None = None
     sacas: float = 0
     peso: float = 0
@@ -171,6 +179,7 @@ def _ficha(g: GuiaServico, completa: bool = False) -> dict:
             "lote_codigo": d.lote.codigo if d.lote else "-",
             "peneira": d.lote.peneira if d.lote else None,
             "padrao": d.lote.padrao if d.lote else None,
+            "safra": d.lote.safra if d.lote else None,
             "quadra_nome": d.posicao.quadra.nome if d.posicao and d.posicao.quadra else "-",
             "pilha": d.posicao.pilha if d.posicao else None,
         }) for d in g.despejos]
@@ -253,6 +262,7 @@ def _gravar(db: Session, guia: GuiaServico, dados: GuiaServicoIn) -> None:
         unidade = _do_cadastro(db, Unidade, r.unidade_id, eid, "Unidade")
         resultado = GuiaServicoResultado(
             sequencia=seq, peneira=_texto(r.peneira, 20), padrao=_texto(r.padrao, 60),
+            safra=_texto(r.safra, 9),
             sacas=max(0.0, _num(r.sacas)), peso=max(0.0, _num(r.peso)),
             unidade_id=unidade.id if unidade else None)
         for x in locais:
@@ -489,7 +499,8 @@ def fechar(guia_id: int, db: Session = Depends(get_db),
             empresa_id=guia.empresa_id, guia_id=None, codigo=codigo,
             data_entrada=guia.data_fim or guia.data, armazem_id=guia.armazem_id,
             depositante_id=guia.cliente_id, produto_id=produto_id,
-            peneira=r.peneira, padrao=r.padrao, sacas=r.sacas, peso=r.peso,
+            peneira=r.peneira, padrao=r.padrao, safra=r.safra or _safra_dos_despejos(guia),
+            sacas=r.sacas, peso=r.peso,
             unidade_id=r.unidade_id or unidade_padrao, guia_servico_id=guia.id)
         for x in r.locais:
             lote.posicoes.append(LotePosicao(quadra_id=x.quadra_id, pilha=x.pilha,

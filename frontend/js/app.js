@@ -27,6 +27,7 @@ const App = {
     '/wms-saidas': { titulo: 'WMS / Armazém — Saídas', subtitulo: 'Café retirado ou expedido do armazém', acao: () => WMS.tela('SAIDA') },
     '/wms-servicos': { titulo: 'WMS / Armazém — Serviços', subtitulo: 'Guia de serviço: liga, rebenefício, catação — despejo de lotes e lotes resultado', acao: () => WMS.tela('SERVICO') },
     '/wms-transferencias': { titulo: 'WMS / Armazém — Transferências', subtitulo: 'Troca de dono do lote: gera o lote novo com T no fim do número', acao: () => WMS.tela('TRANSFERENCIA') },
+    '/wms-relatorios': { titulo: 'WMS / Armazém — Relatórios e BI', subtitulo: 'Painel com gráficos e relatórios de entradas, saídas, transferências, serviços e lotes — em Excel e PDF', acao: (aba) => WMSRelatorios.tela(aba) },
     '/wms-remocoes': { titulo: 'WMS / Armazém — Remoção', subtitulo: 'Mudar o lote de lugar (quadra, pilha ou armazém), com histórico', acao: () => WMS.tela('REMOCAO') },
     '/vendas': { titulo: 'Vendas e Margens', subtitulo: 'Quanto vendeu, para quem, com que margem — e o que está parado no estoque', acao: (aba) => Vendas.tela(aba) },
     '/cadastros': { titulo: 'Cadastros', subtitulo: 'Todos os cadastros do sistema em um só lugar', acao: (aba) => Cadastros.hub(aba) },
@@ -56,7 +57,7 @@ const App = {
   ROTAS_DE_PLANO: ['/painel', '/receber', '/pagar', '/caixa', '/contratos', '/amostras', '/notas',
     '/pedidos', '/dfe', '/estoque', '/cupom', '/gta', '/relatorios', '/sped', '/livros',
     '/vendas', '/wms-lotes', '/wms-entradas', '/wms-saidas', '/wms-servicos', '/wms-transferencias',
-    '/wms-remocoes'],
+    '/wms-remocoes', '/wms-relatorios'],
 
   menu() {
     /* Menus e submenus. Cada { grupo } abre um menu; os itens logo abaixo dele
@@ -87,6 +88,7 @@ const App = {
       { rota: '/wms-servicos', icone: '⚙', rotulo: 'Serviços' },
       { rota: '/wms-transferencias', icone: '⇄', rotulo: 'Transferências' },
       { rota: '/wms-remocoes', icone: '⇆', rotulo: 'Remoção' },
+      { rota: '/wms-relatorios', icone: '▤', rotulo: 'Relatórios e BI' },
       { grupo: 'Financeiro', icone: '$' },
       { rota: '/receber', icone: '↓', rotulo: 'Contas a Receber' },
       { rota: '/pagar', icone: '↑', rotulo: 'Contas a Pagar' },

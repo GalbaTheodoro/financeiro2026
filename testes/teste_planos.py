@@ -380,9 +380,9 @@ checar("devolver a grade de fábrica devolve os menus",
 
 # ---------------------------------------- a página inicial anuncia o que tem
 recursos = api("GET", "/api/publico/info")
-checar("o slogan da página inicial fala de nota fiscal, venda e estoque",
+checar("o slogan da página inicial fala de contratos, amostras, armazém, nota fiscal e financeiro",
        all(palavra in recursos["slogan"].lower()
-           for palavra in ("nota fiscal", "cupom fiscal", "balcão", "estoque")),
+           for palavra in ("contratos", "amostras", "armazém", "nota fiscal", "financeiro")),
        recursos["slogan"][:80])
 
 # =========================================================================== #

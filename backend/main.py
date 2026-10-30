@@ -43,6 +43,7 @@ from .routers import (
     wms_transferencia,
     wms_remocao,
     wms_servico,
+    wms_relatorios,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
@@ -138,6 +139,7 @@ app.include_router(wms_saida.router)
 app.include_router(wms_transferencia.router)
 app.include_router(wms_remocao.router)
 app.include_router(wms_servico.router)
+app.include_router(wms_relatorios.router)
 
 
 @app.exception_handler(Exception)

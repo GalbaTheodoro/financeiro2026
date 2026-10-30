@@ -338,6 +338,32 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
   border-radius:9px;font-size:13px;margin-bottom:14px}
 .erro-caixa{background:var(--vermelho-claro);border:1px solid #fecaca;color:#991b1b;padding:10px 13px;
   border-radius:9px;font-size:13px;margin-bottom:14px}
+/* ---------------------------------------------- relatórios e BI do armazém */
+.rel-grade{margin-bottom:14px;align-items:stretch;grid-template-columns:repeat(2,minmax(0,1fr))}
+.rel-grade>.cartao{margin-bottom:0}
+.rosca{display:grid;grid-template-columns:160px minmax(0,1fr);gap:20px;align-items:center}
+.rosca svg{width:160px;height:160px}
+.rosca-total{font-size:19px;font-weight:800;fill:var(--cinza-900)}
+.rosca-rotulo{font-size:10px;fill:var(--cinza-500)}
+.rosca-legenda{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.rosca-legenda li{display:grid;grid-template-columns:12px minmax(70px,1fr) auto 48px;gap:8px;align-items:center;font-size:12.5px}
+.rosca-legenda i{width:12px;height:12px;border-radius:3px}
+.rosca-legenda span{color:var(--cinza-700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rosca-legenda b{font-variant-numeric:tabular-nums}
+.rosca-legenda em{font-style:normal;color:var(--cinza-500);text-align:right;font-variant-numeric:tabular-nums}
+.ocupacao{display:flex;flex-direction:column;gap:12px}
+.ocupacao-linha{display:grid;grid-template-columns:minmax(160px,28%) 1fr 64px;gap:14px;align-items:center}
+.ocupacao-linha .mini{display:block}
+.ocupacao-trilho{height:12px;border-radius:99px;background:var(--cinza-100);overflow:hidden}
+.ocupacao-trilho i{display:block;height:100%;border-radius:99px}
+.ocupacao-pct{text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:900px){.rel-grade{grid-template-columns:1fr}}
+@media (max-width:760px){
+  .rosca{grid-template-columns:1fr;justify-items:center}
+  .rosca-legenda{width:100%}
+  .ocupacao-linha{grid-template-columns:1fr 54px;gap:6px 10px}
+  .ocupacao-linha>div:first-child{grid-column:1/-1}
+}
 /* lista dentro de uma caixa de aviso: sem recuo exagerado */
 .lista-simples{margin:6px 0 0;padding-left:18px}
 .lista-simples li{margin-bottom:3px}

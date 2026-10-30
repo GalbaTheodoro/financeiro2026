@@ -143,8 +143,16 @@ const WMSEntrada = {
   },
 
   /* ------------------------------------------------------------- o editor */
+  /** A safra que está sendo colhida/comercializada: de julho em diante é
+      "ano/ano+1"; antes disso, "ano-1/ano". */
+  safraAtual() {
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    return hoje.getMonth() >= 6 ? `${ano}/${ano + 1}` : `${ano - 1}/${ano}`;
+  },
+
   loteVazio() {
-    return { peneira: '', padrao: '', sacas: 0, peso: 0, unidade_id: '', valor_unitario: 0,
+    return { peneira: '', padrao: '', safra: '', sacas: 0, peso: 0, unidade_id: '', valor_unitario: 0,
       locais: [{ quadra_id: '', pilha: '', sacas: 0, peso: 0 }] };
   },
 
@@ -159,7 +167,7 @@ const WMSEntrada = {
       id: null, numero: null, status: 'ABERTA', data: UI.hoje(),
       armazem_id: armazens.length === 1 ? armazens[0].id : '',
       cliente_id: '', cliente_origem_id: '', contrato_id: '', produto_id: '', unidade_id: '',
-      peso_total: 0, sacas: 0, documento: '', placa: '', motorista: '', observacao: '',
+      peso_total: 0, sacas: 0, safra: WMSEntrada.safraAtual(), documento: '', placa: '', motorista: '', observacao: '',
       lotes: [WMSEntrada.loteVazio()],
     };
     await WMSEntrada.editor();
@@ -237,6 +245,8 @@ const WMSEntrada = {
         ${UI.campo('Unidade', UI.select('unidade_id', unidades, g.unidade_id, { vazio: '—', attr: dis }))}
         ${UI.campo('Total peso (kg) *', `<input name="peso_total" inputmode="decimal" value="${WMSEntrada.v(g.peso_total)}" ${dis}>`)}
         ${UI.campo('Sacas *', `<input name="sacas" inputmode="decimal" value="${WMSEntrada.v(g.sacas)}" ${dis}>`)}
+        ${UI.campo('Safra', `<input name="safra" maxlength="9" value="${UI.escapar(g.safra || '')}" placeholder="ex.: 2025/2026" ${dis}>`,
+          'vale para os lotes sem safra própria')}
         ${UI.campo('Documento', `<input name="documento" maxlength="40" value="${UI.escapar(g.documento || '')}" placeholder="nota, ticket" ${dis}>`)}
         ${UI.campo('Placa', `<input name="placa" maxlength="10" style="text-transform:uppercase" value="${UI.escapar(g.placa || '')}" ${dis}>`)}
         ${UI.campo('Motorista', `<input name="motorista" maxlength="120" value="${UI.escapar(g.motorista || '')}" ${dis}>`)}
@@ -258,6 +268,7 @@ const WMSEntrada = {
           <div class="linha-campos">
             ${UI.campo('Peneira', `<input name="peneira" maxlength="20" value="${UI.escapar(l.peneira || '')}" placeholder="ex.: 17/18" ${dis}>`)}
             ${UI.campo('Padrão', `<input name="padrao" maxlength="60" value="${UI.escapar(l.padrao || '')}" placeholder="ex.: tipo 6 bebida dura" ${dis}>`)}
+            ${UI.campo('Safra', `<input name="safra" maxlength="9" value="${UI.escapar(l.safra && l.safra !== g.safra ? l.safra : '')}" placeholder="${UI.escapar(g.safra || 'a da guia')}" ${dis}>`)}
             ${UI.campo('Sacas *', `<input name="sacas" inputmode="decimal" value="${WMSEntrada.v(l.sacas)}" ${dis}>`)}
             ${UI.campo('Peso (kg)', `<input name="peso" inputmode="decimal" value="${WMSEntrada.v(l.peso)}" ${dis}>`)}
             ${UI.campo('Unidade', UI.select('unidade_id', unidades, l.unidade_id, { vazio: '—', attr: dis }))}
@@ -315,12 +326,13 @@ const WMSEntrada = {
     const cab = area.querySelector('.guia-cab');
     const campo = (raiz, nome) => raiz.querySelector(`[name="${nome}"]`)?.value ?? '';
     ['data', 'armazem_id', 'cliente_id', 'cliente_origem_id', 'contrato_id', 'produto_id',
-      'unidade_id', 'documento', 'placa', 'motorista', 'observacao'].forEach((n) => { g[n] = campo(cab, n); });
+      'unidade_id', 'safra', 'documento', 'placa', 'motorista', 'observacao'].forEach((n) => { g[n] = campo(cab, n); });
     g.peso_total = WMS.numero(campo(cab, 'peso_total'));
     g.sacas = WMS.numero(campo(cab, 'sacas'));
     g.lotes = [...area.querySelectorAll('[data-lote]')].map((caixa) => ({
       peneira: campo(caixa, 'peneira'),
       padrao: campo(caixa, 'padrao'),
+      safra: campo(caixa, 'safra'),
       sacas: WMS.numero(campo(caixa, 'sacas')),
       peso: WMS.numero(campo(caixa, 'peso')),
       unidade_id: campo(caixa, 'unidade_id'),
@@ -447,12 +459,13 @@ const WMSEntrada = {
       unidade_id: id(g.unidade_id),
       peso_total: g.peso_total,
       sacas: g.sacas,
+      safra: g.safra,
       documento: g.documento,
       placa: g.placa ? String(g.placa).toUpperCase() : '',
       motorista: g.motorista,
       observacao: g.observacao,
       lotes: g.lotes.map((l) => ({
-        peneira: l.peneira, padrao: l.padrao, sacas: l.sacas, peso: l.peso,
+        peneira: l.peneira, padrao: l.padrao, safra: l.safra, sacas: l.sacas, peso: l.peso,
         unidade_id: id(l.unidade_id), valor_unitario: l.valor_unitario,
         locais: l.locais.map((x) => ({ quadra_id: id(x.quadra_id), pilha: x.pilha, sacas: x.sacas, peso: x.peso })),
       })),

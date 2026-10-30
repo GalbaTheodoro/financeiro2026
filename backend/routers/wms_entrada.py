@@ -261,6 +261,7 @@ class LocalIn(BaseModel):
 class LoteIn(BaseModel):
     peneira: str | None = None
     padrao: str | None = None
+    safra: str | None = None
     peso: float = 0
     sacas: float = 0
     unidade_id: int | None = None
@@ -279,6 +280,7 @@ class GuiaIn(BaseModel):
     unidade_id: int | None = None
     peso_total: float = 0
     sacas: float = 0
+    safra: str | None = None
     documento: str | None = None
     placa: str | None = None
     motorista: str | None = None
@@ -362,6 +364,7 @@ def _gravar(db: Session, guia: GuiaEntrada, dados: GuiaIn) -> None:
     guia.unidade_id = unidade.id if unidade else None
     guia.peso_total = max(0.0, round(_num(dados.peso_total), 2))
     guia.sacas = max(0.0, round(_num(dados.sacas), 2))
+    guia.safra = _texto(dados.safra, 9)
     guia.documento = _texto(dados.documento, 40)
     guia.placa = (_texto(dados.placa, 10) or "").upper() or None
     guia.motorista = _texto(dados.motorista, 120)
@@ -377,6 +380,8 @@ def _gravar(db: Session, guia: GuiaEntrada, dados: GuiaIn) -> None:
         valor_unit = max(0.0, _num(l.valor_unitario))
         lote = GuiaEntradaLote(
             sequencia=seq, peneira=_texto(l.peneira, 20), padrao=_texto(l.padrao, 60),
+            # lote sem safra própria fica com a do cabeçalho
+            safra=_texto(l.safra, 9) or guia.safra,
             peso=max(0.0, round(_num(l.peso), 2)), sacas=sacas,
             unidade_id=(lote_unidade.id if lote_unidade else guia.unidade_id),
             valor_unitario=valor_unit, valor_total=round(sacas * valor_unit, 2),
@@ -549,6 +554,7 @@ def fechar_guia(guia_id: int, db: Session = Depends(get_db),
             empresa_id=guia.empresa_id, guia_id=guia.id, guia_lote_id=l.id, codigo=codigo,
             data_entrada=guia.data, armazem_id=guia.armazem_id, depositante_id=guia.cliente_id,
             produto_id=guia.produto_id, peneira=l.peneira, padrao=l.padrao,
+            safra=l.safra or guia.safra,
             sacas=l.sacas, peso=l.peso, unidade_id=l.unidade_id,
             valor_unitario=l.valor_unitario, valor_total=l.valor_total,
         )
@@ -789,7 +795,8 @@ def listar_lotes(empresa_id: int, armazem_id: int | None = None,
         like = f"%{texto}%"
         consulta = consulta.filter(or_(LoteArmazem.codigo.ilike(like),
                                        LoteArmazem.peneira.ilike(like),
-                                       LoteArmazem.padrao.ilike(like)))
+                                       LoteArmazem.padrao.ilike(like),
+                                       LoteArmazem.safra.ilike(like)))
     lotes = consulta.order_by(LoteArmazem.data_entrada.desc(), LoteArmazem.id.desc()).limit(500).all()
     saldos = _somar_saldos(db, empresa_id)
     saiu = saidas_por_posicao(db, empresa_id)

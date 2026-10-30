@@ -699,7 +699,7 @@ tr.total td{background:var(--cinza-900);color:#fff;font-weight:700}
 .observacao-passos{margin-top:24px;text-align:center;color:#5c6a62;font-size:13.5px}
 
 /* -------------------------------------------------------------------- planos */
-.planos{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:20px;max-width:1180px;margin:0 auto}
+.planos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:20px;max-width:1180px;margin:0 auto}
 .plano{background:#fff;border:1px solid #e9e4db;border-radius:14px;padding:24px 22px;
   box-shadow:0 6px 20px rgba(14,43,28,.06);display:flex;flex-direction:column;position:relative}
 .plano-destaque{border:2px solid var(--folha);box-shadow:0 18px 44px rgba(21,119,74,.18)}

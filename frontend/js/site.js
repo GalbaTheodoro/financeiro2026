@@ -56,11 +56,10 @@ const Site = {
        + 'entra e Recebido Total quando tudo foi pago. O relatório de contratos mostra todos de uma vez, '
        + 'com o que já entrou, o que falta e o que venceu.' },
     { p: 'Qual é a diferença entre os planos?',
-      r: 'Os quatro planos têm o mesmo miolo: contrato de assessoria, financeiro inteiro '
-       + '(contas a receber e a pagar, caixa, DRE, balancete e relatórios) e emissão de NF-e. '
-       + 'O que muda são dois módulos: o cupom fiscal eletrônico, para quem vende no balcão, e '
-       + 'a GTA, para quem atende produtor de gado. O Plano 1 não tem nenhum dos dois, o 2 tem '
-       + 'o cupom, o 3 tem a GTA e o 4 tem os dois. Dentro do sistema, cada conta enxerga só '
+      r: 'Todos os planos têm o mesmo miolo: contrato de assessoria, amostras de café, financeiro '
+       + 'inteiro (contas a receber e a pagar, caixa, DRE, balancete e relatórios) e emissão de NF-e. '
+       + 'O que muda são os módulos extras — cupom fiscal eletrônico, GTA e WMS/Armazém. Cada '
+       + 'cartão acima mostra o que aquele plano libera. Dentro do sistema, cada conta enxerga só '
        + 'as telas do plano dela.' },
     { p: 'Posso mudar de plano depois?',
       r: 'Pode. Enquanto o pagamento não foi confirmado, a troca é imediata em Minha Assinatura. '
@@ -142,7 +141,7 @@ const Site = {
     Site.desenharPlanos();
   },
 
-  /* Quatro planos. O que muda de um para o outro não é o prazo — é o que a conta
+  /* Os planos. O que muda de um para o outro não é o prazo — é o que a conta
      pode usar. Por isso cada cartão mostra primeiro o que o plano libera e, só
      depois, os dois prazos com seus preços. */
   desenharPlanos() {

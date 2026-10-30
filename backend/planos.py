@@ -10,7 +10,7 @@ Então o plano tem duas partes, e o código guarda as duas juntas::
 
     P3_ANUAL  =  Plano 3  +  12 meses
 
-Os quatro planos:
+Os seis planos:
 
 =========  ==========================================  ==========  =========
 Plano      Além do contrato, financeiro e NF-e         Semestral   Anual
@@ -19,6 +19,8 @@ Plano 1    —                                             399,90     699,90
 Plano 2    Cupom fiscal eletrônico                       459,90     859,90
 Plano 3    GTA — Guia de Trânsito Animal                 519,90     969,90
 Plano 4    Cupom fiscal, GTA **e** WMS/Armazém           579,90   1.069,90
+Plano 5    — (vaga para variação, monta-se na tela)      579,90   1.069,90
+Plano 6    — (vaga para variação, monta-se na tela)      579,90   1.069,90
 =========  ==========================================  ==========  =========
 
 O **WMS/Armazém** (entrada, saída, serviços, transferência e remoção de café
@@ -122,7 +124,7 @@ ROTAS: dict[str, tuple[str, ...]] = {
 }
 
 # --------------------------------------------------------------------------- #
-# Os quatro planos
+# Os planos (1 a 6)
 # --------------------------------------------------------------------------- #
 NIVEIS: list[dict] = [
     {"nivel": 1, "nome": "Plano 1", "extras": (),
@@ -137,6 +139,14 @@ NIVEIS: list[dict] = [
     {"nivel": 4, "nome": "Plano 4", "extras": ("CUPOM", "GTA", "WMS"),
      "semestral": 579.90, "anual": 1069.90,
      "para": "O sistema inteiro: balcão, trânsito animal e armazém juntos."},
+    # planos 5 e 6 (out/2026): vagas para variações. Nascem só com o miolo e o
+    # preço do Plano 4; o administrador monta a grade em "Menus de cada plano"
+    {"nivel": 5, "nome": "Plano 5", "extras": (),
+     "semestral": 579.90, "anual": 1069.90,
+     "para": "Uma combinação de módulos montada para outro jeito de trabalhar."},
+    {"nivel": 6, "nome": "Plano 6", "extras": (),
+     "semestral": 579.90, "anual": 1069.90,
+     "para": "Mais uma combinação de módulos, para quem precisa de outra medida."},
 ]
 
 PERIODOS: dict[str, str] = {"SEMESTRAL": "Semestral", "ANUAL": "Anual"}
@@ -261,7 +271,7 @@ def juntar_modulos(modulos) -> str:
 
 
 def configuracoes_de_modulos() -> dict[str, tuple[str, str, bool]]:
-    """As quatro chaves da grade de menus, no formato do CONFIGURACOES_PADRAO."""
+    """As chaves da grade de menus (uma por plano), no formato do CONFIGURACOES_PADRAO."""
     return {
         chave_dos_modulos(p["nivel"]): (
             juntar_modulos(modulos_do_nivel(p["nivel"])),
@@ -277,7 +287,7 @@ def chave_do_valor(nivel: int, periodo: str) -> str:
 
 
 def configuracoes_de_preco() -> dict[str, tuple[str, str, bool]]:
-    """As oito chaves de preço, no formato do CONFIGURACOES_PADRAO."""
+    """As chaves de preço (duas por plano), no formato do CONFIGURACOES_PADRAO."""
     saida: dict[str, tuple[str, str, bool]] = {}
     for plano in NIVEIS:
         for periodo, rotulo in (("semestral", "semestral"), ("anual", "anual")):

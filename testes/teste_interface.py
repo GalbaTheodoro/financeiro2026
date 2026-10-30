@@ -225,11 +225,11 @@ with sync_playwright() as p:
     # ----------------------------------------- o menu é o que o plano libera
     blocos = pagina.eval_on_selector_all(
         ".plano-bloco .forte", "els => els.map(e => e.innerText.trim())")
-    ok_quatro = len([b for b in blocos if b.startswith("Plano ")]) == 4
-    print(f"  [{'OK  ' if ok_quatro else 'FALHA'}] tela da assinatura com os quatro planos "
+    ok_quatro = len([b for b in blocos if b.startswith("Plano ")]) == 6
+    print(f"  [{'OK  ' if ok_quatro else 'FALHA'}] tela da assinatura com os seis planos "
           f"({[b for b in blocos if b.startswith('Plano ')]})")
     if not ok_quatro:
-        erros.append("a tela da assinatura não mostrou os quatro planos")
+        erros.append("a tela da assinatura não mostrou os seis planos")
 
     rotas_menu = lambda: pagina.eval_on_selector_all(   # noqa: E731
         "#menu .menu-item", "els => els.map(e => e.dataset.rota)")
@@ -839,7 +839,7 @@ with sync_playwright() as p:
             gta_no_4: marcada('mod_4_GTA'),
         };
     }""")
-    ok_quadro = (quadro["titulo"] and quadro["caixas"] == 28 and quadro["nfe_no_1"]
+    ok_quadro = (quadro["titulo"] and quadro["caixas"] == 42 and quadro["nfe_no_1"]
                  and quadro["gta_no_1"] is False and quadro["gta_no_4"] is True)
     print(f"  [{'OK  ' if ok_quadro else 'FALHA'}] quadro de menus por plano {quadro}")
     if not ok_quadro:

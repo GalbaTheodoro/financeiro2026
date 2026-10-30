@@ -147,22 +147,29 @@ O que o plano não libera sai antes de desenhar: menu que fica sem nenhum submen
 que fica com um só vira item solto (no Plano 1, *Vendas* vira direto *Pedidos e Vendas*).
 Onde fica: `frontend/js/app.js` — lista `itens` em `menu()`, montada em `desenharMenu()`.
 
-#### Os quatro planos
+#### Os planos
 
 O que muda de um plano para o outro **não é o prazo**: é o que a conta pode usar. Contrato de
 assessoria, financeiro inteiro (contas a receber e a pagar, caixa, DRE, balancete e
-relatórios) e **emissão de NF-e** estão em todos. O que separa os planos são dois módulos:
-**cupom fiscal eletrônico** e **GTA**.
+relatórios) e **emissão de NF-e** estão em todos. O que separa os planos são os módulos
+**cupom fiscal eletrônico**, **GTA** e **WMS/Armazém**.
 
 | Plano | Além do miolo | Semestral | Anual |
 |---|---|---|---|
 | Plano 1 | — | R$ 399,90 | R$ 699,90 |
 | Plano 2 | Cupom fiscal | R$ 459,90 | R$ 859,90 |
 | Plano 3 | GTA | R$ 519,90 | R$ 969,90 |
-| Plano 4 | Cupom fiscal **e** GTA | R$ 579,90 | R$ 1.069,90 |
+| Plano 4 | Cupom fiscal, GTA **e** WMS/Armazém | R$ 579,90 | R$ 1.069,90 |
+| Plano 5 | — (vaga para variação) | R$ 579,90 | R$ 1.069,90 |
+| Plano 6 | — (vaga para variação) | R$ 579,90 | R$ 1.069,90 |
+
+Os **Planos 5 e 6** existem para você montar variações: nascem só com o miolo e com o preço
+do Plano 4, e você escolhe os menus de cada um em *Menus de cada plano* e o preço em *Preço de
+cada plano*. Eles aparecem na página inicial e no cadastro como os outros (os cartões ficam em
+duas linhas de três).
 
 O código gravado na assinatura carrega as duas escolhas juntas — `P3_ANUAL` é *Plano 3 por 12
-meses*. Os oito preços, a duração de cada prazo e as horas de teste são editáveis em
+meses*. Os preços, a duração de cada prazo e as horas de teste são editáveis em
 **Config. do site**.
 
 A tabela acima é o **padrão de fábrica**. Quem monta a grade de verdade é você, em dois níveis

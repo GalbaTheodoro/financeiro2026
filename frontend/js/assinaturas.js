@@ -502,7 +502,7 @@ const Assinaturas = {
     } catch (e) { UI.erro(e.message); }
   },
 
-  /** Os oito códigos (quatro planos x dois prazos) para os selects da administração. */
+  /** Os códigos (cada plano x dois prazos) para os selects da administração. */
   opcoesDePlano() {
     return (Assinaturas._planos || []).flatMap((p) => p.prazos.map((z) => ({
       valor: z.codigo,
@@ -1183,7 +1183,9 @@ const Assinaturas = {
       'Preço de cada plano': ['plano1_semestral_valor', 'plano1_anual_valor',
         'plano2_semestral_valor', 'plano2_anual_valor',
         'plano3_semestral_valor', 'plano3_anual_valor',
-        'plano4_semestral_valor', 'plano4_anual_valor'],
+        'plano4_semestral_valor', 'plano4_anual_valor',
+        'plano5_semestral_valor', 'plano5_anual_valor',
+        'plano6_semestral_valor', 'plano6_anual_valor'],
       'Prazos e teste': ['plano_semestral_meses', 'plano_anual_meses', 'horas_teste'],
       'Consulta de CNPJ (API do governo)': ['cnpj_provedor', 'cnpj_tipo_consulta', 'cnpj_endpoint',
         'cnpj_consumer_key', 'cnpj_consumer_secret', 'cnpj_cpf_usuario', 'cnpj_incluir_socios'],

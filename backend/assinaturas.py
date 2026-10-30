@@ -83,7 +83,7 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
     ),
 }
 
-# Os oito preços (quatro planos x dois prazos) e a grade de menus de cada plano
+# Os preços (cada plano x dois prazos) e a grade de menus de cada plano
 # entram aqui vindos de planos.py, para o catálogo ficar num lugar só.
 CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_preco())
 CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_modulos())
@@ -311,7 +311,7 @@ def frase_de_bloqueio(db: Session, modulo: str) -> str:
 
 
 def planos(db: Session) -> list[dict]:
-    """Os quatro planos, cada um com os seus dois prazos e o que libera.
+    """Os planos, cada um com os seus dois prazos e o que libera.
 
     É daqui que saem a página inicial, a tela de escolha do plano e a lista de
     módulos que o menu usa para esconder o que a conta não contratou.

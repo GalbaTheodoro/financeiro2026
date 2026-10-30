@@ -1,8 +1,8 @@
-"""Teste dos quatro planos de assinatura e do que cada um libera.
+"""Teste dos seis planos de assinatura e do que cada um libera.
 
 O que se confere
 ----------------
-  * a página inicial recebe os **quatro planos**, cada um com os dois prazos, os
+  * a página inicial recebe os **seis planos**, cada um com os dois prazos, os
     preços certos e a lista do que libera;
   * o **Plano 1** não abre cupom fiscal nem GTA — e a recusa vem do **servidor**,
     com a frase dizendo em que plano aquilo está;
@@ -83,10 +83,10 @@ def rotas(token):
 
 
 # =========================================================================== #
-print("=== 1. Os quatro planos na página inicial ===")
+print("=== 1. Os seis planos na página inicial ===")
 info = api("GET", "/api/publico/info")
 planos = info["planos"]
-checar("são quatro planos", len(planos) == 4, str([p["nome"] for p in planos]))
+checar("são seis planos", len(planos) == 6, str([p["nome"] for p in planos]))
 
 precos = {p["nome"]: (p["semestral"]["valor"], p["anual"]["valor"]) for p in planos}
 esperado = {
@@ -94,6 +94,8 @@ esperado = {
     "Plano 2": (459.90, 859.90),
     "Plano 3": (519.90, 969.90),
     "Plano 4": (579.90, 1069.90),
+    "Plano 5": (579.90, 1069.90),
+    "Plano 6": (579.90, 1069.90),
 }
 for nome, (sem, anual) in esperado.items():
     checar(f"{nome}: {sem:.2f} semestral e {anual:.2f} anual",
@@ -131,6 +133,11 @@ checar("Plano 1: contrato, financeiro e NF-e",
 checar("Plano 2: mais o cupom", "CUPOM" in modulos(p2) and "GTA" not in modulos(p2))
 checar("Plano 3: mais a GTA", "GTA" in modulos(p3) and "CUPOM" not in modulos(p3))
 checar("Plano 4: os dois", {"CUPOM", "GTA"} <= set(modulos(p4)))
+p6, e6 = conta("P6_ANUAL")
+checar("Plano 6: nasce só com o miolo (vaga para variação)",
+       sorted(modulos(p6)) == ["AMOSTRAS", "CONTRATOS", "FINANCEIRO", "NFE"], str(modulos(p6)))
+checar("e a conta sabe que é o Plano 6",
+       api("GET", "/api/auth/me", None, p6)["assinatura"]["plano_nome"] == "Plano 6")
 
 situacao = api("GET", "/api/auth/me", None, p1)["assinatura"]
 checar("a conta sabe em que plano está",
@@ -289,7 +296,11 @@ checar("o catálogo de menus tem os sete módulos",
        str([m["codigo"] for m in grade["modulos"]]))
 checar("e cada módulo diz quais telas ele abre",
        "/notas" in next(m for m in grade["modulos"] if m["codigo"] == "NFE")["rotas"])
-checar("a grade vem com os quatro planos", len(grade["planos"]) == 4)
+checar("a grade vem com os seis planos", len(grade["planos"]) == 6)
+for nivel in (5, 6):
+    pn = next(p for p in grade["planos"] if p["nivel"] == nivel)
+    checar(f"o Plano {nivel} nasce só com o miolo",
+           pn["padrao"] == ["CONTRATOS", "AMOSTRAS", "FINANCEIRO", "NFE"], str(pn["padrao"]))
 p1_grade = next(p for p in grade["planos"] if p["nivel"] == 1)
 checar("a grade do Plano 1 é a de fábrica enquanto ninguém mexeu",
        p1_grade["modulos"] == p1_grade["padrao"] == ["CONTRATOS", "AMOSTRAS", "FINANCEIRO", "NFE"],

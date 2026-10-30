@@ -284,6 +284,39 @@ try:
 finally:
     db.close()
 
+# usuários inclusos: um número por plano
+info_u = api("GET", "/api/publico/info")
+checar("todo plano nasce com 3 usuários inclusos",
+       all(p["usuarios"] == 3 for p in info_u["planos"]), str([p["usuarios"] for p in info_u["planos"]]))
+checar("e a conta do Plano 6 tem limite 3",
+       api("GET", "/api/assinatura/minha", None, p6)["usuarios"]["limite"] == 3)
+db = SessionLocal()
+try:
+    linha_u = db.query(Configuracao).filter(
+        Configuracao.chave == catalogo.chave_dos_usuarios(6)).first()
+    linha_u.valor = "8"
+    db.commit()
+finally:
+    db.close()
+info_u = api("GET", "/api/publico/info")
+por_nome_u = {p["nome"]: p["usuarios"] for p in info_u["planos"]}
+checar("mudar o Plano 6 para 8 usuários aparece no cartão dele", por_nome_u["Plano 6"] == 8, str(por_nome_u))
+checar("e só nele", por_nome_u["Plano 1"] == 3 and por_nome_u["Plano 4"] == 3)
+checar("o site diz o menor número (a partir de)", info_u["usuarios_incluidos"] == 3)
+resumo6 = api("GET", "/api/assinatura/minha", None, p6)["usuarios"]
+checar("a conta do Plano 6 passa a ter 8 inclusos", resumo6["incluidos"] == 8 and resumo6["limite"] == 8,
+       str(resumo6.get("limite")))
+checar("a do Plano 1 continua com 3",
+       api("GET", "/api/assinatura/minha", None, p1)["usuarios"]["limite"] == 3)
+db = SessionLocal()
+try:
+    linha_u = db.query(Configuracao).filter(
+        Configuracao.chave == catalogo.chave_dos_usuarios(6)).first()
+    linha_u.valor = "3"
+    db.commit()
+finally:
+    db.close()
+
 # =========================================================================== #
 print("\n=== 7. O administrador edita quais menus cada plano libera ===")
 tm = api("POST", "/api/auth/login",
@@ -416,6 +449,24 @@ checar("e o assinante nem lê o catálogo de menus",
        api("GET", "/api/admin/modulos", None, pb, esperar_erro=True).get("_status") == 403)
 
 # =========================================================================== #
+# quem atualiza: o limite de cada plano nasce com o número que valia para todos
+from sqlalchemy import create_engine as _motor_  # noqa: E402
+from sqlalchemy.orm import sessionmaker as _sessao_  # noqa: E402
+from backend.database import Base  # noqa: E402
+motor = _motor_("sqlite://")
+Base.metadata.create_all(motor)
+db = _sessao_(bind=motor)()
+db.add(Configuracao(chave="usuarios_incluidos", valor="4", publica=True))
+db.add(Configuracao(chave="_limite_usuarios_3", valor="1", publica=False))
+db.commit()
+regras.garantir_configuracoes(db)
+db.commit()
+valores = {c.chave: c.valor for c in db.query(Configuracao).all()}
+checar("na atualização cada plano herda o número geral (4)",
+       all(valores.get(catalogo.chave_dos_usuarios(n)) == "4" for n in range(1, 7)),
+       str([valores.get(catalogo.chave_dos_usuarios(n)) for n in range(1, 7)]))
+db.close()
+
 print("\n" + "=" * 60)
 if erros:
     print(f"{len(erros)} FALHA(S):")

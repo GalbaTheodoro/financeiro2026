@@ -299,6 +299,30 @@ def configuracoes_de_preco() -> dict[str, tuple[str, str, bool]]:
     return saida
 
 
+def chave_dos_usuarios(nivel: int) -> str:
+    """A chave com quantos usuários vêm inclusos naquele plano."""
+    return f"plano{nivel}_usuarios"
+
+
+USUARIOS_DE_FABRICA = 3
+
+
+def configuracoes_de_usuarios() -> dict[str, tuple[str, str, bool]]:
+    """Usuários inclusos em cada plano (por empresa), no formato do CONFIGURACOES_PADRAO."""
+    return {
+        chave_dos_usuarios(p["nivel"]): (
+            str(USUARIOS_DE_FABRICA),
+            f"Usuários inclusos no {p['nome']} (por empresa)",
+            True,
+        )
+        for p in NIVEIS
+    }
+
+
+def chaves_de_usuarios() -> list[str]:
+    return [chave_dos_usuarios(p["nivel"]) for p in NIVEIS]
+
+
 def chaves_de_preco() -> list[str]:
     return [chave_do_valor(p["nivel"], periodo)
             for p in NIVEIS for periodo in ("semestral", "anual")]

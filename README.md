@@ -163,6 +163,13 @@ relatórios) e **emissão de NF-e** estão em todos. O que separa os planos são
 | Plano 5 | — (vaga para variação) | R$ 579,90 | R$ 1.069,90 |
 | Plano 6 | — (vaga para variação) | R$ 579,90 | R$ 1.069,90 |
 
+**Usuários por plano.** Cada plano tem o seu número de usuários inclusos (por empresa), em
+*Config. do site → Usuários de cada plano* (`plano1_usuarios` … `plano6_usuarios`). Vale para
+o limite de quem cria usuário, para o cartão do plano na página inicial e para a tela Minha
+Assinatura; os pacotes extras somam em cima. Na atualização cada plano nasce com o número que
+valia para todos (3). Quando os planos têm números diferentes, o site diz "a partir de" o
+menor. O limite que você fixa para uma empresa em *Empresas* continua mandando sobre tudo.
+
 Os **Planos 5 e 6** existem para você montar variações: nascem só com o miolo e com o preço
 do Plano 4, e você escolhe os menus de cada um em *Menus de cada plano* e o preço em *Preço de
 cada plano*. Eles aparecem na página inicial e no cadastro como os outros (os cartões ficam em

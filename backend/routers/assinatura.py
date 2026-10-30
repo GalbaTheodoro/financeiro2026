@@ -409,7 +409,7 @@ def _linha_empresa(db: Session, a: Assinatura) -> dict:
         cnpj=empresas[0].cnpj if empresas and empresas[0].cnpj else "",
         usuarios_em_uso=em_uso,
         limite_personalizado=bool(a.limite_usuarios),
-        limite_padrao=regras.usuarios_incluidos(db)
+        limite_padrao=regras.usuarios_do_plano(db, a)
         + (a.pacotes_usuarios or 0) * regras.usuarios_por_pacote(db),
         usuarios=[{
             "id": u.id, "nome": u.nome, "email": u.email, "perfil": u.perfil,
@@ -441,6 +441,7 @@ def listar_empresas(db: Session = Depends(get_db), _: Usuario = Depends(somente_
             "usuarios": sum(l["usuarios_em_uso"] for l in linhas),
         },
         "usuarios_incluidos": regras.usuarios_incluidos(db),
+        "usuarios_por_plano": {p["nome"]: p["usuarios"] for p in regras.planos(db)},
     }
 
 

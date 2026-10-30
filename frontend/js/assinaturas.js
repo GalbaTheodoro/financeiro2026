@@ -714,7 +714,8 @@ const Assinaturas = {
         <div class="cartao-cabecalho">
           <div><h3>Empresas</h3><div class="mini">Libere o acesso até uma data (depois dela a empresa bloqueia sozinha),
             bloqueie na hora e ajuste quantos usuários cada empresa pode ter
-            (padrão: ${dados.usuarios_incluidos}).</div></div>
+            (padrão do plano: ${Object.entries(dados.usuarios_por_plano || {})
+              .map(([nome, n]) => `${nome.replace('Plano ', 'P')} ${n}`).join(' · ') || dados.usuarios_incluidos}).</div></div>
           <input id="busca-empresa" placeholder="Buscar empresa, CNPJ ou e-mail" style="max-width:260px">
         </div>
         <div class="cartao-corpo sem-padding" id="lista-empresas"></div>
@@ -1186,6 +1187,8 @@ const Assinaturas = {
         'plano4_semestral_valor', 'plano4_anual_valor',
         'plano5_semestral_valor', 'plano5_anual_valor',
         'plano6_semestral_valor', 'plano6_anual_valor'],
+      'Usuários de cada plano': ['plano1_usuarios', 'plano2_usuarios', 'plano3_usuarios',
+        'plano4_usuarios', 'plano5_usuarios', 'plano6_usuarios'],
       'Prazos e teste': ['plano_semestral_meses', 'plano_anual_meses', 'horas_teste'],
       'Consulta de CNPJ (API do governo)': ['cnpj_provedor', 'cnpj_tipo_consulta', 'cnpj_endpoint',
         'cnpj_consumer_key', 'cnpj_consumer_secret', 'cnpj_cpf_usuario', 'cnpj_incluir_socios'],
@@ -1206,6 +1209,8 @@ const Assinaturas = {
     const rotuloDaChave = (c) => {
       const preco = c.match(/^plano(\d)_(semestral|anual)_valor$/);
       if (preco) return `Plano ${preco[1]} — ${preco[2]}`;
+      const usuarios = c.match(/^plano(\d)_usuarios$/);
+      if (usuarios) return `Plano ${usuarios[1]} — usuários inclusos`;
       return c.replace(/^(cnpj|cep)_/, '').replaceAll('_', ' ').replace(/^\w/, (l) => l.toUpperCase());
     };
 
@@ -1263,9 +1268,10 @@ const Assinaturas = {
           <button type="button" class="btn btn-primario direita" id="btn-salvar-config">Salvar configurações</button>
         </div></div>
         ${bloco('Preço de cada plano', grupos['Preço de cada plano'])}
+        ${bloco('Usuários de cada plano', grupos['Usuários de cada plano'])}
         ${quadroDeMenus()}
         ${Object.entries(grupos)
-          .filter(([titulo]) => titulo !== 'Preço de cada plano')
+          .filter(([titulo]) => !['Preço de cada plano', 'Usuários de cada plano'].includes(titulo))
           .map(([titulo, chaves]) => bloco(titulo, chaves)).join('')}
       </form>`;
 

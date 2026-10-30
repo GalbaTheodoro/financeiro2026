@@ -127,16 +127,23 @@ const Site = {
         </div>`)
       .join('');
 
+    /* cada plano tem o seu número de usuários: se todos forem iguais o site diz
+       "3"; se mudarem de um plano para outro, diz "a partir de 3" */
+    const numeros = (Site.info.planos || []).map((p) => Number(p.usuarios)).filter(Boolean);
+    const menor = numeros.length ? Math.min(...numeros) : (Site.info.usuarios_incluidos || 3);
+    const textoUsuarios = numeros.some((n) => n !== menor) ? `a partir de ${menor}` : String(menor);
+
     document.getElementById('lista-faq').innerHTML = Site.FAQ
       .map((f) => `
         <details class="faq-item">
           <summary>${UI.escapar(f.p)}</summary>
-          <p>${UI.escapar(f.r.replace('{U}', Site.info.usuarios_incluidos || 3))}</p>
+          <p>${UI.escapar(f.r.replace('{U}', textoUsuarios))}</p>
         </details>`)
       .join('');
 
     document.querySelectorAll('.js-usuarios-incluidos').forEach((el) => {
-      el.textContent = Site.info.usuarios_incluidos || 3;
+      // no número grande do topo "a partir de 3" vira "3+"
+      el.textContent = el.tagName === 'B' && textoUsuarios !== String(menor) ? `${menor}+` : textoUsuarios;
     });
     Site.desenharPlanos();
   },
@@ -155,7 +162,7 @@ const Site = {
           <div class="plano-para">${UI.escapar(p.para)}</div>
           <ul class="plano-itens">
             ${p.modulos.map((m) => `<li><b>${UI.escapar(m.nome)}</b><span>${UI.escapar(m.texto)}</span></li>`).join('')}
-            <li><b>${usuarios} usuários inclusos</b><span>por empresa, com pacotes extras quando precisar.</span></li>
+            <li><b>${p.usuarios || usuarios} usuários inclusos</b><span>por empresa, com pacotes extras quando precisar.</span></li>
           </ul>
           <div class="plano-prazos">
             ${p.prazos.map((z) => `

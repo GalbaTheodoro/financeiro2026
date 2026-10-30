@@ -87,6 +87,8 @@ CONFIGURACOES_PADRAO: dict[str, tuple[str, str, bool]] = {
 # entram aqui vindos de planos.py, para o catálogo ficar num lugar só.
 CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_preco())
 CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_modulos())
+# usuários inclusos: um número por plano (out/2026)
+CONFIGURACOES_PADRAO.update(catalogo.configuracoes_de_usuarios())
 
 
 # --------------------------------------------------------------------------- #
@@ -107,12 +109,19 @@ TEXTOS_ANTIGOS: dict[str, tuple[str, ...]] = {
 }
 
 
+USUARIOS_POR_PLANO = set(catalogo.chaves_de_usuarios())
+
+
 def garantir_configuracoes(db: Session) -> int:
     registros = {c.chave: c for c in db.query(Configuracao).all()}
     criadas = 0
     for chave, (valor, descricao, publica) in CONFIGURACOES_PADRAO.items():
         atual = registros.get(chave)
         if atual is None:
+            if chave in USUARIOS_POR_PLANO and registros.get("usuarios_incluidos") is not None:
+                # o limite por plano nasce com o número que valia para todos até
+                # agora — ninguém ganha nem perde usuário na atualização
+                valor = (registros["usuarios_incluidos"].valor or "").strip() or valor
             db.add(Configuracao(chave=chave, valor=valor, descricao=descricao, publica=publica))
             criadas += 1
             continue
@@ -333,6 +342,7 @@ def planos(db: Session) -> list[dict]:
             "modulos": [{"codigo": m, "nome": catalogo.MODULOS[m][0],
                          "texto": catalogo.MODULOS[m][1]} for m in modulos],
             "extras": [m for m in modulos if m not in catalogo.BASE],
+            "usuarios": usuarios_incluidos(db, nivel),
             "prazos": [semestral, anual],
             "semestral": semestral,
             "anual": anual,
@@ -372,8 +382,30 @@ def horas_teste(db: Session) -> int:
 # --------------------------------------------------------------------------- #
 # Usuários inclusos e pacotes extras
 # --------------------------------------------------------------------------- #
-def usuarios_incluidos(db: Session) -> int:
-    return int(_numero(config(db, "usuarios_incluidos"), 5))
+def usuarios_incluidos(db: Session, nivel: int | None = None) -> int:
+    """Usuários que vêm no valor da assinatura, por empresa.
+
+    Cada plano tem o seu número (``plano3_usuarios``…, em *Configurações do site
+    → Usuários de cada plano*). Sem plano, ou com o campo vazio, vale o número
+    geral (``usuarios_incluidos``).
+    """
+    geral = int(_numero(config(db, "usuarios_incluidos"), 3))
+    if nivel is None:
+        return geral
+    return max(1, int(_numero(config(db, catalogo.chave_dos_usuarios(nivel)), geral)))
+
+
+def usuarios_do_plano(db: Session, assinatura: Assinatura | None) -> int:
+    """Os usuários inclusos no plano dessa assinatura."""
+    if assinatura is None:
+        return usuarios_incluidos(db)
+    nivel, _ = catalogo.separar(assinatura.plano)
+    return usuarios_incluidos(db, nivel)
+
+
+def menor_usuarios_incluidos(db: Session) -> int:
+    """O menor número entre os planos — o "a partir de" da página inicial."""
+    return min(usuarios_incluidos(db, p["nivel"]) for p in catalogo.NIVEIS)
 
 
 def usuarios_por_pacote(db: Session) -> int:
@@ -400,14 +432,14 @@ def limite_usuarios(db: Session, assinatura: Assinatura | None) -> int:
         return 0  # conta interna: sem limite (tratado por quem chama)
     if assinatura.limite_usuarios:
         return int(assinatura.limite_usuarios)
-    return usuarios_incluidos(db) + (assinatura.pacotes_usuarios or 0) * usuarios_por_pacote(db)
+    return usuarios_do_plano(db, assinatura) + (assinatura.pacotes_usuarios or 0) * usuarios_por_pacote(db)
 
 
 def resumo_usuarios(db: Session, assinatura: Assinatura | None, usados: int) -> dict:
     """Bloco mostrado na tela da assinatura."""
     if assinatura is None:
         return {"ilimitado": True, "usados": usados}
-    incluidos = usuarios_incluidos(db)
+    incluidos = usuarios_do_plano(db, assinatura)
     por_pacote = usuarios_por_pacote(db)
     limite = limite_usuarios(db, assinatura)
     unitario = valor_pacote(db, assinatura)

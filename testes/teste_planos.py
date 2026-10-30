@@ -127,7 +127,7 @@ p3, e3 = conta("P3_ANUAL")
 p4, e4 = conta("P4_ANUAL")
 
 checar("Plano 1: contrato, financeiro e NF-e",
-       sorted(modulos(p1)) == ["CONTRATOS", "FINANCEIRO", "NFE"], str(modulos(p1)))
+       sorted(modulos(p1)) == ["AMOSTRAS", "CONTRATOS", "FINANCEIRO", "NFE"], str(modulos(p1)))
 checar("Plano 2: mais o cupom", "CUPOM" in modulos(p2) and "GTA" not in modulos(p2))
 checar("Plano 3: mais a GTA", "GTA" in modulos(p3) and "CUPOM" not in modulos(p3))
 checar("Plano 4: os dois", {"CUPOM", "GTA"} <= set(modulos(p4)))
@@ -283,16 +283,16 @@ tm = api("POST", "/api/auth/login",
          {"email": "admin@financeiro.local", "senha": "admin123"})["token"]
 
 grade = api("GET", "/api/admin/modulos", None, tm)
-checar("o catálogo de menus tem os seis módulos",
+checar("o catálogo de menus tem os sete módulos",
        {m["codigo"] for m in grade["modulos"]}
-       == {"CONTRATOS", "FINANCEIRO", "NFE", "CUPOM", "GTA", "WMS"},
+       == {"CONTRATOS", "AMOSTRAS", "FINANCEIRO", "NFE", "CUPOM", "GTA", "WMS"},
        str([m["codigo"] for m in grade["modulos"]]))
 checar("e cada módulo diz quais telas ele abre",
        "/notas" in next(m for m in grade["modulos"] if m["codigo"] == "NFE")["rotas"])
 checar("a grade vem com os quatro planos", len(grade["planos"]) == 4)
 p1_grade = next(p for p in grade["planos"] if p["nivel"] == 1)
 checar("a grade do Plano 1 é a de fábrica enquanto ninguém mexeu",
-       p1_grade["modulos"] == p1_grade["padrao"] == ["CONTRATOS", "FINANCEIRO", "NFE"],
+       p1_grade["modulos"] == p1_grade["padrao"] == ["CONTRATOS", "AMOSTRAS", "FINANCEIRO", "NFE"],
        str(p1_grade["modulos"]))
 
 pa, ea = conta("P1_ANUAL", "grade")

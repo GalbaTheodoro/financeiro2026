@@ -186,6 +186,15 @@ duas pontas é `assinaturas.modulos_da_assinatura`. Trocar o cliente de plano re
 exceções contra o plano novo, então quem sobe de plano não fica com "extra" do que o plano
 novo já dá.
 
+**Amostras é um acesso à parte.** *Amostras e classificação* (cadastro da amostra, laudo,
+envio aos compradores, etiquetas) tem linha própria nos dois quadros acima. De fábrica está em
+todos os planos; desmarcar tira o menu Amostras, o botão *Classificar* da tela de Lotes do
+armazém e o bloco de amostras dentro do contrato — e o servidor recusa as rotas
+`/api/amostras` e a criação da amostra pelo lote. Na atualização ninguém perde nada: uma vez
+só (marca `_modulo_amostras`), toda grade de plano e toda combinação de cliente que tinha
+*Contratos* ganha *Amostras* junto — inclusive o bloqueio (quem estava com contratos
+bloqueado fica com as amostras bloqueadas também). Depois disso o que você marcar fica.
+
 #### Cupons de desconto
 
 Não confundir com o **cupom fiscal** (NFC-e): aqui é o desconto de venda. Em **Administração
@@ -227,7 +236,7 @@ duas barreiras, e as duas são necessárias:
 - no **servidor**, a dependência `exigir_modulo` recusa a chamada com a frase dizendo em que
   planos aquilo está (`Cupom fiscal eletrônico não faz parte do seu plano. Está no Plano 2 e
   Plano 4.`) — esconder botão não é segurança, quem souber o endereço chama a rota do mesmo
-  jeito. Todos os cinco módulos têm essa porta, inclusive contrato, financeiro e NF-e: agora
+  jeito. Todos os módulos têm essa porta, inclusive contrato, amostras, financeiro e NF-e: agora
   que a grade é editável, qualquer um deles pode ser tirado de um plano ou de um cliente;
 - na **tela**, o menu não mostra o que a conta não tem, e endereço digitado à mão cai no
   painel com o aviso. A lista de rotas liberadas vem do servidor junto com a situação da

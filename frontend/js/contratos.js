@@ -235,7 +235,7 @@ const Contratos = {
           ${UI.campo('Valor do ICMS', '<input type="text" name="icms_valor_tela" readonly tabindex="-1">', 'valor negociado × alíquota')}
         </div>
         <div class="mini" id="icms-info" style="margin-top:8px"></div>
-        ${Contratos.blocoAmostras(amostras, ligadas)}`,
+        ${App.noPlano('/amostras') ? Contratos.blocoAmostras(amostras, ligadas) : ''}`,
 
       corretagem: `
         <div class="linha-campos" id="bloco-corretagem">
@@ -687,7 +687,7 @@ const Contratos = {
       </div>`}
 
       <h4 class="titulo-bloco">Amostras negociadas
-        <button type="button" class="btn btn-mini" id="btn-amostras-contrato" style="margin-left:8px">Escolher amostras</button></h4>
+        ${App.noPlano('/amostras') ? '<button type="button" class="btn btn-mini" id="btn-amostras-contrato" style="margin-left:8px">Escolher amostras</button>' : ''}</h4>
       <div style="margin-bottom:14px">${(c.amostras || []).length ? c.amostras.map((a) => `
         <div class="forma-cartao"><div class="forma-topo">
           <div><span class="forte">Amostra ${String(a.numero).padStart(5, '0')}</span>
@@ -843,6 +843,7 @@ const Contratos = {
 
   /* ------------------------------------------------ amostras negociadas (opcional) */
   async amostrasDisponiveis() {
+    if (!App.noPlano('/amostras')) return [];
     try {
       return (await Api.get('/api/amostras', { empresa_id: Estado.empresaId })).amostras || [];
     } catch (e) {

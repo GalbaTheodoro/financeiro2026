@@ -3,6 +3,7 @@ import re
 import unicodedata
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from . import descontos
@@ -103,9 +104,6 @@ TEXTOS_ANTIGOS: dict[str, tuple[str, ...]] = {
         "até o dinheiro entrar — com contas a pagar e a receber, caixa, DRE e "
         "balancete por trás.",
     ),
-    # a grade de fábrica do Plano 4 antes do WMS/Armazém (out/2026): quem não
-    # mexeu nela ganha o módulo novo; quem montou a grade à mão fica como está
-    "plano4_modulos": ("CONTRATOS,FINANCEIRO,NFE,CUPOM,GTA",),
 }
 
 
@@ -141,9 +139,51 @@ def garantir_configuracoes(db: Session) -> int:
         db.add(Configuracao(chave=marca_planos, valor="1", descricao="marca interna",
                             publica=False))
         criadas += 1
+    # Uma vez só: as amostras saíram de dentro do módulo de contratos e viraram um
+    # acesso próprio (out/2026). Quem tinha contratos — na grade de um plano, nos
+    # extras ou nos bloqueios de um cliente — continua exatamente como estava.
+    # Uma vez só: a grade de fábrica do Plano 4 de antes do WMS/Armazém ganha o
+    # módulo novo (out/2026). Grade montada à mão fica como está — e, por ser uma
+    # vez só, quem tirar o WMS do Plano 4 depois não tem a escolha desfeita.
+    marca_wms = "_modulo_wms"
+    if marca_wms not in registros:
+        grade4 = registros.get(catalogo.chave_dos_modulos(4))
+        if grade4 is not None and (grade4.valor or "").strip() == "CONTRATOS,FINANCEIRO,NFE,CUPOM,GTA":
+            grade4.valor = "CONTRATOS,FINANCEIRO,NFE,CUPOM,GTA,WMS"
+        db.add(Configuracao(chave=marca_wms, valor="1", descricao="marca interna", publica=False))
+        criadas += 1
+    marca_amostras = "_modulo_amostras"
+    if marca_amostras not in registros:
+        _separar_amostras(db, registros)
+        db.add(Configuracao(chave=marca_amostras, valor="1", descricao="marca interna",
+                            publica=False))
+        criadas += 1
     if criadas:
         db.flush()
     return criadas
+
+
+def _com_amostras(texto: str | None) -> str | None:
+    modulos = list(catalogo.separar_modulos(texto))
+    if "CONTRATOS" in modulos and "AMOSTRAS" not in modulos:
+        return catalogo.juntar_modulos(modulos + ["AMOSTRAS"])
+    return None
+
+
+def _separar_amostras(db: Session, registros: dict) -> None:
+    for plano in catalogo.NIVEIS:
+        registro = registros.get(catalogo.chave_dos_modulos(plano["nivel"]))
+        if registro is not None and registro.valor:
+            novo = _com_amostras(registro.valor)
+            if novo:
+                registro.valor = novo
+    for assinatura in db.query(Assinatura).filter(or_(
+            Assinatura.modulos_extras.ilike("%CONTRATOS%"),
+            Assinatura.modulos_bloqueados.ilike("%CONTRATOS%"))):
+        for campo in ("modulos_extras", "modulos_bloqueados"):
+            novo = _com_amostras(getattr(assinatura, campo))
+            if novo:
+                setattr(assinatura, campo, novo)
 
 
 def configuracoes(db: Session, apenas_publicas: bool = False) -> dict:

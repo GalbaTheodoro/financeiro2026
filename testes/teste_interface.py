@@ -839,7 +839,7 @@ with sync_playwright() as p:
             gta_no_4: marcada('mod_4_GTA'),
         };
     }""")
-    ok_quadro = (quadro["titulo"] and quadro["caixas"] == 24 and quadro["nfe_no_1"]
+    ok_quadro = (quadro["titulo"] and quadro["caixas"] == 28 and quadro["nfe_no_1"]
                  and quadro["gta_no_1"] is False and quadro["gta_no_4"] is True)
     print(f"  [{'OK  ' if ok_quadro else 'FALHA'}] quadro de menus por plano {quadro}")
     if not ok_quadro:
@@ -865,7 +865,7 @@ with sync_playwright() as p:
                          or "liberado só para esta conta" in c["origem"])
         for c in acessos["caixas"])
     nfe = next((c for c in acessos["caixas"] if c["codigo"] == "NFE"), None)
-    ok_acessos = (acessos["titulo"] and len(acessos["caixas"]) == 6 and coerente
+    ok_acessos = (acessos["titulo"] and len(acessos["caixas"]) == 7 and coerente
                   and nfe and nfe["marcada"] and nfe["origem"] == "vem do plano")
     print(f"  [{'OK  ' if ok_acessos else 'FALHA'}] acessos combinados por cliente {acessos}")
     if not ok_acessos:

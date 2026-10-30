@@ -36,6 +36,8 @@ const WMSLotes = {
 
   desenhar() {
     const lotes = WMSLotes._lotes;
+    // amostras é um acesso à parte: sem ele, não aparece o botão Classificar
+    const podeAmostra = App.noPlano('/amostras');
     const f = WMSLotes._filtros;
     const sacas = lotes.reduce((s, l) => s + Number(l.saldo_sacas || 0), 0);
     const peso = lotes.reduce((s, l) => s + Number(l.saldo_peso || 0), 0);
@@ -92,8 +94,8 @@ const WMSLotes = {
               { titulo: '', classe: 'direita', valor: (l, i) => `
                 <button class="btn btn-mini" data-historico="${i}">Histórico</button>
                 ${Number(l.saldo_sacas) > 0.004 ? `<button class="btn btn-mini" data-mudar="${i}">Mudar local</button>` : ''}
-                <button class="btn btn-mini ${l.amostra ? '' : 'btn-primario'}" data-classificar="${i}">${
-                  l.amostra ? `Amostra nº ${String(l.amostra.numero).padStart(5, '0')}` : 'Classificar'}</button>` },
+${podeAmostra ? `<button class="btn btn-mini ${l.amostra ? '' : 'btn-primario'}" data-classificar="${i}">${
+                  l.amostra ? `Amostra nº ${String(l.amostra.numero).padStart(5, '0')}` : 'Classificar'}</button>` : ''}` },
             ],
             linhas: lotes,
             rodape: lotes.length ? {

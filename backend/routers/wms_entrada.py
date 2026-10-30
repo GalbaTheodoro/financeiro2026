@@ -732,10 +732,15 @@ def amostra_do_lote(lote_id: int, db: Session = Depends(get_db),
     """
     from ..models import AmostraCafe
 
+    from .. import assinaturas as regras
+    from ..deps import modulos_da_conta
+
     lote = db.get(LoteArmazem, lote_id)
     if not lote:
         raise HTTPException(404, "Lote não encontrado.")
     validar_empresa(db, lote.empresa_id, usuario)
+    if "AMOSTRAS" not in modulos_da_conta(db, usuario):
+        raise HTTPException(403, regras.frase_de_bloqueio(db, "AMOSTRAS"))
     existente = db.query(AmostraCafe).filter(AmostraCafe.lote_armazem_id == lote.id).first()
     if existente:
         return {"amostra_id": existente.id, "numero": existente.numero, "nova": False}

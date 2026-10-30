@@ -49,7 +49,8 @@ from ..models import (
 from ..utils import parse_data, serializar
 
 router = APIRouter(prefix="/api/amostras", tags=["amostras de café"])
-_do_plano = exigir_modulo("CONTRATOS")
+# acesso próprio desde out/2026 (antes vinha junto com o módulo de contratos)
+_do_plano = exigir_modulo("AMOSTRAS")
 
 SITUACOES = ("RECEBIDA", "CLASSIFICADA")
 SITUACOES_ENVIO = {

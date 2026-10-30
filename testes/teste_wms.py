@@ -652,7 +652,7 @@ alheio3 = api("POST", f"/api/wms/lotes/{l11['id']}/amostra", None, tk2, esperar_
 checar("nem cria amostra de lote dela", alheio3.get("_status") == 403)
 
 # =========================================================================== #
-print("\n=== 9. Quem já tinha o sistema ganha o WMS no Plano 4 ===")
+print("\n=== 9. Quem já tinha o sistema ganha o WMS no Plano 4 (e as amostras) ===")
 # roda direto no motor, num banco de memória: a grade de fábrica antiga do
 # Plano 4 vira a nova; a grade montada à mão pelo administrador fica como está
 from sqlalchemy import create_engine  # noqa: E402
@@ -662,11 +662,17 @@ from backend import assinaturas  # noqa: E402
 from backend.database import Base  # noqa: E402
 from backend.models import Configuracao  # noqa: E402
 
+from backend.models import Assinatura  # noqa: E402
+
+# as amostras viraram um acesso à parte: quem tinha contratos ganha as amostras
+# uma vez só (na grade, nos acessos extras e nos bloqueios da assinatura)
 for antes, esperado, rotulo in (
-    ("CONTRATOS,FINANCEIRO,NFE,CUPOM,GTA", "CONTRATOS,FINANCEIRO,NFE,CUPOM,GTA,WMS",
-     "grade de fábrica antiga recebe o WMS"),
-    ("CONTRATOS,FINANCEIRO,NFE,GTA", "CONTRATOS,FINANCEIRO,NFE,GTA",
-     "grade montada à mão não é mexida"),
+    ("CONTRATOS,FINANCEIRO,NFE,CUPOM,GTA", "CONTRATOS,AMOSTRAS,FINANCEIRO,NFE,CUPOM,GTA,WMS",
+     "grade de fábrica antiga recebe o WMS (e as amostras)"),
+    ("CONTRATOS,FINANCEIRO,NFE,GTA", "CONTRATOS,AMOSTRAS,FINANCEIRO,NFE,GTA",
+     "grade montada à mão só ganha as amostras (eram parte de contratos)"),
+    ("FINANCEIRO,NFE,GTA", "FINANCEIRO,NFE,GTA",
+     "grade sem contratos não ganha amostras"),
 ):
     motor = create_engine("sqlite://")
     Base.metadata.create_all(motor)
@@ -678,6 +684,27 @@ for antes, esperado, rotulo in (
     depois = db.query(Configuracao).filter_by(chave="plano4_modulos").one().valor
     checar(rotulo, depois == esperado, depois)
     db.close()
+
+motor = create_engine("sqlite://")
+Base.metadata.create_all(motor)
+db = sessionmaker(bind=motor)()
+db.add(Assinatura(usuario_id=1, modulos_extras="CONTRATOS,WMS", modulos_bloqueados="NFE"))
+db.add(Assinatura(usuario_id=2, modulos_extras="", modulos_bloqueados="CONTRATOS"))
+db.commit()
+assinaturas.garantir_configuracoes(db)
+db.commit()
+a1, a2 = db.query(Assinatura).order_by(Assinatura.usuario_id).all()
+checar("extra de contratos ganha as amostras", a1.modulos_extras == "CONTRATOS,AMOSTRAS,WMS", a1.modulos_extras)
+checar("bloqueio sem contratos fica igual", a1.modulos_bloqueados == "NFE", a1.modulos_bloqueados)
+checar("contratos bloqueado bloqueia as amostras também",
+       a2.modulos_bloqueados == "CONTRATOS,AMOSTRAS", a2.modulos_bloqueados)
+# rodar de novo não mexe (a marca já está gravada)
+a2.modulos_bloqueados = "CONTRATOS"
+db.commit()
+assinaturas.garantir_configuracoes(db)
+db.commit()
+checar("roda uma vez só", db.get(Assinatura, a2.id).modulos_bloqueados == "CONTRATOS")
+db.close()
 
 print("\n" + "=" * 60)
 if erros:

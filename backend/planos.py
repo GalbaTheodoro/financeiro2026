@@ -71,6 +71,11 @@ MODULOS: dict[str, tuple[str, str]] = {
         "Contratos de corretagem, compra e venda, com comissão dos dois lados e "
         "impressão em PDF.",
     ),
+    "AMOSTRAS": (
+        "Amostras e classificação",
+        "Cadastro da amostra de café, classificação física e sensorial, laudo com "
+        "gráfico de aranha, envio aos compradores e etiquetas.",
+    ),
     "FINANCEIRO": (
         "Financeiro",
         "Contas a receber e a pagar, caixa e bancos, DRE, balancete e relatórios.",
@@ -99,12 +104,15 @@ MODULOS: dict[str, tuple[str, str]] = {
 }
 
 # O que todo plano tem.
-BASE: tuple[str, ...] = ("CONTRATOS", "FINANCEIRO", "NFE")
+BASE: tuple[str, ...] = ("CONTRATOS", "AMOSTRAS", "FINANCEIRO", "NFE")
 
 # Rotas do menu que cada módulo libera. O que não está aqui é de todo mundo
 # (cadastros, minha assinatura e a área do administrador).
 ROTAS: dict[str, tuple[str, ...]] = {
-    "CONTRATOS": ("/contratos", "/amostras"),
+    "CONTRATOS": ("/contratos",),
+    # amostras eram parte do contrato; desde out/2026 são um acesso à parte, que
+    # o administrador do site tira ou dá por plano e por cliente
+    "AMOSTRAS": ("/amostras",),
     "FINANCEIRO": ("/painel", "/receber", "/pagar", "/caixa", "/relatorios"),
     "NFE": ("/notas", "/pedidos", "/dfe", "/estoque", "/sped", "/livros", "/vendas"),
     "CUPOM": ("/cupom",),

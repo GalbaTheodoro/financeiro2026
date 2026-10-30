@@ -1901,6 +1901,8 @@ class MovimentoArmazem(Base):
     lote_destino = Column(String(40))      # código do lote no novo dono (vazio = o mesmo)
     # remoção de armazém feita pela tela de Remoção (lote inteiro para outro armazém)
     guia_remocao_id = Column(Integer, ForeignKey("guias_remocao.id"), index=True)
+    # despejo (−) e resultado (+) de uma guia de serviço
+    guia_servico_id = Column(Integer, ForeignKey("guias_servico.id"), index=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     criado_em = Column(DateTime, default=datetime.utcnow)
 
@@ -2019,7 +2021,9 @@ class LoteArmazem(Base):
 
     id = Column(Integer, primary_key=True)
     empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
-    guia_id = Column(Integer, ForeignKey("guias_entrada.id"), nullable=False, index=True)
+    # guia de entrada de onde o café veio; vazio no lote que nasce de uma guia
+    # de serviço (liga, rebenefício...), que pode juntar café de várias entradas
+    guia_id = Column(Integer, ForeignKey("guias_entrada.id"), index=True)
     guia_lote_id = Column(Integer, ForeignKey("guia_entrada_lotes.id"))
     codigo = Column(String(40), nullable=False, index=True)
     data_entrada = Column(Date, nullable=False, default=date.today)
@@ -2037,6 +2041,8 @@ class LoteArmazem(Base):
     # (guia_id continua apontando a guia de entrada de onde o café veio)
     lote_origem_id = Column(Integer, ForeignKey("lotes_armazem.id"), index=True)
     guia_transferencia_id = Column(Integer, ForeignKey("guias_transferencia.id"), index=True)
+    # lote resultado de uma guia de serviço
+    guia_servico_id = Column(Integer, ForeignKey("guias_servico.id"), index=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     armazem = relationship("Armazem")
@@ -2223,3 +2229,99 @@ class GuiaRemocaoItem(Base):
     guia = relationship("GuiaRemocao", back_populates="itens")
     quadra_origem = relationship("QuadraArmazem", foreign_keys=[quadra_origem_id])
     quadra_destino = relationship("QuadraArmazem", foreign_keys=[quadra_destino_id])
+
+
+class GuiaServico(Base):
+    """Guia de serviço: liga, rebenefício, catação, padronização...
+
+    O café de um ou mais lotes é **despejado** (pode ser só uma parte de cada
+    pilha) e sai do serviço como um ou mais **lotes resultado**, cada um com
+    peneira, padrão e os locais onde ficou. A diferença entre o que entrou e
+    o que saiu é a quebra do serviço.
+
+    Enquanto ABERTA é rascunho. Ao FECHAR, o despejo sai das pilhas e do
+    saldo, e os lotes resultado nascem com código "S<nº da guia>/<seq>"
+    ("S7/1", "S7/2"), do mesmo cliente, no mesmo armazém.
+    """
+
+    __tablename__ = "guias_servico"
+
+    id = Column(Integer, primary_key=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    numero = Column(Integer, nullable=False, default=0)
+    data = Column(Date, nullable=False, default=date.today, index=True)
+    data_inicio = Column(Date)
+    data_fim = Column(Date)
+    armazem_id = Column(Integer, ForeignKey("armazens.id"), nullable=False, index=True)
+    cliente_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)
+    servico = Column(String(80))                # Liga, Rebenefício, Catação...
+    produto_id = Column(Integer, ForeignKey("produtos.id"))
+    valor = _dinheiro()                         # valor cobrado pelo serviço
+    observacao = Column(String(500))
+    status = Column(String(10), nullable=False, default="ABERTA")   # ABERTA | FECHADA | CANCELADA
+    fechada_em = Column(DateTime)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    armazem = relationship("Armazem")
+    cliente = relationship("Parceiro")
+    produto = relationship("Produto")
+    despejos = relationship("GuiaServicoDespejo", back_populates="guia",
+                            cascade="all, delete-orphan", order_by="GuiaServicoDespejo.id")
+    resultados = relationship("GuiaServicoResultado", back_populates="guia",
+                              cascade="all, delete-orphan", order_by="GuiaServicoResultado.sequencia")
+
+
+class GuiaServicoDespejo(Base):
+    """Quanto de uma posição (quadra + pilha) de um lote foi despejado no serviço."""
+
+    __tablename__ = "guia_servico_despejos"
+
+    id = Column(Integer, primary_key=True)
+    guia_id = Column(Integer, ForeignKey("guias_servico.id"), nullable=False, index=True)
+    lote_id = Column(Integer, ForeignKey("lotes_armazem.id"), nullable=False, index=True)
+    posicao_id = Column(Integer, ForeignKey("lote_posicoes.id"), nullable=False, index=True)
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    guia = relationship("GuiaServico", back_populates="despejos")
+    lote = relationship("LoteArmazem")
+    posicao = relationship("LotePosicao")
+
+
+class GuiaServicoResultado(Base):
+    """Um lote que sai do serviço: peneira, padrão, sacas, peso e onde ficou."""
+
+    __tablename__ = "guia_servico_resultados"
+
+    id = Column(Integer, primary_key=True)
+    guia_id = Column(Integer, ForeignKey("guias_servico.id"), nullable=False, index=True)
+    sequencia = Column(Integer, nullable=False, default=1)
+    peneira = Column(String(20))
+    padrao = Column(String(60))
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    unidade_id = Column(Integer, ForeignKey("unidades.id"))
+    lote_gerado_id = Column(Integer, ForeignKey("lotes_armazem.id"))       # ao fechar
+
+    guia = relationship("GuiaServico", back_populates="resultados")
+    unidade = relationship("Unidade")
+    lote_gerado = relationship("LoteArmazem")
+    locais = relationship("GuiaServicoResultadoLocal", back_populates="resultado",
+                          cascade="all, delete-orphan", order_by="GuiaServicoResultadoLocal.id")
+
+
+class GuiaServicoResultadoLocal(Base):
+    """Onde o lote resultado ficou guardado."""
+
+    __tablename__ = "guia_servico_resultado_locais"
+
+    id = Column(Integer, primary_key=True)
+    resultado_id = Column(Integer, ForeignKey("guia_servico_resultados.id"), nullable=False, index=True)
+    quadra_id = Column(Integer, ForeignKey("quadras_armazem.id"), nullable=False)
+    pilha = Column(String(20))
+    sacas = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+    peso = Column(Numeric(15, 2, asdecimal=False), nullable=False, default=0)
+
+    resultado = relationship("GuiaServicoResultado", back_populates="locais")
+    quadra = relationship("QuadraArmazem")

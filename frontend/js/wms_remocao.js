@@ -337,7 +337,8 @@ const WMSRemocao = {
   },
 
   /* ---------------------------------------------------- histórico do lote */
-  ICONES: { ENTRADA: '↘', TRANSFERENCIA_RECEBIDA: '⇄', TRANSFERENCIA_ENVIADA: '⇄', SAIDA: '↗', REMOCAO: '⇆' },
+  ICONES: { ENTRADA: '↘', TRANSFERENCIA_RECEBIDA: '⇄', TRANSFERENCIA_ENVIADA: '⇄', SAIDA: '↗', REMOCAO: '⇆',
+    DESPEJO: '⚙', RESULTADO: '⚙' },
 
   blocoHistorico(h) {
     if (!h) return '';

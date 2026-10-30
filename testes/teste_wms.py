@@ -25,6 +25,9 @@ O que se confere
   * cada tipo tem a sua numeração;
   * tela de lotes: saldo, posições, de onde veio; Classificar cria (uma vez
     só) a amostra do lote já preenchida, e reabrir/fechar a guia religa;
+  * guia de serviço: despejo de vários lotes (parcial) e resultado em vários
+    lotes "S<nº>/<seq>" com locais; quebra; peso do despejo vai para o
+    resultado; reabrir desfaz enquanto o resultado não foi usado;
   * cancelar volta o saldo — e é recusado quando o café da entrada já saiu.
 
 Uso:  python testes/teste_wms.py   (com o servidor no ar)
@@ -531,6 +534,110 @@ checar("cada lote tem uma amostra só (clicar de novo abre a mesma)",
        de_novo.get("nova") is False and de_novo.get("amostra_id") == am["amostra_id"])
 l11 = next(l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}", None, tk) if l["codigo"] == "1/1")
 checar("a lista de lotes mostra a amostra", (l11["amostra"] or {}).get("situacao") == "RECEBIDA")
+
+# =========================================================================== #
+print("\n=== 7c. Guia de serviço (liga, rebenefício...) ===")
+GS = "/api/wms/guias-servico"
+pedro = api("POST", "/api/parceiros", {"empresa_id": eid, "nome": "Pedro Cafeicultor",
+                                       "tipo": "FORNECEDOR", "pessoa": "F"}, tk)
+ge = api("POST", "/api/wms/guias-entrada", {
+    "empresa_id": eid, "armazem_id": a1["id"], "cliente_id": pedro["id"], "sacas": 160, "peso_total": 9600,
+    "lotes": [{"peneira": "16", "padrao": "Tipo 6", "sacas": 100, "peso": 6000,
+               "locais": [{"quadra_id": qa3["id"], "pilha": "P20", "sacas": 100}]},
+              {"peneira": "17/18", "padrao": "Tipo 5", "sacas": 60, "peso": 3600,
+               "locais": [{"quadra_id": qa3["id"], "pilha": "P21", "sacas": 60}]}]}, tk)
+ge = api("POST", f"/api/wms/guias-entrada/{ge['id']}/fechar", None, tk)
+cod1, cod2 = [l["codigo"] for l in ge["lotes"]]
+disp = {d["lote_codigo"]: d for d in api(
+    "GET", f"/api/wms/posicoes-disponiveis?empresa_id={eid}&armazem_id={a1['id']}&cliente_id={pedro['id']}", None, tk)}
+pd1, pd2 = disp[cod1]["posicao_id"], disp[cod2]["posicao_id"]
+base = {"empresa_id": eid, "armazem_id": a1["id"], "cliente_id": pedro["id"], "servico": "Liga / padronização",
+        "data_inicio": "2026-10-20", "data_fim": "2026-10-25", "valor": 700, "observacao": "liga para exportação"}
+datas_erradas = api("POST", GS, {**base, "data_inicio": "2026-10-25", "data_fim": "2026-10-20"}, tk, esperar_erro=True)
+checar("data de fim antes do início é recusada", datas_erradas.get("_status") == 400)
+gsv = api("POST", GS, {**base,
+    "despejos": [{"posicao_id": pd1, "sacas": 80}, {"posicao_id": pd2, "sacas": 60}],
+    "resultados": [{"peneira": "17", "padrao": "Liga fina", "sacas": 90,
+                    "locais": [{"quadra_id": qa3["id"], "pilha": "P30", "sacas": 90}]},
+                   {"peneira": "15", "padrao": "Liga comum", "sacas": 45,
+                    "locais": [{"quadra_id": qa3["id"], "pilha": "P31", "sacas": 40}]}]}, tk)
+checar("guia de serviço criada aberta, nº 1, com 2 lotes no despejo e 2 no resultado",
+       gsv.get("numero") == 1 and gsv["status"] == "ABERTA" and len(gsv["despejos"]) == 2
+       and len(gsv["resultados"]) == 2)
+checar("mostra a quebra (140 − 135 = 5 sacas)", gsv["quebra_sacas"] == 5)
+nao = api("POST", f"{GS}/{gsv['id']}/fechar", None, tk, esperar_erro=True)
+checar("não fecha com os locais do resultado diferentes das sacas",
+       nao.get("_status") == 400 and "Resultado 2" in str(nao.get("detail")), str(nao.get("detail"))[:100])
+dados_ok = {**base,
+    "despejos": [{"posicao_id": pd1, "sacas": 80}, {"posicao_id": pd2, "sacas": 60}],
+    "resultados": [{"peneira": "17", "padrao": "Liga fina", "sacas": 90,
+                    "locais": [{"quadra_id": qa3["id"], "pilha": "P30", "sacas": 90}]},
+                   {"peneira": "15", "padrao": "Liga comum", "sacas": 45,
+                    "locais": [{"quadra_id": qa3["id"], "pilha": "P31", "sacas": 45}]}]}
+api("PUT", f"{GS}/{gsv['id']}", dados_ok, tk)
+checar("guia aberta não mexe no saldo", saldo(a1["id"], pedro["id"], cod1) == 100)
+gsv = api("POST", f"{GS}/{gsv['id']}/fechar", None, tk)
+checar("fecha a guia de serviço", gsv.get("status") == "FECHADA")
+checar("gera os lotes resultado S1/1 e S1/2", gsv["lotes_resultado"] == ["S1/1", "S1/2"], str(gsv["lotes_resultado"]))
+checar("o despejo parcial sai do saldo (lote 1: 100 → 20; lote 2: 60 → 0)",
+       saldo(a1["id"], pedro["id"], cod1) == 20 and saldo(a1["id"], pedro["id"], cod2) == 0)
+checar("e os resultados entram (90 e 45)",
+       saldo(a1["id"], pedro["id"], "S1/1") == 90 and saldo(a1["id"], pedro["id"], "S1/2") == 45)
+checar("resultado sem peso recebe o peso do despejo pelas sacas (8.400 → 5.600 + 2.800)",
+       [r["peso"] for r in gsv["resultados"]] == [5600, 2800], str([r["peso"] for r in gsv["resultados"]]))
+lotes_p = {l["codigo"]: l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}&depositante_id={pedro['id']}", None, tk)}
+checar("o lote resultado tem peneira, padrão, local e diz de que serviço veio",
+       lotes_p["S1/1"]["peneira"] == "17" and lotes_p["S1/1"]["servico_numero"] == 1
+       and [(p_["quadra_nome"], p_["pilha"]) for p_ in lotes_p["S1/1"]["posicoes"]] == [("A3", "P30")])
+disp = {d["lote_codigo"]: d for d in api(
+    "GET", f"/api/wms/posicoes-disponiveis?empresa_id={eid}&armazem_id={a1['id']}&cliente_id={pedro['id']}", None, tk)}
+checar("a pilha despejada fica com o que sobrou (A3/P20: 20)",
+       disp[cod1]["sacas_disponiveis"] == 20 and cod2 not in disp)
+h1 = api("GET", f"/api/wms/lotes/{lotes_p[cod1]['id']}/historico", None, tk)
+hs = api("GET", f"/api/wms/lotes/{lotes_p['S1/1']['id']}/historico", None, tk)
+checar("o histórico mostra o despejo no lote de origem e o resultado no lote novo",
+       "DESPEJO" in [e["tipo"] for e in h1["eventos"]] and hs["eventos"][0]["tipo"] == "RESULTADO"
+       and cod1 in hs["eventos"][0]["detalhe"])
+nao_entrada = api("POST", f"/api/wms/guias-entrada/{ge['id']}/reabrir", None, tk, esperar_erro=True)
+checar("a guia de entrada dos lotes despejados não reabre",
+       nao_entrada.get("_status") == 400 and "serviço" in str(nao_entrada.get("detail")))
+gsv = api("POST", f"{GS}/{gsv['id']}/reabrir", None, tk)
+checar("reabrir o serviço desfaz: lotes resultado somem e o despejo volta",
+       gsv["status"] == "ABERTA" and saldo(a1["id"], pedro["id"], "S1/1") == 0
+       and saldo(a1["id"], pedro["id"], cod1) == 100)
+gsv = api("POST", f"{GS}/{gsv['id']}/fechar", None, tk)
+checar("fecha de novo e os códigos se repetem (S1/1, S1/2)", gsv["lotes_resultado"] == ["S1/1", "S1/2"])
+s11 = next(l for l in api("GET", f"/api/wms/lotes?empresa_id={eid}&depositante_id={pedro['id']}", None, tk)
+           if l["codigo"] == "S1/1")
+sai = api("POST", "/api/wms/guias-saida", {"empresa_id": eid, "armazem_id": a1["id"], "cliente_id": pedro["id"],
+                                           "itens": [{"posicao_id": s11["posicoes"][0]["id"], "sacas": 10}]}, tk)
+api("POST", f"/api/wms/guias-saida/{sai['id']}/fechar", None, tk)
+nao_reabre = api("POST", f"{GS}/{gsv['id']}/reabrir", None, tk, esperar_erro=True)
+checar("serviço cujo lote resultado já saiu não reabre",
+       nao_reabre.get("_status") == 400 and "saída" in str(nao_reabre.get("detail")))
+de_outro = api("POST", GS, {**base, "cliente_id": maria["id"],
+                            "despejos": [{"posicao_id": pd1, "sacas": 5}],
+                            "resultados": [{"sacas": 5, "locais": [{"quadra_id": qa3["id"], "sacas": 5}]}]}, tk)
+nao_dono = api("POST", f"{GS}/{de_outro['id']}/fechar", None, tk, esperar_erro=True)
+checar("lote de outro cliente não entra no serviço", nao_dono.get("_status") == 400)
+api("POST", f"{GS}/{de_outro['id']}/cancelar", {"motivo": "teste"}, tk)
+sem_res = api("POST", GS, {**base, "despejos": [{"posicao_id": pd1, "sacas": 5}]}, tk)
+nao_res = api("POST", f"{GS}/{sem_res['id']}/fechar", None, tk, esperar_erro=True)
+checar("sem resultado não fecha", nao_res.get("_status") == 400 and "resultado" in str(nao_res.get("detail")).lower())
+demais = api("PUT", f"{GS}/{sem_res['id']}", {**base, "despejos": [{"posicao_id": pd1, "sacas": 21}],
+             "resultados": [{"sacas": 21, "locais": [{"quadra_id": qa3["id"], "sacas": 21}]}]}, tk)
+nao_d = api("POST", f"{GS}/{sem_res['id']}/fechar", None, tk, esperar_erro=True)
+checar("despejar mais do que a pilha tem é recusado",
+       nao_d.get("_status") == 400 and "restam 20,00" in str(nao_d.get("detail")))
+api("POST", f"{GS}/{sem_res['id']}/cancelar", {"motivo": "teste"}, tk)
+lista_s = api("GET", f"{GS}?empresa_id={eid}", None, tk)
+checar("a lista soma despejo e resultado das guias fechadas",
+       lista_s["resumo"]["despejo_sacas"] == 140 and lista_s["resumo"]["resultado_sacas"] == 135,
+       str(lista_s["resumo"]))
+direto = api("POST", "/api/wms/movimentos", {"empresa_id": eid, "tipo": "DESPEJO", "armazem_id": a1["id"],
+                                              "depositante_id": pedro["id"], "lote": cod1, "sacas": 1}, tk,
+             esperar_erro=True)
+checar("despejo solto (sem guia) é recusado", direto.get("_status") == 400)
 
 # =========================================================================== #
 print("\n=== 8. Isolamento entre contas ===")

@@ -6,9 +6,10 @@
    digitado em lugar nenhum: é a soma dos lançamentos, e o botão "Saldo do
    armazém" mostra como ele está agora.
 
-   Entrada, Saída, Transferência e Remoção têm telas próprias — com lotes e
-   posições — em wms_entrada.js, wms_saida.js, wms_transferencia.js e
-   wms_remocao.js; este arquivo cuida de Serviços (e do saldo e dos armazéns).
+   Cada submenu tem a sua tela, com lotes e posições: wms_entrada.js,
+   wms_saida.js, wms_servico.js, wms_transferencia.js e wms_remocao.js. Este
+   arquivo guarda o que é de todas: saldo do armazém, cadastro de armazéns e o
+   roteamento para a tela certa.
 
    O café do armazém é do depositante, não da empresa — por isso este controle
    é separado do Estoque (que tem custo médio e é mercadoria própria). */
@@ -56,6 +57,7 @@ const WMS = {
     if (WMS._tipo === 'SAIDA') return WMSSaida.tela();
     if (WMS._tipo === 'TRANSFERENCIA') return WMSTransf.tela();
     if (WMS._tipo === 'REMOCAO') return WMSRemocao.tela();
+    if (WMS._tipo === 'SERVICO') return WMSServico.tela();
     const alvo = document.getElementById('pagina');
     alvo.innerHTML = '<div class="cartao"><div class="vazio">Carregando...</div></div>';
     try {
@@ -71,6 +73,7 @@ const WMS = {
     if (WMS._tipo === 'SAIDA') return WMSSaida.carregar();
     if (WMS._tipo === 'TRANSFERENCIA') return WMSTransf.carregar();
     if (WMS._tipo === 'REMOCAO') return WMSRemocao.carregar();
+    if (WMS._tipo === 'SERVICO') return WMSServico.carregar();
     const [armazens, dados] = await Promise.all([
       Api.get('/api/wms/armazens', { empresa_id: Estado.empresaId }),
       Api.get('/api/wms/movimentos', {

@@ -78,6 +78,7 @@ const WMSLotes = {
             colunas: [
               { titulo: 'Lote', chave: 'lote', valor: (l) => `<b>${UI.escapar(l.codigo)}</b>
                 <div class="mini">${l.lote_origem_codigo ? `transferido do ${UI.escapar(l.lote_origem_codigo)}`
+                  : l.servico_numero ? `resultado do serviço ${l.servico_numero}`
                   : l.guia_numero ? `guia de entrada ${l.guia_numero}` : ''} · ${UI.data(l.data_entrada)}</div>` },
               { titulo: 'Cliente', valor: (l) => `${UI.escapar(l.depositante_nome)}
                 <div class="mini">${UI.escapar(l.armazem_nome)}</div>` },

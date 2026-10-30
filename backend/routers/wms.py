@@ -56,6 +56,8 @@ TIPOS = {
     "SERVICO": "Serviço",
     "TRANSFERENCIA": "Transferência",
     "REMOCAO": "Remoção",
+    "DESPEJO": "Despejo em serviço",
+    "RESULTADO": "Resultado de serviço",
 }
 
 # serviços mais comuns num armazém de café — a tela sugere, mas aceita outro
@@ -181,9 +183,9 @@ def _somar_saldos(db: Session, empresa_id: int,
     for m in consulta.all():
         lote = _lote(m.lote)
         origem = (m.armazem_id, m.depositante_id, m.produto_id, lote)
-        if m.tipo == "ENTRADA":
+        if m.tipo in ("ENTRADA", "RESULTADO"):      # resultado = lote que sai do serviço
             somar(origem, +1, m)
-        elif m.tipo == "SAIDA":
+        elif m.tipo in ("SAIDA", "DESPEJO"):        # despejo = café que entra no serviço
             somar(origem, -1, m)
         elif m.tipo == "TRANSFERENCIA":
             somar(origem, -1, m)
@@ -350,6 +352,8 @@ def lancar(dados: MovimentoIn, db: Session = Depends(get_db),
         raise HTTPException(
             400, "A entrada agora é feita pela guia de entrada (tela Entrada > Nova guia): "
                  "é ela que gera os lotes e as posições no armazém.")
+    if tipo in ("DESPEJO", "RESULTADO"):
+        raise HTTPException(400, "Despejo e resultado são lançados pela guia de serviço.")
     if tipo == "REMOCAO":
         raise HTTPException(
             400, "A remoção agora é feita pela tela Remoção: escolha o lote e mude os locais "
@@ -445,6 +449,9 @@ def cancelar(movimento_id: int, dados: CancelarIn, db: Session = Depends(get_db)
     validar_empresa(db, movimento.empresa_id, usuario)
     if movimento.status == "CANCELADO":
         raise HTTPException(400, "Este lançamento já está cancelado.")
+    if movimento.guia_servico_id:
+        raise HTTPException(400, "Este lançamento veio de uma guia de serviço: para desfazer, "
+                                 "reabra a guia na tela Serviços.")
     if movimento.guia_remocao_id:
         raise HTTPException(400, "Esta remoção veio da tela Remoção: para desfazer, estorne a "
                                  "remoção lá.")

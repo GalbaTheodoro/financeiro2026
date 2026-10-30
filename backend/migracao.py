@@ -78,8 +78,8 @@ def _permitir_nulo(tabela, colunas: list[str]) -> None:
     """Deixa as colunas aceitarem vazio.
 
     No PostgreSQL é um ALTER COLUMN. O SQLite não sabe alterar coluna, então a
-    tabela é recriada com o formato novo e as linhas são copiadas — nenhuma outra
-    tabela aponta para 'contratos', que é o caso de uso aqui.
+    tabela é recriada com o formato novo e as linhas são copiadas, com os mesmos
+    ids (as tabelas que apontam para ela continuam valendo).
     """
     if _e_postgres():
         with engine.begin() as conexao:
@@ -89,22 +89,57 @@ def _permitir_nulo(tabela, colunas: list[str]) -> None:
                 )
         return
 
-    nomes = ", ".join(f'"{c.name}"' for c in tabela.columns)
     antiga = f"{tabela.name}_antiga_migracao"
     # tudo na mesma conexão: o PRAGMA vale por conexão e não pode estar numa transação
     conexao = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
     try:
         conexao.execute(text("PRAGMA foreign_keys=OFF"))
-        conexao.execute(text(f"DROP TABLE IF EXISTS {antiga}"))
+        # Sem isto, o SQLite moderno reescreve as chaves estrangeiras das OUTRAS
+        # tabelas para apontar para o nome provisório — e elas ficariam apontando
+        # para uma tabela que some logo depois (ex.: lote_posicoes -> lotes_armazem).
+        conexao.execute(text("PRAGMA legacy_alter_table=ON"))
+        _recuperar_tentativa_anterior(conexao, tabela.name, antiga)
         conexao.execute(text(f"ALTER TABLE {tabela.name} RENAME TO {antiga}"))
+        # os índices continuam com o mesmo nome, presos à tabela renomeada; se
+        # ficarem, a tabela nova não consegue criar os dela ("already exists")
+        for (indice,) in conexao.execute(text(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=:t "
+                "AND sql IS NOT NULL"), {"t": antiga}).fetchall():
+            conexao.execute(text(f'DROP INDEX IF EXISTS "{indice}"'))
         tabela.create(bind=conexao)
+        antigas = {linha[1] for linha in conexao.execute(text(f'PRAGMA table_info("{antiga}")'))}
+        nomes = ", ".join(f'"{c.name}"' for c in tabela.columns if c.name in antigas)
         conexao.execute(
             text(f"INSERT INTO {tabela.name} ({nomes}) SELECT {nomes} FROM {antiga}")
         )
         conexao.execute(text(f"DROP TABLE {antiga}"))
     finally:
+        conexao.execute(text("PRAGMA legacy_alter_table=OFF"))
         conexao.execute(text("PRAGMA foreign_keys=ON"))
         conexao.close()
+
+
+def _recuperar_tentativa_anterior(conexao, nome: str, antiga: str) -> None:
+    """Uma recriação que parou no meio deixa a tabela provisória com os dados.
+
+    Antes de recomeçar, devolve os dados para o lugar certo — nunca apaga a
+    provisória se ela é quem tem as linhas.
+    """
+    def existe(t):
+        return conexao.execute(text(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=:t"), {"t": t}).first()
+
+    def linhas(t):
+        return conexao.execute(text(f'SELECT COUNT(*) FROM "{t}"')).scalar() or 0
+
+    if not existe(antiga):
+        return
+    if existe(nome) and linhas(nome) > 0:
+        conexao.execute(text(f'DROP TABLE "{antiga}"'))        # sobra de uma vez que deu certo
+        return
+    if existe(nome):
+        conexao.execute(text(f'DROP TABLE "{nome}"'))          # tabela nova vazia de uma vez que parou
+    conexao.execute(text(f'ALTER TABLE "{antiga}" RENAME TO "{nome}"'))
 
 
 def migrar() -> list[str]:

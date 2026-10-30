@@ -73,10 +73,12 @@ router = APIRouter(prefix="/api/wms", tags=["wms"],
 
 def saidas_por_posicao(db: Session, empresa_id: int,
                        ignorar_guia_id: int | None = None,
-                       ignorar_transferencia_id: int | None = None) -> dict[int, dict]:
+                       ignorar_transferencia_id: int | None = None,
+                       ignorar_servico_id: int | None = None) -> dict[int, dict]:
     """Quanto já deixou cada posição (quadra + pilha): o que saiu pelas guias de
-    saída fechadas e o que passou para outro dono pelas guias de transferência
-    fechadas (esse café vira posição do lote novo)."""
+    saída fechadas, o que passou para outro dono pelas guias de transferência
+    fechadas (esse café vira posição do lote novo) e o que foi despejado nas
+    guias de serviço fechadas (vira os lotes resultado)."""
     from ..models import GuiaSaida, GuiaSaidaItem, GuiaTransferencia, GuiaTransferenciaItem
 
     total: dict[int, dict] = {}
@@ -103,6 +105,16 @@ def saidas_por_posicao(db: Session, empresa_id: int,
     if ignorar_transferencia_id:
         transf = transf.filter(GuiaTransferencia.id != ignorar_transferencia_id)
     juntar(transf.group_by(GuiaTransferenciaItem.posicao_id).all())
+
+    from ..models import GuiaServico, GuiaServicoDespejo
+
+    despejos = (db.query(GuiaServicoDespejo.posicao_id, func.sum(GuiaServicoDespejo.sacas),
+                         func.sum(GuiaServicoDespejo.peso))
+                .join(GuiaServico, GuiaServico.id == GuiaServicoDespejo.guia_id)
+                .filter(GuiaServico.empresa_id == empresa_id, GuiaServico.status == "FECHADA"))
+    if ignorar_servico_id:
+        despejos = despejos.filter(GuiaServico.id != ignorar_servico_id)
+    juntar(despejos.group_by(GuiaServicoDespejo.posicao_id).all())
     return total
 
 
@@ -585,6 +597,18 @@ def reabrir_guia(guia_id: int, db: Session = Depends(get_db),
         raise HTTPException(
             400, f"Não dá para reabrir a guia {guia.numero}: os lotes dela mudaram de local "
                  f"(remoção {numeros}). Estorne a(s) remoção(ões) primeiro.")
+    from ..models import GuiaServico, GuiaServicoDespejo
+
+    em_servico = (db.query(GuiaServico.numero)
+                  .join(GuiaServicoDespejo, GuiaServicoDespejo.guia_id == GuiaServico.id)
+                  .join(LoteArmazem, LoteArmazem.id == GuiaServicoDespejo.lote_id)
+                  .filter(LoteArmazem.guia_id == guia.id, GuiaServico.status != "CANCELADA")
+                  .distinct().all())
+    if em_servico:
+        numeros = ", ".join(str(n[0]) for n in em_servico)
+        raise HTTPException(
+            400, f"Não dá para reabrir a guia {guia.numero}: os lotes dela estão na(s) guia(s) "
+                 f"de serviço {numeros}. Reabra e tire os itens (ou cancele) essas guias primeiro.")
     em_transf = (db.query(GuiaTransferencia.numero)
                  .join(GuiaTransferenciaItem, GuiaTransferenciaItem.guia_id == GuiaTransferencia.id)
                  .join(LoteArmazem, LoteArmazem.id == GuiaTransferenciaItem.lote_id)
@@ -690,6 +714,13 @@ def _amostras_dos_lotes(db: Session, ids: list[int]) -> dict:
         AmostraCafe.lote_armazem_id.in_(ids))}
 
 
+def _servico_numero(db: Session, guia_servico_id: int):
+    from ..models import GuiaServico
+
+    g = db.get(GuiaServico, guia_servico_id)
+    return g.numero if g else None
+
+
 @router.post("/lotes/{lote_id}/amostra")
 def amostra_do_lote(lote_id: int, db: Session = Depends(get_db),
                     usuario: Usuario = Depends(acesso_liberado)):
@@ -774,6 +805,7 @@ def listar_lotes(empresa_id: int, armazem_id: int | None = None,
         amostra = amostras.get(lote.id)
         saida.append(serializar(lote, extras={
             "guia_numero": lote.guia_id and db.get(GuiaEntrada, lote.guia_id).numero,
+            "servico_numero": lote.guia_servico_id and _servico_numero(db, lote.guia_servico_id),
             "lote_origem_codigo": origens.get(lote.lote_origem_id),
             "saldo_peso": round(saldos.get(chave, {"peso_kg": 0.0})["peso_kg"], 2),
             "saldo_total": round(total["sacas"], 2),

@@ -1034,7 +1034,7 @@ grupo próprio da barra lateral, com cinco telas:
 | **Lotes** | não mexe: mostra cada lote, onde está, o saldo e a amostra (botão *Classificar*) |
 | **Entrada** | pela **guia de entrada** (abaixo): ao fechar, cada lote soma no saldo |
 | **Saídas** | pela **guia de saída** (abaixo): ao fechar, tira do lote e da quadra/pilha |
-| **Serviços** | rebenefício, padronização, ensaque, armazenagem... registra o serviço e o valor, sem mexer no saldo |
+| **Serviços** | pela **guia de serviço** (liga, rebenefício...): despejo de lotes (−) e lotes resultado (+) |
 | **Transferências** | pela **guia de transferência** (abaixo): o lote muda de dono e ganha número novo com "T" |
 | **Remoção** | muda o lote de lugar (quadra/pilha, ou de armazém com o lote inteiro), com histórico |
 
@@ -1071,6 +1071,15 @@ grupo próprio da barra lateral, com cinco telas:
   (1/1 → 1/1T; se já existir, 1/1T2, 1/1T3… — nunca fica número repetido), com a mesma
   peneira, padrão, unidade e valor por saca, nas mesmas quadras e pilhas. O lote de origem
   e as pilhas dele perdem essas sacas. *Reabrir* desfaz, enquanto o lote novo não saiu.
+- **Guia de serviço** (liga, rebenefício, catação...). Cabeçalho: número, data, data de início e
+  de fim, armazém, cliente, serviço, produto, valor cobrado e observação. **Despejo**: os lotes
+  do cliente por posição (quadra/pilha), quantas sacas entram — vários lotes, parte de cada.
+  **Resultado**: um ou vários lotes com peneira, padrão, sacas, peso e locais. A tela mostra
+  despejo → resultado = **quebra**. *Fechar guia e gerar lotes* tira o despejo das pilhas e do
+  saldo e cria os lotes resultado com código **S<nº da guia>/<seq>** (S7/1, S7/2), do mesmo
+  cliente; resultado sem peso recebe o peso do despejo pelas sacas. *Reabrir* desfaz enquanto
+  os lotes resultado não foram usados. O histórico do lote mostra "despejado no serviço" e
+  "resultado do serviço".
 - **Remoção (mudança de local).** *Nova remoção*: escolhe o lote e aparecem todos os locais
   dele (quadra e pilha, com o que resta). Em cada local, quantas sacas vão (pode ser parte, ou
   *Tudo*) e para que quadra e pilha. No mesmo armazém pode mover parte; para **outro armazém**
@@ -1098,8 +1107,8 @@ grupo próprio da barra lateral, com cinco telas:
   *Configurações do site > Menus de cada plano* fica como está.
 
 Código: `backend/routers/wms.py`, `wms_entrada.py`, `wms_saida.py` e `wms_transferencia.py`;
-`frontend/js/wms.js`, `wms_lotes.js`, `wms_entrada.js`, `wms_saida.js`, `wms_transferencia.js`
-e `wms_remocao.js`; `backend/routers/wms_remocao.py`.
+`frontend/js/wms.js`, `wms_lotes.js`, `wms_entrada.js`, `wms_saida.js`, `wms_servico.js`,
+`wms_transferencia.js` e `wms_remocao.js`; `backend/routers/wms_servico.py` e `wms_remocao.py`.
 Teste: `python testes/teste_wms.py`.
 
 ### Vendas e Margens
@@ -1735,6 +1744,7 @@ Sem precisar de servidor:
 python testes/teste_cotacoes.py     # faixa de cotações, com respostas gravadas
 python testes/teste_mercado.py      # painel Mercado do Café, com respostas gravadas
 python testes/teste_migracao.py     # atualização de um banco antigo para o formato novo
+python testes/teste_migracao_nulo.py  # recriação de tabela no SQLite (coluna que deixa de ser obrigatória)
 ```
 
 Com o banco na nuvem (o servidor precisa estar apontando para o mesmo endereço):

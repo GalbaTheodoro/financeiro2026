@@ -369,7 +369,20 @@ def historico(lote_id: int, db: Session = Depends(get_db),
                         "sacas": round(float(sacas or 0), 2), "sinal": sinal,
                         "situacao": situacao})
 
-    if lote.lote_origem_id:
+    from ..models import GuiaServico, GuiaServicoDespejo
+
+    if lote.guia_servico_id:
+        gs = db.get(GuiaServico, lote.guia_servico_id)
+        resultado = next((r for r in (gs.resultados if gs else []) if r.lote_gerado_id == lote.id), None)
+        origens = sorted({d.lote.codigo for d in (gs.despejos if gs else []) if d.lote})
+        evento(lote.data_entrada, lote.criado_em, "RESULTADO",
+               f"Resultado do serviço nº {gs.numero if gs else '?'}"
+               + (f" — {gs.servico}" if gs and gs.servico else ""),
+               (f"dos lotes {', '.join(origens)} · " if origens else "")
+               + _lista_lugares((_lugar(x.quadra, x.pilha), float(x.sacas))
+                                for x in (resultado.locais if resultado else [])),
+               lote.sacas, "+")
+    elif lote.lote_origem_id:
         origem = db.get(LoteArmazem, lote.lote_origem_id)
         guia_t = db.get(GuiaTransferencia, lote.guia_transferencia_id) if lote.guia_transferencia_id else None
         itens = [i for i in (guia_t.itens if guia_t else []) if i.lote_novo_id == lote.id]
@@ -426,6 +439,19 @@ def historico(lote_id: int, db: Session = Depends(get_db),
                f"(lote {', '.join(novos)}) — guia de transferência nº {guia.numero}",
                _lista_lugares((_lugar(i.posicao.quadra, i.posicao.pilha), float(i.sacas)) for i in itens),
                sum(float(i.sacas) for i in itens), "-")
+
+    servicos = (db.query(GuiaServico)
+                .join(GuiaServicoDespejo, GuiaServicoDespejo.guia_id == GuiaServico.id)
+                .filter(GuiaServicoDespejo.lote_id == lote.id, GuiaServico.status == "FECHADA")
+                .distinct().all())
+    for guia in servicos:
+        itens = [d for d in guia.despejos if d.lote_id == lote.id]
+        gerados = [r.lote_gerado.codigo for r in guia.resultados if r.lote_gerado]
+        evento(guia.data_fim or guia.data, guia.fechada_em, "DESPEJO",
+               f"Despejado no serviço nº {guia.numero}" + (f" — {guia.servico}" if guia.servico else "")
+               + (f" (gerou {', '.join(gerados)})" if gerados else ""),
+               _lista_lugares((_lugar(d.posicao.quadra, d.posicao.pilha), float(d.sacas)) for d in itens),
+               sum(float(d.sacas) for d in itens), "-")
 
     eventos.sort(key=lambda e: (e["data"] or "", e["quando"]))
     saiu = saidas_por_posicao(db, lote.empresa_id)
